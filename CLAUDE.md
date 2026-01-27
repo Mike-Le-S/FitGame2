@@ -1,10 +1,10 @@
-/sk# CLAUDE.md
+# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Important
 
-**Before any frontend/UI modification**, always read `/Users/mike/projects/FitGame2/DESIGN_SYSTEM.md` to ensure consistency with the design system.
+**Before any frontend/UI modification**, always read `/Users/mike/projects/FitGame2/fitgame/DESIGN_SYSTEM.md` to ensure consistency with the design system.
 
 ## Commands
 
@@ -32,7 +32,7 @@ flutter pub get
 
 ## Architecture
 
-FitGame is a Flutter fitness gamification app with a custom dark theme design system.
+FitGame is a Flutter fitness app with a custom dark theme design system.
 
 ### Project Structure
 
@@ -62,3 +62,12 @@ Custom widgets use `FG` prefix: `FGGlassCard`, `FGNeonButton`
 ### Theme Usage
 
 Always use `AppTheme.dark` - the app is dark-mode only. Access design tokens via the abstract classes (`FGColors.accent`, `FGTypography.h1`, etc.) rather than hardcoding values.
+
+## Mémoire du Projet
+
+**OBLIGATION après chaque tâche terminée :**
+1. Mettre à jour `fitgame/docs/CHANGELOG.md` → Date + description de ce qui a été fait
+2. Mettre à jour `fitgame/docs/SCREENS.md` → Si un écran a été ajouté ou modifié
+3. Mettre à jour `fitgame/docs/COMPONENTS.md` → Si un composant a été créé ou modifié
+
+**En début de conversation :** Lire ces 3 fichiers pour comprendre l'état actuel du projet.
