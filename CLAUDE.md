@@ -2,72 +2,97 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Important
+## Règles importantes
 
-**Before any frontend/UI modification**, always read `/Users/mike/projects/FitGame2/fitgame/DESIGN_SYSTEM.md` to ensure consistency with the design system.
+- **TOUJOURS utiliser `/frontend-design`** lors de toute modification ou création de frontend/UI
+- **Ne JAMAIS lancer l'app** (`flutter run`) - Mike lance l'app dans son propre terminal
+- **Après chaque tâche** : Mettre à jour `fitgame/docs/CHANGELOG.md` et `fitgame/docs/SCREENS.md`
 
-## Commands
+## Commandes
 
 ```bash
-# Run the app
-flutter run
-
-# Run on specific device
-flutter run -d ios
-flutter run -d android
-flutter run -d macos
-
-# Analyze code
-flutter analyze
-
-# Run tests
-flutter test
-
-# Run single test file
-flutter test test/widget_test.dart
-
-# Get dependencies
-flutter pub get
+flutter analyze              # Vérifier le code
+flutter test                 # Lancer les tests
+flutter pub get              # Installer les dépendances
 ```
 
-## Architecture
-
-FitGame is a Flutter fitness app with a custom dark theme design system.
-
-### Project Structure
+## Architecture complète
 
 ```
-lib/
+fitgame/lib/
+├── main.dart                              # Entry point + MainNavigation (5 onglets)
+│
 ├── core/
-│   ├── constants/     # App-wide constants (spacing)
-│   └── theme/         # Design system (colors, typography, effects, theme)
-├── shared/
-│   └── widgets/       # Reusable UI components (FGGlassCard, FGNeonButton)
-└── main.dart          # App entry point
+│   ├── constants/spacing.dart             # Grille 8px (xs/sm/md/lg/xl/xxl)
+│   ├── models/                            # Models partagés (exercise, workout_set)
+│   └── theme/
+│       ├── fg_colors.dart                 # Palette couleurs
+│       ├── fg_typography.dart             # Typographie
+│       ├── fg_effects.dart                # Blur, glow, shadows
+│       └── app_theme.dart                 # ThemeData
+│
+├── shared/widgets/
+│   ├── fg_glass_card.dart                 # Card glassmorphism
+│   └── fg_neon_button.dart                # Bouton CTA avec glow
+│
+└── features/
+    ├── home/home_screen.dart              # Onglet 1: Accueil
+    ├── workout/                           # Onglet 2: Entraînement
+    ├── nutrition/                         # Onglet 3: Nutrition
+    ├── health/                            # Onglet 4: Santé
+    └── profile/profile_screen.dart        # Onglet 5: Profil
 ```
 
-### Design System
+## Écrans principaux (chemins exacts)
 
-All UI follows the FitGame design system with `FG` prefix:
+| Écran | Fichier | Description |
+|-------|---------|-------------|
+| **Navigation** | `lib/main.dart` | Bottom nav 5 onglets |
+| **Accueil** | `lib/features/home/home_screen.dart` | Streak, stats, séance du jour |
+| **Entraînement** | `lib/features/workout/workout_screen.dart` | Dashboard programmes |
+| **Nutrition** | `lib/features/nutrition/nutrition_screen.dart` | Planificateur diète |
+| **Santé** | `lib/features/health/health_screen.dart` | Énergie, Sommeil, Cœur |
+| **Profil** | `lib/features/profile/profile_screen.dart` | Réglages, préférences |
 
-- **Colors** (`FGColors`): Dark background (#050505), orange accent (#FF6B35), glass surfaces
-- **Typography** (`FGTypography`): Black (w900) italic headlines, tight letter-spacing (-0.05em)
-- **Effects** (`FGEffects`): Glass blur (20px), neon glow shadows
-- **Spacing** (`Spacing`): xs(4), sm(8), md(16), lg(24), xl(32), xxl(48)
+## Sous-écrans Workout
 
-### Widget Naming
+| Écran | Fichier |
+|-------|---------|
+| Choix création | `lib/features/workout/create/create_choice_screen.dart` |
+| Création programme | `lib/features/workout/create/program_creation_flow.dart` |
+| Création séance | `lib/features/workout/create/session_creation_screen.dart` |
+| Tracking workout | `lib/features/workout/tracking/active_workout_screen.dart` |
 
-Custom widgets use `FG` prefix: `FGGlassCard`, `FGNeonButton`
+## Structure d'un feature
 
-### Theme Usage
+Chaque feature suit ce pattern :
+```
+features/{name}/
+├── {name}_screen.dart       # Écran principal
+├── sheets/                  # Bottom sheets
+├── widgets/                 # Widgets spécifiques
+├── painters/                # CustomPainters (si graphs/jauges)
+├── modals/                  # Modales (si popup)
+└── models/                  # Models locaux (si besoin)
+```
 
-Always use `AppTheme.dark` - the app is dark-mode only. Access design tokens via the abstract classes (`FGColors.accent`, `FGTypography.h1`, etc.) rather than hardcoding values.
+## Design System
 
-## Mémoire du Projet
+| Token | Classe | Exemples |
+|-------|--------|----------|
+| Couleurs | `FGColors` | `.background`, `.accent`, `.glassSurface`, `.success`, `.warning` |
+| Typo | `FGTypography` | `.h1`, `.h2`, `.h3`, `.body`, `.bodySmall`, `.caption` |
+| Spacing | `Spacing` | `.xs(4)`, `.sm(8)`, `.md(16)`, `.lg(24)`, `.xl(32)`, `.xxl(48)` |
+| Effets | `FGEffects` | `.glassBlur`, `.neonGlow` |
 
-**OBLIGATION après chaque tâche terminée :**
-1. Mettre à jour `fitgame/docs/CHANGELOG.md` → Date + description de ce qui a été fait
-2. Mettre à jour `fitgame/docs/SCREENS.md` → Si un écran a été ajouté ou modifié
-3. Mettre à jour `fitgame/docs/COMPONENTS.md` → Si un composant a été créé ou modifié
+**Règles UI :**
+- Toujours dark mode (`FGColors.background` = #050505)
+- Accent orange (`FGColors.accent` = #FF6B35)
+- Widgets custom préfixés `FG` : `FGGlassCard`, `FGNeonButton`
+- Headlines en italic bold (w900)
 
-**En début de conversation :** Lire ces 3 fichiers pour comprendre l'état actuel du projet.
+## Documentation détaillée
+
+Pour les détails de chaque écran (composants, bottom sheets, mock data) :
+- `fitgame/docs/SCREENS.md` - Documentation complète des écrans
+- `fitgame/docs/CHANGELOG.md` - Historique des modifications
