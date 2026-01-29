@@ -1,7 +1,359 @@
 # Changelog FitGame
 
+## 2026-01-28 (Suite) - Refactorisation majeure des screens
+- **Refactorisation complète** pour améliorer la maintenabilité et réduire la complexité des fichiers
+- **Objectif** : Réduire les fichiers massifs (>1400 lignes) à des tailles gérables (<700 lignes)
+
+### Nutrition Feature (1,504 → 901 lignes, -40%)
+- **Widgets créés** (6 fichiers):
+  - `macro_pill.dart` - Badge compact pour afficher valeurs macro (P/C/F)
+  - `quick_action_button.dart` - Bouton d'action rapide (Générer IA, Bibliothèque, etc.)
+  - `food_item.dart` - Item aliment avec nom, quantité, macros et calories
+  - `meal_card.dart` - Card repas extensible avec liste d'aliments (StatefulWidget)
+  - `macro_dashboard.dart` - Dashboard calories avec ring principal + breakdown macros
+  - `day_selector.dart` - Sélecteur de jour avec mini progress rings
+
+### Workout Tracking Feature (1,407 → 610 lignes, -57%)
+- **Widgets créés** (8 fichiers):
+  - `workout_header.dart` - Header avec exercice, muscle, progression et timer
+  - `stats_bar.dart` - Barre de stats (volume, séries, kcal)
+  - `set_card.dart` - Card principale affichant poids/reps cible + record
+  - `exercise_navigation.dart` - Dots de navigation entre exercices avec haptics
+  - `set_indicators.dart` - Indicateurs de progression des séries
+  - `weight_reps_input.dart` - Inputs poids/reps avec boutons +/- et number picker
+  - `rest_timer_view.dart` - Vue repos avec timer circulaire et preview prochaine série
+  - `pr_celebration.dart` - Overlay de célébration pour nouveau record
+
+### Health Feature (déjà refactorisé)
+- Statut : 778 lignes (painters, models, sheets, modals déjà extraits)
+
+### Résultats globaux
+- **Total initial** : ~5,849 lignes dans 3 screens
+- **Total final** : 2,288 lignes (-61% de réduction)
+- **Fichiers widgets créés** : 14 nouveaux composants réutilisables
+- **Impact** : Facilite grandement le travail de Claude et la maintenance du code
+
 ## 2025-01-27
 - Création projet Flutter avec `flutter create`
 - Design system de base : FGColors, FGTypography, FGEffects, Spacing
 - Composants créés : FGGlassCard, FGNeonButton
 - Écran de test : DesignSystemTestScreen dans main.dart
+
+## 2026-01-27
+- Suppression de DesignSystemTestScreen (écran temporaire)
+- Création de HomeScreen (`lib/features/home/home_screen.dart`) - écran d'accueil principal
+- **Refonte complète HomeScreen** - Design premium avec hiérarchie visuelle forte
+  - Mesh gradient animé : 2 orbes orange pulsants (3s cycle) pour l'atmosphère
+  - Header avec avatar utilisateur (initiale + gradient)
+  - **Hero Streak** : Nombre géant 96px orange italic avec glow, label "SÉRIE EN COURS"
+  - Badge titre dynamique (DÉBUTANT → IMMORTEL) avec bordure accent
+  - Stats en ligne : 3 pills compacts (séances, temps, kcal) au lieu de card
+  - **Séance du jour** : Card avec header gradient accent, badge "AUJOURD'HUI", tags muscles (primary/secondary)
+  - Dernière séance : Ligne subtile avec icône success, pas de card
+  - CTA fixe en bas avec gradient fade vers le fond
+- Refactoring de main.dart : nettoyage et import du HomeScreen
+- **WorkoutScreen** - Nouvel écran de gestion d'entraînement (`lib/features/workout/workout_screen.dart`)
+  - Programme actif : Card avec badge "ACTIF" vert, progression semaine X/Y, barre de progression séances
+  - Actions rapides : 2 cards pour "Créer Programme" et "Créer Séance" avec icônes accent
+  - Import : Card avec bottom sheet pour importer depuis CSV, PDF ou Photo
+  - Liste programmes : Cards avec indicateur actif (point vert lumineux), infos semaines/fréquence
+  - Liste séances : Cards avec muscles tags, bouton "GO" pour démarrer rapidement
+  - Mesh gradient animé (position différente de HomeScreen pour variété)
+  - Empty states élégants pour listes vides
+- **MainNavigation** - Bottom navigation bar ajoutée à main.dart
+  - 2 onglets : Accueil (home icon) et Entraînement (fitness icon)
+  - Style custom avec accent orange sur sélection
+  - IndexedStack pour conserver l'état des écrans
+- **Refonte complète WorkoutScreen** - Simplification radicale de l'interface
+  - Supprimé : compteur de jours, gros titre programme en haut de page, barre progression encombrante
+  - **Next Session Card** : Hero card glassmorphism avec badge "PROCHAINE", nom séance en h1, muscles, icône play
+  - **Program Card** : Card compacte avec progress ring circulaire (%), nom programme, semaine X/Y, tap → bottom sheet
+  - **Récent** : Liste minimaliste des 3 dernières séances avec volume et date
+  - **Quick Actions** : 3 boutons compacts (Modifier, Historique, Séance libre)
+  - **Bottom Sheet programmes** : DraggableScrollableSheet avec liste programmes et bouton nouveau
+  - Empty state épuré pour utilisateurs sans programme
+  - Code réduit de ~1400 lignes à ~900 lignes
+- **HealthScreen** - Nouvel écran Santé avec données Apple HealthKit (`lib/features/health/health_screen.dart`)
+  - **Sommeil** : Durée totale hero (7h23 en violet), score calculé (EXCELLENT/BON/MOYEN/FAIBLE)
+    - 4 jauges par phase : Profond, Léger, REM, Éveillé
+    - Indicateur vert/orange/rouge selon recommandations scientifiques
+    - Zone idéale affichée sur chaque jauge (ex: "Idéal: 13-23%")
+    - Descriptions : "Récupération physique", "Mémoire & apprentissage", etc.
+  - **Énergie** : Ring circulaire CustomPainter avec consommé (cyan) vs dépensé (orange)
+    - Affichage déficit/surplus au centre avec couleur contextuelle
+    - Stats : Consommé, Dépensé, Objectif avec icônes
+  - **Activité** : Pas et distance en cards, breakdown calories par activité
+    - Barres animées : BMR, Marche, Course, Musculation
+  - **Cœur** : Fréquence repos, VFC avec badges status (ATHLÈTE/EXCELLENT/BON/NORMAL/ÉLEVÉ)
+    - Moyenne et Max en card glassmorphism
+  - Mesh gradient violet/cyan (différent des autres pages)
+  - Animations jauges au chargement (1.5s ease)
+- **MainNavigation** mis à jour : 3 onglets (Accueil, Entraînement, Santé)
+- **Refonte HealthScreen** - Cartes expandables avec bottom sheets détaillés
+  - 3 cartes principales : Énergie, Sommeil, Cœur (tap → bottom sheet)
+  - Chaque carte a une icône dans un carré coloré + chevron indicateur
+  - Haptic feedback au tap (lightImpact)
+  - **Sleep Detail Sheet** : 5 jauges CustomPainter avec gradient rouge→jaune→vert
+    - Sommeil profond (13-23% idéal)
+    - Sommeil core/N1+N2 (45-55% idéal)
+    - Sommeil paradoxal/REM (20-25% idéal)
+    - Temps éveillé (<5% idéal, jauge inversée)
+    - Temps d'endormissement (10-20min idéal)
+    - Curseur blanc animé avec glow sur chaque jauge
+    - Badge status (Optimal/Insuffisant/Élevé) pour chaque métrique
+    - Efficacité sommeil calculée (temps sommeil / temps au lit)
+  - **Energy Detail Sheet** : Stats détaillées + breakdown activités
+    - Balance calorique avec séparateurs visuels
+    - Barres de progression par type d'activité
+    - Cards pas/distance
+  - **Heart Detail Sheet** : Métriques cardiaques avancées
+    - FC repos avec description contextuelle
+    - Min/Moyenne/Max en cards
+    - VFC avec status de récupération
+    - VO₂ Max avec status fitness
+- **Refonte Sleep Detail Sheet** - Layout compact avec toutes les jauges visibles
+  - Header compact : icône réduite (40px), titre + badge efficacité alignés à droite
+  - **5 jauges visibles sans scroll** : hauteur réduite (16px vs 32px), padding minimal
+  - Chaque jauge : point coloré + label + icône info (ⓘ) + valeur + badge status
+  - **Icône info tappable** : Ouvre modale éducative pour chaque phase de sommeil
+  - **SleepInfoModal** : Description, bénéfices, impact fitness, zone idéale
+  - Contenu éducatif complet pour : Profond, Core, REM, Éveillé, Latence
+  - Painters renommés : _CompactSleepGaugePainter, _CompactLatencyGaugePainter
+  - Code optimisé : jauges 50% plus petites, même lisibilité
+- **Refonte complète Heart Card & Heart Detail Sheet** - Jauges et historique
+  - **Carte Cœur principale** :
+    - Nouvelle disposition : 2 métriques principales (Repos + VFC) au lieu de 3
+    - Chaque métrique affiche valeur + unité + badge status coloré
+    - Badge status avec couleurs contextuelles (vert=bon, jaune=moyen, rouge=faible)
+    - Subtitle "Dernière nuit" pour clarifier les données
+  - **Heart Detail Sheet** complètement réécrit :
+    - **Onglets historique** : "Aujourd'hui", "7 jours", "14 jours" avec tab selector animé
+    - **Vue Aujourd'hui** :
+      - 2 jauges CustomPainter (FC Repos, VFC) avec même style que Sleep
+      - Curseur lumineux + gradient couleur (cyan→vert→jaune→rouge)
+      - Icône info tappable → modale éducative
+      - Stats nuit : Min/Moy/Max en mini cards
+      - VO₂ Max card avec status
+    - **Vue Historique (7/14 jours)** :
+      - Cards résumé : FC Repos moyenne + VFC moyenne + tendance
+      - Graphique barres : évolution VFC sur 7 jours avec couleurs
+      - Liste détail par jour : indicateur couleur + valeurs + icône tendance
+    - **HeartInfoModal** : Descriptions éducatives pour FC repos, VFC, VO₂ Max
+      - Bénéfices santé, impact entraînement, zone idéale
+    - **_HeartGaugePainter** : Custom painter dédié aux métriques cardiaques
+      - Support `higherIsBetter` pour VFC (gradient inversé)
+      - Glow lumineux autour du curseur
+    - **Mock historical data** : 7 jours de données FC/VFC pour démo
+- **Flow Création Programme/Séance** - Nouveau système complet de création
+  - **Bouton "+"** ajouté en haut à droite de WorkoutScreen
+  - **CreateChoiceScreen** (`lib/features/workout/create/create_choice_screen.dart`)
+    - Écran de choix : Programme vs Séance unique
+    - Cards descriptives avec animations et glow
+    - Navigation fluide avec slide transition
+  - **ProgramCreationFlow** (`lib/features/workout/create/program_creation_flow.dart`)
+    - Flow 3 étapes avec PageView et indicateur progression
+    - Étape 1 : Nom du programme avec suggestions cliquables
+    - Étape 2 : Durée & Cycle combinés
+      - Toggle "Activer un cycle" (OFF = programme infini ∞)
+      - Si cycle ON : durée (1-24 sem) + option deload
+      - Config deload : fréquence (après X sem) + réduction poids (slider 20-60%)
+      - Info card contextuelle dynamique
+    - Étape 3 : Sélection jours (L-M-M-J-V-S-D) avec badges animés
+    - Validation par étape avec bouton conditionnel
+  - **SessionCreationScreen** (`lib/features/workout/create/session_creation_screen.dart`)
+    - Création rapide de séance unique
+    - Filtres par groupes musculaires (chips)
+    - Liste exercices suggérés avec sélection tap
+    - Ajout exercice personnalisé via bottom sheet
+    - Liste réordonnableordonnable (drag & drop) des exercices
+    - Compteur exercices en header
+- **ProgramCreationFlow - Étape 4 Exercices par Jour** - Nouvelle étape de configuration
+  - Flow étendu à 4 étapes (nom → cycle → jours → exercices)
+  - **Navigation par onglets** : Un onglet par jour d'entraînement sélectionné (Lun, Mer, Ven...)
+    - Badge compteur d'exercices sur chaque onglet
+    - Bordure verte si au moins 1 exercice configuré
+    - Animation glow orange sur onglet actif
+  - **Résumé du jour** : Card avec lettre du jour + nom complet + compteur exercices + check vert si configuré
+  - **Catalogue d'exercices** : 20 exercices pré-configurés, groupés par muscle
+    - Pectoraux, Dos, Épaules, Biceps, Triceps, Jambes, Abdos
+    - Chaque exercice cliquable pour ajouter/retirer
+    - Visuel vert avec check quand ajouté
+  - **Liste séance du jour** : ReorderableListView avec drag-and-drop
+    - Numérotation automatique (1, 2, 3...)
+    - Affichage sets×reps cliquable → bottom sheet édition
+    - Bouton suppression par exercice
+  - **Bottom sheet édition exercice** : Modifier sets (1-10) et reps (1-30) avec number pickers
+  - **Bottom sheet exercice personnalisé** :
+    - Champ nom
+    - Sélecteur groupe musculaire (7 chips)
+    - Number pickers sets/reps
+  - **Validation** : Bouton "Créer le programme" actif uniquement si chaque jour a au moins 1 exercice
+- **ProfileScreen** - Nouvel écran Profil complet (`lib/features/profile/profile_screen.dart`)
+  - **Carte Profil** : Avatar avec initiale + gradient orange glow, nom, email, bouton édition
+  - **Stats utilisateur** : 3 métriques (séances totales, jours série, membre depuis) avec dividers
+  - **Notifications** : Section complète avec toggles animés
+    - Toggle master "Notifications" activant/désactivant les sous-options
+    - Sub-toggles : Rappels séances, Jours de repos, Alertes progression
+    - Switches custom avec animation bounce et glow orange
+  - **Préférences** :
+    - Unité de poids (kg/lbs) avec segmented control animé
+    - Langue (Français/English) avec segmented control
+    - Apple Health : status connexion avec badge vert "Connecté"
+    - Sauvegarde iCloud : status avec badge vert
+  - **À propos** : Liens navigation (Noter l'app, Aide, CGU, Confidentialité)
+  - Mesh gradient animé (position différente des autres écrans)
+  - Haptic feedback sur tous les toggles et boutons
+  - Version app en footer
+- **MainNavigation** mis à jour : 4 onglets (Accueil, Entraînement, Santé, Profil)
+- **NutritionScreen** - Planificateur de diète hebdomadaire complet (`lib/features/nutrition/nutrition_screen.dart`)
+  - **Concept** : Planification semaine vs logging quotidien (différent de MyFitnessPal)
+  - **Header** : Titre + chip objectif (Prise/Sèche/Maintien) + bouton génération IA (sparkle orange)
+  - **Sélecteur jour** : 7 jours en horizontal avec :
+    - Point orange lumineux sur jours d'entraînement
+    - Mini progress rings montrant % calories
+    - Swipe ou tap pour naviguer (PageView)
+  - **Dashboard Macros** :
+    - Calories hero animées avec compteur qui s'incrémente
+    - Progress ring principal (vert 90-110%, jaune >110%, orange sinon)
+    - 3 mini rings P/G/L avec couleurs distinctes (rouge/bleu/jaune)
+  - **Badge Training** : Affiché sur jours d'entraînement avec icône haltère
+  - **4 repas par jour** : Cards expandables (Petit-déj, Déjeuner, Collation, Dîner)
+    - Header : icône thématique + nom + nombre aliments + calories + protéines
+    - Contenu : liste aliments avec pills macros colorés (P/C/F)
+    - Tap aliment → édition quantité (slider 0.25x-3x)
+    - Bouton "+ Ajouter un aliment"
+  - **Quick Actions** : Dupliquer jour / Réinitialiser / Partager
+  - **Bottom Sheet Objectif** : 3 options avec descriptions (Prise/Sèche/Maintien)
+  - **Bottom Sheet Génération IA** :
+    - Toggle ajustement jours training (+ glucides)
+    - Sélecteur repas/jour (3-6)
+    - Bouton "Générer le plan"
+  - **Bottom Sheet Bibliothèque** :
+    - Recherche + bouton scanner + bouton créer aliment
+    - Filtres catégories (chips horizontaux)
+    - Liste aliments avec macros colorés
+  - **Bottom Sheet Édition** : Slider quantité + macros recalculés en temps réel
+  - **Bottom Sheet Dupliquer** : Sélection multiple des jours cibles
+  - **Mock Data** : 7 jours complets avec ~15-20 aliments variés par jour
+  - **CustomPainters** : _MacroRingPainter (avec glow), _MiniProgressRingPainter
+  - Mesh gradient vert/orange (thème nutrition)
+  - Animations : rings animés au chargement (1.2s), compteurs incrémentaux
+- **MainNavigation** mis à jour : 5 onglets (Accueil, Entraînement, Nutrition, Santé, Profil)
+
+## 2026-01-29
+- **Refactoring ProgramCreationFlow** - Extraction modulaire (2,832 → 280 lignes, -90%)
+  - **Structure créée** : `lib/features/workout/create/`
+    - `utils/` : 2 fichiers
+    - `widgets/` : 6 fichiers
+    - `sheets/` : 3 fichiers
+    - `steps/` : 4 fichiers
+  - **Utils** :
+    - `exercise_catalog.dart` : Catalogue 20 exercices + groupes musculaires
+    - `exercise_calculator.dart` : Calcul séries RPT/Pyramidal/Dropset/Classic + labels
+  - **Widgets réutilisables** :
+    - `number_picker.dart` : NumberPicker (compact) + ExpandedNumberPicker (forms)
+    - `toggle_card.dart` : ToggleCard glassmorphism avec icône + switch animé
+    - `mode_card.dart` : ModeCard pour sélection mode entraînement
+    - `day_tabs.dart` : DayTabs pour navigation jours avec compteurs
+    - `exercise_catalog_picker.dart` : Sélecteur exercices par groupe musculaire
+    - `day_exercise_list.dart` : Liste réordonnables avec supersets
+  - **Sheets** :
+    - `success_modal.dart` : Modal succès avec animation scale + stats
+    - `custom_exercise_sheet.dart` : Création exercice personnalisé
+    - `exercise_config_sheet.dart` : Configuration mode/sets/reps/warmup
+  - **Steps** :
+    - `name_step.dart` : Étape 1 - Nom programme avec suggestions
+    - `cycle_step.dart` : Étape 2 - Toggle cycle + config deload
+    - `days_step.dart` : Étape 3 - Sélection jours entraînement
+    - `exercises_step.dart` : Étape 4 - Configuration exercices par jour
+  - **Orchestrateur** : `program_creation_flow.dart` réduit à ~280 lignes
+    - État centralisé avec setState
+    - Callbacks passés aux composants enfants
+    - Navigation PageView + indicateur progression
+  - **Total** : 15 nouveaux fichiers, architecture maintenable
+  - `flutter analyze lib/features/workout/create/` : ✅ 0 issues
+
+## 2026-01-28
+- **ProgramCreationFlow - Modes d'entraînement avancés** (`lib/features/workout/create/program_creation_flow.dart`)
+  - **4 modes d'entraînement** par exercice avec calcul automatique :
+    - Classique : Sets × Reps standards avec poids constant
+    - RPT (Reverse Pyramid) : -10% poids, -2 reps par série
+    - Pyramidal : Montée progressive 70%→100%, puis descente avec plus de reps
+    - Dropset : 1 série lourde + 3 drops (-20%, -40%, -60%) avec +2 reps
+  - **Échauffement adaptatif** : Toggle par exercice avec séries adaptées au mode
+    - RPT : 2 séries (60%×8, 80%×5)
+    - Classique/Dropset : 1 série (50%×10)
+    - Pyramidal : Intégré dans la progression
+    - Badge "WARMUP" jaune sur séries d'échauffement
+  - **Supersets** : Liaison de 2+ exercices pour exécution consécutive
+    - Long-press pour sélectionner exercices
+    - Bouton "Créer superset" avec glow vert
+    - Bordure verte + badge "S1", "S2" sur exercices liés
+    - Pas de repos entre exercices du superset pendant workout
+  - **Bottom sheet configuration avancée** :
+    - 4 cards mode avec icône + description (Icons: fitness_center, trending_down, trending_up, arrow_downward)
+    - Sélecteurs sets/reps pour modes Classic/RPT
+    - Toggle échauffement avec description dynamique
+    - **Preview table** temps réel : toutes séries + poids % + reps calculés
+    - Badge "W" jaune pour séries warmup dans preview
+    - Bouton "Config" avec icône tune sur chaque exercice
+  - Labels mode affichés sur exercices (RPT, Pyramidal, Dropset)
+  - Sélection visuelle pour superset (background vert translucide)
+  - Tracking supersets par jour avec indices groupés
+  - Calcul preview adaptatif selon mode choisi
+- **ActiveWorkoutScreen** - Écran de tracking workout en temps réel (`lib/features/workout/tracking/active_workout_screen.dart`)
+  - **Concept** : Interface "Cockpit de Performance" inspirée des tableaux de bord automobiles premium
+  - **Header dynamique** :
+    - Bouton fermer avec confirmation de sortie
+    - Nom exercice + muscle badge coloré
+    - Indicateur position (X/Y exercices)
+    - Timer total de séance en temps réel (format MM:SS ou Xh MM)
+  - **Navigation exercices** :
+    - Dots indicators animés avec glow
+    - Dot actif élargi + couleur accent
+    - Dots complétés en vert
+    - Tap sur dot pour naviguer entre exercices
+  - **Carte série principale** :
+    - Badge "ÉCHAUFFEMENT" jaune pour warmup sets
+    - Indicateur "SÉRIE X" pour séries de travail
+    - Affichage hero : Poids (orange 56px italic) × Reps (blanc 56px italic)
+    - Indicateur record personnel avec icône trophée
+  - **Zone d'entrée poids/reps** :
+    - 2 cards glassmorphism côte à côte (Poids / Reps)
+    - Boutons +/- pour ajustement rapide (±2.5kg / ±1 rep)
+    - Tap sur valeur → bottom sheet avec clavier numérique et presets
+    - Haptic feedback à chaque interaction
+  - **Bouton valider série** :
+    - Animation pulse subtile (0.95-1.0 scale)
+    - Glow neon orange
+    - Déclenche timer de repos après validation
+  - **Progression séries** :
+    - Indicateurs visuels pour chaque série (warmup icône, numéros)
+    - Série active avec bordure accent + background
+    - Séries complétées en vert avec check
+    - Tap pour naviguer entre séries
+  - **Stats live** :
+    - Barre de stats : Volume (tonnes), Séries, Kcal estimées
+    - Mise à jour en temps réel à chaque série validée
+  - **Vue repos** :
+    - Grand timer circulaire CustomPainter avec ring progression
+    - Affichage minutes:secondes au centre (64px)
+    - Preview prochaine série ou prochain exercice
+    - Contrôles : +30s / Skip (bouton accent)
+    - Haptic à 10s, 5s, 3s, 2s, 1s, 0s (intensité croissante)
+  - **Célébration PR** :
+    - Overlay fullscreen avec fond vert translucide
+    - Icône trophée avec glow pulsant
+    - Animation scale-in du texte "NOUVEAU RECORD !"
+    - Triple haptic feedback
+  - **Bottom sheets** :
+    - NumberPickerSheet : clavier numérique + presets rapides
+    - WorkoutCompleteSheet : récap durée/volume/kcal avec trophée
+    - ExitConfirmationSheet : warning avec choix continuer/quitter
+  - **Mock data** : 5 exercices leg day complets (Squat, Presse, Leg Ext, Leg Curl, Mollets)
+  - **CustomPainter** : _RestTimerPainter avec track, progression et glow end-point
+  - Mesh gradient dynamique (couleur change repos/actif : vert/orange)
+- **WorkoutScreen** mis à jour :
+  - Import ActiveWorkoutScreen
+  - Méthode _startWorkout() avec slide transition
+  - Bouton play et card "Next Session" déclenchent le tracking

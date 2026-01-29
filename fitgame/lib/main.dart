@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/fg_colors.dart';
-import 'core/theme/fg_typography.dart';
-import 'core/constants/spacing.dart';
-import 'shared/widgets/fg_glass_card.dart';
-import 'shared/widgets/fg_neon_button.dart';
+import 'features/home/home_screen.dart';
+import 'features/workout/workout_screen.dart';
+import 'features/health/health_screen.dart';
+import 'features/nutrition/nutrition_screen.dart';
+import 'features/profile/profile_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,149 +28,122 @@ class FitGameApp extends StatelessWidget {
       title: 'FitGame',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const DesignSystemTestScreen(),
+      home: const MainNavigation(),
     );
   }
 }
 
-/// Test screen to verify the design system components
-class DesignSystemTestScreen extends StatelessWidget {
-  const DesignSystemTestScreen({super.key});
+class MainNavigation extends StatefulWidget {
+  const MainNavigation({super.key});
+
+  @override
+  State<MainNavigation> createState() => _MainNavigationState();
+}
+
+class _MainNavigationState extends State<MainNavigation> {
+  int _currentIndex = 0;
+
+  final List<Widget> _screens = [
+    const HomeScreen(),
+    const WorkoutScreen(),
+    const NutritionScreen(),
+    const HealthScreen(),
+    const ProfileScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
+    // Clamp index to valid range (safety for hot reload)
+    final safeIndex = _currentIndex.clamp(0, _screens.length - 1);
+
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1A1A1A),
-              FGColors.background,
-            ],
+      body: IndexedStack(
+        index: safeIndex,
+        children: _screens,
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: FGColors.background,
+          border: Border(
+            top: BorderSide(
+              color: FGColors.glassBorder,
+              width: 1,
+            ),
           ),
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(Spacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                // Title
-                Text(
-                  'FITGAME',
-                  style: FGTypography.display.copyWith(
-                    color: FGColors.accent,
-                  ),
+                _buildNavItem(
+                  icon: Icons.home_rounded,
+                  label: 'Accueil',
+                  index: 0,
                 ),
-                const SizedBox(height: Spacing.md),
-                Text(
-                  'Design System Test',
-                  style: FGTypography.h2,
+                _buildNavItem(
+                  icon: Icons.fitness_center_rounded,
+                  label: 'Entraînement',
+                  index: 1,
                 ),
-                const SizedBox(height: Spacing.xxl),
-
-                // Glass Card
-                FGGlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Glass Card',
-                        style: FGTypography.h3,
-                      ),
-                      const SizedBox(height: Spacing.sm),
-                      Text(
-                        'This card has a glass-morphism effect with backdrop blur and subtle border.',
-                        style: FGTypography.body.copyWith(
-                          color: FGColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: Spacing.lg),
-                      Row(
-                        children: [
-                          Text(
-                            '2,450',
-                            style: FGTypography.numbers.copyWith(
-                              color: FGColors.accent,
-                            ),
-                          ),
-                          const SizedBox(width: Spacing.sm),
-                          Text(
-                            'XP',
-                            style: FGTypography.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                _buildNavItem(
+                  icon: Icons.restaurant_rounded,
+                  label: 'Nutrition',
+                  index: 2,
                 ),
-                const SizedBox(height: Spacing.lg),
-
-                // Another Glass Card
-                FGGlassCard(
-                  onTap: () {},
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: FGColors.success.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.fitness_center,
-                          color: FGColors.success,
-                        ),
-                      ),
-                      const SizedBox(width: Spacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Workout Complete',
-                              style: FGTypography.h3,
-                            ),
-                            Text(
-                              '+150 XP earned',
-                              style: FGTypography.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: FGColors.textSecondary,
-                      ),
-                    ],
-                  ),
+                _buildNavItem(
+                  icon: Icons.favorite_rounded,
+                  label: 'Santé',
+                  index: 3,
                 ),
-
-                const Spacer(),
-
-                // Neon Button
-                FGNeonButton(
-                  label: 'Start Workout',
-                  isExpanded: true,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Button pressed!',
-                          style: FGTypography.body,
-                        ),
-                        backgroundColor: FGColors.glassSurface,
-                      ),
-                    );
-                  },
+                _buildNavItem(
+                  icon: Icons.person_rounded,
+                  label: 'Profil',
+                  index: 4,
                 ),
-                const SizedBox(height: Spacing.md),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required IconData icon,
+    required String label,
+    required int index,
+  }) {
+    final isSelected = _currentIndex == index;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _currentIndex = index;
+        });
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: isSelected ? FGColors.accent : FGColors.textSecondary,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? FGColors.accent : FGColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );
