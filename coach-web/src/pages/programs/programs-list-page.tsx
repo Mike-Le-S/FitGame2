@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Plus,
   Dumbbell,
@@ -28,13 +28,56 @@ const goalConfig = {
   bulk: { label: 'Masse', color: 'text-success' },
   cut: { label: 'Sèche', color: 'text-warning' },
   maintain: { label: 'Maintien', color: 'text-info' },
+  strength: { label: 'Force', color: 'text-accent' },
+  endurance: { label: 'Endurance', color: 'text-info' },
+  recomp: { label: 'Recomp', color: 'text-success' },
+  other: { label: 'Autre', color: 'text-text-secondary' },
 }
 
 export function ProgramsListPage() {
-  const { programs } = useProgramsStore()
+  const navigate = useNavigate()
+  const { programs, deleteProgram, duplicateProgram } = useProgramsStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [filterGoal, setFilterGoal] = useState<FilterGoal>('all')
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Fermer le menu quand on clique ailleurs
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleEdit = (programId: string) => {
+    setOpenMenuId(null)
+    navigate(`/programs/${programId}`)
+  }
+
+  const handleDuplicate = (programId: string) => {
+    setOpenMenuId(null)
+    const newId = duplicateProgram(programId)
+    if (newId) {
+      navigate(`/programs/${newId}`)
+    }
+  }
+
+  const handleDelete = (programId: string) => {
+    setOpenMenuId(null)
+    setDeleteConfirmId(programId)
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirmId) {
+      deleteProgram(deleteConfirmId)
+      setDeleteConfirmId(null)
+    }
+  }
 
   const filteredPrograms = programs.filter((program) => {
     const matchesSearch = program.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -172,8 +215,8 @@ export function ProgramsListPage() {
                     )}>
                       <Dumbbell className="w-7 h-7 text-accent" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-text-primary group-hover:text-accent transition-colors">
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-semibold text-text-primary group-hover:text-accent transition-colors truncate">
                         {program.name}
                       </h3>
                       <p className="text-sm text-text-muted line-clamp-1">
@@ -183,10 +226,11 @@ export function ProgramsListPage() {
                   </div>
 
                   {/* Menu */}
-                  <div className="relative">
+                  <div className="relative" ref={openMenuId === program.id ? menuRef : undefined}>
                     <button
                       onClick={(e) => {
                         e.preventDefault()
+                        e.stopPropagation()
                         setOpenMenuId(openMenuId === program.id ? null : program.id)
                       }}
                       className={cn(
@@ -205,15 +249,36 @@ export function ProgramsListPage() {
                         'z-10'
                       )}>
                         <div className="p-1">
-                          <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated rounded-lg transition-colors">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleEdit(program.id)
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                          >
                             <Edit3 className="w-4 h-4" />
                             Modifier
                           </button>
-                          <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated rounded-lg transition-colors">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleDuplicate(program.id)
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                          >
                             <Copy className="w-4 h-4" />
                             Dupliquer
                           </button>
-                          <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-error hover:bg-error/10 rounded-lg transition-colors">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleDelete(program.id)
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-error hover:bg-error/10 rounded-lg transition-colors"
+                          >
                             <Trash2 className="w-4 h-4" />
                             Supprimer
                           </button>
@@ -227,8 +292,9 @@ export function ProgramsListPage() {
                 <div className="flex items-center gap-3 mb-4">
                   <Badge
                     variant={
-                      program.goal === 'bulk' ? 'success' :
-                      program.goal === 'cut' ? 'warning' : 'info'
+                      program.goal === 'bulk' || program.goal === 'recomp' ? 'success' :
+                      program.goal === 'cut' ? 'warning' :
+                      program.goal === 'strength' ? 'default' : 'info'
                     }
                   >
                     {goalConfig[program.goal].label}
@@ -349,6 +415,58 @@ export function ProgramsListPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setDeleteConfirmId(null)}
+          />
+          <div className={cn(
+            'relative w-full max-w-md mx-4 p-6',
+            'bg-surface border border-border rounded-2xl',
+            'shadow-2xl animate-[fadeIn_0.2s_ease-out]'
+          )}>
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-error" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-text-primary">Supprimer le programme</h3>
+                <p className="text-sm text-text-muted">Cette action est irréversible</p>
+              </div>
+            </div>
+            <p className="text-text-secondary mb-6">
+              Êtes-vous sûr de vouloir supprimer ce programme ? Les élèves assignés ne seront plus liés à ce programme.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className={cn(
+                  'h-10 px-4 rounded-xl font-medium',
+                  'bg-surface-elevated border border-border',
+                  'text-text-secondary hover:text-text-primary',
+                  'transition-all duration-200'
+                )}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmDelete}
+                className={cn(
+                  'flex items-center gap-2 h-10 px-4 rounded-xl font-medium',
+                  'bg-error text-white hover:bg-error/90',
+                  'transition-all duration-200'
+                )}
+              >
+                <Trash2 className="w-4 h-4" />
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

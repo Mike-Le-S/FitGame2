@@ -170,9 +170,9 @@ export function DashboardPage() {
     .slice(0, 3)
 
   const quickActions = [
-    { icon: Plus, label: 'Nouveau programme', href: '/programs/create', color: 'accent' as const },
-    { icon: Users, label: 'Ajouter élève', href: '/students', color: 'info' as const },
-    { icon: Calendar, label: 'Planifier', href: '/calendar', color: 'success' as const },
+    { icon: Plus, label: 'Programme', href: '/programs/create', color: 'accent' as const },
+    { icon: Users, label: 'Élève', href: '/students', color: 'info' as const },
+    { icon: Calendar, label: 'Événement', href: '/calendar', color: 'success' as const },
   ]
 
   return (
@@ -254,7 +254,7 @@ export function DashboardPage() {
                       )}>
                         <action.icon className="w-5 h-5 text-accent" />
                       </div>
-                      <span className="text-xs text-text-secondary text-center font-medium">
+                      <span className="text-xs text-text-primary text-center font-medium">
                         {action.label}
                       </span>
                     </Link>

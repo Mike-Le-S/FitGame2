@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Search,
   LayoutGrid,
   List,
   Plus,
@@ -11,10 +10,10 @@ import {
   Users,
   UserPlus,
   Filter,
-  X,
 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Badge, Avatar } from '@/components/ui'
+import { AddStudentModal } from '@/components/modals/add-student-modal'
 import { useStudentsStore } from '@/store/students-store'
 import { formatRelativeTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -28,6 +27,10 @@ const goalConfig = {
   bulk: { label: 'Masse', color: 'text-success', bg: 'bg-success/10' },
   cut: { label: 'Sèche', color: 'text-warning', bg: 'bg-warning/10' },
   maintain: { label: 'Maintien', color: 'text-info', bg: 'bg-info/10' },
+  strength: { label: 'Force', color: 'text-accent', bg: 'bg-accent/10' },
+  endurance: { label: 'Endurance', color: 'text-info', bg: 'bg-info/10' },
+  recomp: { label: 'Recomp', color: 'text-success', bg: 'bg-success/10' },
+  other: { label: 'Autre', color: 'text-text-secondary', bg: 'bg-surface-elevated' },
 }
 
 export function StudentsListPage() {
@@ -35,6 +38,7 @@ export function StudentsListPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterGoal, setFilterGoal] = useState<FilterGoal>('all')
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
 
   // Filter students
   const filteredStudents = students.filter((student) => {
@@ -58,7 +62,9 @@ export function StudentsListPage() {
         title="Élèves"
         subtitle={`${students.length} élèves actifs`}
         action={
-          <button className={cn(
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className={cn(
             'flex items-center gap-2 h-11 px-5 rounded-xl font-semibold text-white',
             'bg-gradient-to-r from-accent to-[#ff8f5c]',
             'hover:shadow-[0_0_25px_rgba(255,107,53,0.35)]',
@@ -109,32 +115,6 @@ export function StudentsListPage() {
         {/* Filters Bar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Search */}
-            <div className="relative group">
-              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-accent transition-colors" />
-              <input
-                type="text"
-                placeholder="Rechercher un élève..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={cn(
-                  'w-72 h-11 pl-11 pr-4 rounded-xl',
-                  'bg-surface-elevated border border-border',
-                  'text-text-primary placeholder:text-text-muted',
-                  'focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/20',
-                  'transition-all duration-200'
-                )}
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-surface text-text-muted hover:text-text-secondary transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
             {/* Goal Filter */}
             <div className="flex items-center gap-1 p-1.5 rounded-xl bg-surface border border-border">
               <Filter className="w-4 h-4 text-text-muted mx-2" />
@@ -237,8 +217,9 @@ export function StudentsListPage() {
                     </div>
                     <Badge
                       variant={
-                        student.goal === 'bulk' ? 'success' :
-                        student.goal === 'cut' ? 'warning' : 'info'
+                        student.goal === 'bulk' || student.goal === 'recomp' ? 'success' :
+                        student.goal === 'cut' ? 'warning' :
+                        student.goal === 'strength' ? 'default' : 'info'
                       }
                       className="text-xs"
                     >
@@ -295,7 +276,9 @@ export function StudentsListPage() {
             ))}
 
             {/* Add Student Card */}
-            <button className={cn(
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className={cn(
               'flex flex-col items-center justify-center gap-3 p-8 rounded-2xl',
               'border-2 border-dashed border-border',
               'hover:border-accent/50 hover:bg-accent/5',
@@ -446,7 +429,9 @@ export function StudentsListPage() {
                 ? 'Essayez de modifier vos filtres de recherche'
                 : 'Commencez par ajouter votre premier élève'}
             </p>
-            <button className={cn(
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className={cn(
               'flex items-center gap-2 px-5 py-3 rounded-xl',
               'bg-accent text-white font-medium',
               'hover:shadow-[0_0_25px_rgba(255,107,53,0.35)]',
@@ -458,6 +443,12 @@ export function StudentsListPage() {
           </div>
         )}
       </div>
+
+      {/* Add Student Modal */}
+      <AddStudentModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+      />
     </div>
   )
 }

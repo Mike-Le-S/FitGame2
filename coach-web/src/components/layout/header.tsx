@@ -6,9 +6,10 @@ interface HeaderProps {
   title: string
   subtitle?: string
   action?: React.ReactNode
+  showSearch?: boolean
 }
 
-export function Header({ title, subtitle, action }: HeaderProps) {
+export function Header({ title, subtitle, action, showSearch = false }: HeaderProps) {
   const [searchFocused, setSearchFocused] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [showNotifications, setShowNotifications] = useState(false)
@@ -59,29 +60,19 @@ export function Header({ title, subtitle, action }: HeaderProps) {
       {/* Background */}
       <div className="absolute inset-0 bg-background/80" />
 
-      <div className="relative h-[72px] px-8 flex items-center justify-between">
+      <div className="relative h-[72px] px-8 flex items-center gap-8">
         {/* Left: Title section */}
         <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-text-primary tracking-tight">
-              {title}
-            </h1>
-            {/* Status indicator */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/10 border border-success/20">
-              <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-success">
-                En ligne
-              </span>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-text-primary tracking-tight">
+            {title}
+          </h1>
           {subtitle && (
             <p className="text-sm text-text-secondary">{subtitle}</p>
           )}
         </div>
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-3">
-          {/* Search box */}
+        {/* Search box */}
+        {showSearch && (
           <div className="relative">
             <div className={cn(
               'relative flex items-center transition-all duration-300',
@@ -108,7 +99,7 @@ export function Header({ title, subtitle, action }: HeaderProps) {
                 <input
                   ref={searchRef}
                   type="text"
-                  placeholder="Rechercher un élève, programme..."
+                  placeholder="Rechercher..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   onFocus={() => setSearchFocused(true)}
@@ -132,10 +123,10 @@ export function Header({ title, subtitle, action }: HeaderProps) {
               </div>
             </div>
           </div>
+        )}
 
-          {/* Divider */}
-          <div className="w-px h-8 bg-border" />
-
+        {/* Right: Actions */}
+        <div className="flex items-center gap-3 ml-auto">
           {/* AI Assistant button (decorative) */}
           <button className={cn(
             'relative group flex items-center gap-2 px-4 h-11 rounded-xl',

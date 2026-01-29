@@ -16,7 +16,7 @@ export type MuscleGroup =
   | 'abs'
   | 'cardio'
 
-export type Goal = 'bulk' | 'cut' | 'maintain'
+export type Goal = 'bulk' | 'cut' | 'maintain' | 'strength' | 'endurance' | 'recomp' | 'other'
 
 export type ExerciseMode = 'classic' | 'rpt' | 'pyramidal' | 'dropset'
 

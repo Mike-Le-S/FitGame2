@@ -42,6 +42,10 @@ const goalConfig = {
   bulk: { label: 'Prise de masse', color: 'success', icon: '📈', desc: 'Surplus calorique contrôlé' },
   cut: { label: 'Sèche', color: 'warning', icon: '🔥', desc: 'Déficit calorique modéré' },
   maintain: { label: 'Maintien', color: 'info', icon: '⚖️', desc: 'Équilibre énergétique' },
+  strength: { label: 'Force', color: 'default', icon: '💪', desc: 'Protéines élevées, énergie' },
+  endurance: { label: 'Endurance', color: 'info', icon: '🏃', desc: 'Glucides, récupération' },
+  recomp: { label: 'Recomposition', color: 'success', icon: '🔄', desc: 'Équilibre, timing précis' },
+  other: { label: 'Autre', color: 'default', icon: '🎯', desc: 'Plan personnalisé' },
 }
 
 export function NutritionCreatePage() {
@@ -290,33 +294,33 @@ export function NutritionCreatePage() {
                   <label className="text-sm font-medium text-text-secondary">
                     Objectif principal
                   </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {(['bulk', 'cut', 'maintain'] as Goal[]).map((g) => (
+                  <div className="grid grid-cols-4 gap-3">
+                    {(['bulk', 'cut', 'maintain', 'strength', 'endurance', 'recomp', 'other'] as Goal[]).map((g) => (
                       <button
                         key={g}
                         onClick={() => setGoal(g)}
                         className={cn(
-                          'group relative p-4 rounded-xl transition-all duration-300',
+                          'group relative p-3 rounded-xl transition-all duration-300',
                           'border text-left',
                           goal === g
                             ? 'bg-success/10 border-success shadow-[0_0_20px_rgba(34,197,94,0.15)]'
                             : 'bg-surface-elevated border-border hover:border-success/30'
                         )}
                       >
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-2xl">{goalConfig[g].icon}</span>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xl">{goalConfig[g].icon}</span>
                           <span className={cn(
-                            'font-semibold transition-colors',
+                            'font-semibold text-sm transition-colors',
                             goal === g ? 'text-success' : 'text-text-primary'
                           )}>
                             {goalConfig[g].label}
                           </span>
                         </div>
-                        <p className="text-xs text-text-muted">{goalConfig[g].desc}</p>
+                        <p className="text-[11px] text-text-muted leading-tight">{goalConfig[g].desc}</p>
                         {goal === g && (
-                          <div className="absolute top-3 right-3">
-                            <div className="w-5 h-5 rounded-full bg-success flex items-center justify-center">
-                              <Check className="w-3 h-3 text-white" />
+                          <div className="absolute top-2 right-2">
+                            <div className="w-4 h-4 rounded-full bg-success flex items-center justify-center">
+                              <Check className="w-2.5 h-2.5 text-white" />
                             </div>
                           </div>
                         )}
