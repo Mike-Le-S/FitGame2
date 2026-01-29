@@ -70,11 +70,13 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         name: 'Squat Barre',
         muscle: 'Quadriceps',
         sets: [
-          WorkoutSet(targetReps: 8, targetWeight: 100, isWarmup: true),
+          // RPT warmup: 60%×8, 80%×5
+          WorkoutSet(targetReps: 8, targetWeight: 72, isWarmup: true),
+          WorkoutSet(targetReps: 5, targetWeight: 96, isWarmup: true),
+          // RPT working sets: 100%×5, 90%×7, 80%×9
           WorkoutSet(targetReps: 5, targetWeight: 120),
-          WorkoutSet(targetReps: 5, targetWeight: 120),
-          WorkoutSet(targetReps: 5, targetWeight: 120),
-          WorkoutSet(targetReps: 5, targetWeight: 120),
+          WorkoutSet(targetReps: 7, targetWeight: 108),
+          WorkoutSet(targetReps: 9, targetWeight: 96),
         ],
         restSeconds: 180,
         previousBest: 125,

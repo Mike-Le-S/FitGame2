@@ -27,10 +27,11 @@ class WeightRepsInput extends StatelessWidget {
       children: [
         // Weight input
         Expanded(
-          child: _buildInputCard(
+          child: _InputCard(
             label: 'POIDS',
-            value: currentSet.actualWeight,
             unit: 'kg',
+            value: currentSet.actualWeight,
+            isInteger: false,
             onDecrease: () {
               final newValue = (currentSet.actualWeight - 2.5).clamp(0.0, 500.0);
               onWeightChange(newValue);
@@ -49,10 +50,10 @@ class WeightRepsInput extends StatelessWidget {
 
         // Reps input
         Expanded(
-          child: _buildInputCard(
+          child: _InputCard(
             label: 'REPS',
+            unit: null,
             value: currentSet.actualReps.toDouble(),
-            unit: '',
             isInteger: true,
             onDecrease: () {
               final newValue = (currentSet.actualReps - 1).clamp(0, 100);
@@ -71,108 +72,157 @@ class WeightRepsInput extends StatelessWidget {
       ],
     );
   }
+}
 
-  Widget _buildInputCard({
-    required String label,
-    required double value,
-    required String unit,
-    bool isInteger = false,
-    required VoidCallback onDecrease,
-    required VoidCallback onIncrease,
-    required VoidCallback onValueTap,
-  }) {
+class _InputCard extends StatelessWidget {
+  final String label;
+  final String? unit;
+  final double value;
+  final bool isInteger;
+  final VoidCallback onDecrease;
+  final VoidCallback onIncrease;
+  final VoidCallback onValueTap;
+
+  const _InputCard({
+    required this.label,
+    required this.unit,
+    required this.value,
+    required this.isInteger,
+    required this.onDecrease,
+    required this.onIncrease,
+    required this.onValueTap,
+  });
+
+  String get _formattedValue {
+    if (isInteger) return value.toInt().toString();
+    return value == value.toInt()
+        ? value.toInt().toString()
+        : value.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return FGGlassCard(
-      padding: const EdgeInsets.all(Spacing.md),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.md,
+        vertical: Spacing.lg,
+      ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label,
-            style: FGTypography.caption.copyWith(
-              color: FGColors.textSecondary,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: Spacing.sm),
+          // Label with optional unit
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Decrease button
-              GestureDetector(
-                onTap: onDecrease,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: FGColors.glassSurface,
-                    borderRadius: BorderRadius.circular(Spacing.sm),
-                    border: Border.all(color: FGColors.glassBorder),
-                  ),
-                  child: const Icon(
-                    Icons.remove_rounded,
-                    color: FGColors.textPrimary,
-                    size: 20,
-                  ),
+              Text(
+                label,
+                style: FGTypography.caption.copyWith(
+                  color: FGColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                  fontSize: 11,
                 ),
               ),
-
-              // Value display
-              Expanded(
-                child: GestureDetector(
-                  onTap: onValueTap,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          isInteger
-                              ? value.toInt().toString()
-                              : value.toStringAsFixed(
-                                  value == value.toInt() ? 0 : 1),
-                          style: FGTypography.h2.copyWith(
-                            fontWeight: FontWeight.w900,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        if (unit.isNotEmpty) ...[
-                          const SizedBox(width: Spacing.xs),
-                          Text(
-                            unit,
-                            style: FGTypography.body.copyWith(
-                              color: FGColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ],
+              if (unit != null) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: FGColors.accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    unit!,
+                    style: FGTypography.caption.copyWith(
+                      color: FGColors.accent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 10,
                     ),
                   ),
                 ),
-              ),
+              ],
+            ],
+          ),
 
-              // Increase button
-              GestureDetector(
-                onTap: onIncrease,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: FGColors.glassSurface,
-                    borderRadius: BorderRadius.circular(Spacing.sm),
-                    border: Border.all(color: FGColors.glassBorder),
-                  ),
-                  child: const Icon(
-                    Icons.add_rounded,
-                    color: FGColors.textPrimary,
-                    size: 20,
-                  ),
+          const SizedBox(height: Spacing.md),
+
+          // Value display - tappable
+          GestureDetector(
+            onTap: onValueTap,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
+              child: Text(
+                _formattedValue,
+                textAlign: TextAlign.center,
+                style: FGTypography.h1.copyWith(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
+                  color: FGColors.textPrimary,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: Spacing.md),
+
+          // Increment/decrement buttons
+          Row(
+            children: [
+              Expanded(
+                child: _StepperButton(
+                  icon: Icons.remove_rounded,
+                  onTap: onDecrease,
+                ),
+              ),
+              const SizedBox(width: Spacing.sm),
+              Expanded(
+                child: _StepperButton(
+                  icon: Icons.add_rounded,
+                  onTap: onIncrease,
                 ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _StepperButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          color: FGColors.glassSurface.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(Spacing.sm),
+          border: Border.all(
+            color: FGColors.glassBorder.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Icon(
+          icon,
+          color: FGColors.textSecondary,
+          size: 20,
+        ),
       ),
     );
   }
