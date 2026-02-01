@@ -107,7 +107,7 @@ Phase 5: Fonctions Avancées ← ON EST ICI
 |---|-------|--------|
 | 5.1 | Messages temps réel coach ↔ élève | ✅ |
 | 5.2 | Notifications push (browser) | ✅ |
-| 5.3 | Intégration Apple Health | ⬜ |
+| 5.3 | Intégration Apple Health | ✅ |
 | 5.4 | Export PDF des programmes | ✅ |
 | 5.5 | Historique et statistiques | ✅ |
 
@@ -203,6 +203,7 @@ messages (messagerie temps réel)
 | 2026-02-01 | Phase 5.2 | Notifications browser (Web Notifications API) |
 | 2026-02-01 | Phase 5.5 | Dashboard statistiques temps réel |
 | 2026-02-01 | Phase 5.4 | Export PDF programmes et plans nutrition |
+| 2026-02-01 | Phase 5.3 | Intégration Apple Health / Google Fit |
 
 ---
 

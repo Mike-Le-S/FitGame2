@@ -1,5 +1,37 @@
 # Changelog FitGame
 
+## 2026-02-01 - Backend Phase 5.3 : Apple Health / Google Fit
+
+### Mobile (Flutter)
+- **core/services/health_service.dart** : Service HealthKit/Google Fit
+  - `requestAuthorization()` : Demande permissions santé
+  - `checkAuthorization()` : Vérifie statut permissions
+  - `getSleepData(date)` : Sommeil (deep, light, REM, awake)
+  - `getActivityData(date)` : Activité (steps, calories, distance)
+  - `getHeartData(date)` : Coeur (resting HR, avg/min/max HR, HRV)
+  - `getHealthSnapshot(date)` : Toutes les données combinées
+  - `writeWorkout()` : Enregistre séance dans Apple Santé
+  - Models: SleepData, ActivityData, HeartData, HealthSnapshot
+
+- **health_screen.dart** : Intégration données réelles
+  - Chargement automatique au mount
+  - Fallback sur mock data si non autorisé
+  - Getters dynamiques pour utiliser vraies données
+
+### Configuration iOS
+- **Info.plist** : Permissions HealthKit
+  - NSHealthShareUsageDescription
+  - NSHealthUpdateUsageDescription
+- **Runner.entitlements** : Capabilities HealthKit
+  - com.apple.developer.healthkit
+  - com.apple.developer.healthkit.background-delivery
+
+### Dépendances ajoutées
+- `health: ^11.1.0` : Apple Health / Google Fit
+- `permission_handler: ^11.3.1` : Gestion permissions
+
+---
+
 ## 2026-02-01 - Backend Phase 5.4 : Export PDF
 
 ### Coach-Web (React)

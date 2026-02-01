@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../core/theme/fg_colors.dart';
 import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/services/health_service.dart';
 import '../../shared/widgets/fg_glass_card.dart';
 import 'sheets/energy_detail_sheet.dart';
 import 'sheets/sleep_detail_sheet.dart';
@@ -19,39 +20,58 @@ class _HealthScreenState extends State<HealthScreen>
     with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
-  late AnimationController _gaugeController;
+  late AnimationController _scoreController;
+  late Animation<double> _scoreAnimation;
 
-  // === MOCK DATA - TODO: Replace with HealthKit data ===
+  // Health service
+  final HealthService _healthService = HealthService();
+  HealthSnapshot? _healthData;
+  bool _isLoading = true;
+  bool _healthKitAvailable = false;
+  bool _healthKitAuthorized = false;
 
-  // Sleep data (in minutes) - varied for testing gauges
-  final int totalSleepMinutes = 7 * 60 + 23; // 7h23
-  final int deepSleepMinutes = 30; // ~7% → RED (too low, ideal 13-23%)
-  final int coreSleepMinutes = 4 * 60 + 30; // ~61% → YELLOW (high, ideal 45-55%)
-  final int remSleepMinutes = 1 * 60 + 35; // ~21% → GREEN (ideal 20-25%)
-  final int awakeMinutes = 48; // ~11% → RED (too high, ideal <5%)
-  final int timeInBedMinutes = 8 * 60 + 15; // 8h15
-  final int sleepLatencyMinutes = 15; // → GREEN (ideal 10-20min)
+  // === MOCK DATA (fallback) ===
+
+  // Sleep data (in minutes)
+  int get totalSleepMinutes => _healthData?.sleep?.totalMinutes ?? 7 * 60 + 23;
+  int get deepSleepMinutes => _healthData?.sleep?.deepMinutes ?? 58;
+  int get coreSleepMinutes => _healthData?.sleep?.lightMinutes ?? 4 * 60 + 10;
+  int get remSleepMinutes => _healthData?.sleep?.remMinutes ?? 1 * 60 + 35;
+  int get awakeMinutes => _healthData?.sleep?.awakeMinutes ?? 20;
+  int get timeInBedMinutes => _healthData?.sleep?.inBedMinutes ?? 8 * 60 + 15;
+  final int sleepLatencyMinutes = 12;
 
   // Calorie data
-  final int caloriesBurned = 2450;
+  int get caloriesBurned =>
+      _healthData?.activity?.totalCaloriesBurned ?? 2450;
   final int caloriesConsumed = 1980;
   final int calorieGoal = 2200;
-  final int bmr = 1800;
+  int get bmr => _healthData?.activity?.basalCaloriesBurned ?? 1800;
 
-  // Activity breakdown
-  final int walkingCalories = 280;
+  // Activity
+  int get walkingCalories => _healthData?.activity?.activeCaloriesBurned ?? 280;
   final int runningCalories = 420;
   final int workoutCalories = 350;
-  final int steps = 8742;
-  final double distanceKm = 6.2;
+  int get steps => _healthData?.activity?.steps ?? 8742;
+  final int stepsGoal = 10000;
+  double get distanceKm => _healthData?.activity?.distanceKm ?? 6.2;
 
   // Heart data
-  final int restingHeartRate = 58;
-  final int avgHeartRate = 72;
-  final int maxHeartRate = 165;
-  final int minHeartRate = 48;
-  final int hrvMs = 48;
+  int get restingHeartRate =>
+      _healthData?.heart?.restingHeartRate ?? 58;
+  int get avgHeartRate =>
+      _healthData?.heart?.averageHeartRate ?? 72;
+  int get maxHeartRate =>
+      _healthData?.heart?.maxHeartRate ?? 165;
+  int get minHeartRate =>
+      _healthData?.heart?.minHeartRate ?? 48;
+  int get hrvMs => _healthData?.heart?.hrvMs ?? 52;
   final double vo2Max = 42.5;
+
+  // Trends (compared to 7-day average)
+  final int sleepTrend = 1; // +1 = improving, 0 = stable, -1 = declining
+  final int heartTrend = 1;
+  final int energyTrend = 0;
 
   @override
   void initState() {
@@ -61,21 +81,105 @@ class _HealthScreenState extends State<HealthScreen>
       vsync: this,
     )..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(begin: 0.05, end: 0.15).animate(
+    _pulseAnimation = Tween<double>(begin: 0.05, end: 0.18).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    _gaugeController = AnimationController(
+    _scoreController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..forward();
+
+    _scoreAnimation = CurvedAnimation(
+      parent: _scoreController,
+      curve: Curves.easeOutCubic,
+    );
+
+    // Load health data from Apple Health / Google Fit
+    _loadHealthData();
+  }
+
+  Future<void> _loadHealthData() async {
+    if (!_healthService.isAvailable) {
+      setState(() {
+        _healthKitAvailable = false;
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _healthKitAvailable = true;
+    });
+
+    // Check if already authorized
+    final authorized = await _healthService.checkAuthorization();
+    if (!authorized) {
+      // Request authorization
+      final granted = await _healthService.requestAuthorization();
+      if (!granted) {
+        setState(() {
+          _healthKitAuthorized = false;
+          _isLoading = false;
+        });
+        return;
+      }
+    }
+
+    setState(() {
+      _healthKitAuthorized = true;
+    });
+
+    // Fetch today's health data
+    final today = DateTime.now();
+    final snapshot = await _healthService.getHealthSnapshot(today);
+
+    setState(() {
+      _healthData = snapshot;
+      _isLoading = false;
+    });
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
-    _gaugeController.dispose();
+    _scoreController.dispose();
     super.dispose();
+  }
+
+  int get _globalHealthScore {
+    final sleepScore = _calculateSleepScore();
+    final heartScore = _calculateHeartScore();
+    final activityScore = _calculateActivityScore();
+    return ((sleepScore + heartScore + activityScore) / 3).round();
+  }
+
+  int _calculateHeartScore() {
+    int score = 50;
+    // Resting HR
+    if (restingHeartRate < 60) {
+      score += 25;
+    } else if (restingHeartRate <= 70) {
+      score += 15;
+    } else if (restingHeartRate <= 80) {
+      score += 5;
+    }
+    // HRV
+    if (hrvMs >= 50) {
+      score += 25;
+    } else if (hrvMs >= 40) {
+      score += 15;
+    } else {
+      score += 5;
+    }
+    return score.clamp(0, 100);
+  }
+
+  int _calculateActivityScore() {
+    final stepsPercent = (steps / stepsGoal * 100).clamp(0, 100);
+    final caloriePercent =
+        ((caloriesBurned - bmr) / (calorieGoal - bmr) * 100).clamp(0, 100);
+    return ((stepsPercent + caloriePercent) / 2).round();
   }
 
   @override
@@ -93,16 +197,37 @@ class _HealthScreenState extends State<HealthScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: Spacing.xl),
+                    const SizedBox(height: Spacing.md),
                     _buildHeader(),
+                    const SizedBox(height: Spacing.lg),
+
+                    // === HERO SCORE ===
+                    _buildHeroScore(),
+                    const SizedBox(height: Spacing.lg),
+
+                    // === QUICK STATS ===
+                    _buildQuickStats(),
                     const SizedBox(height: Spacing.xl),
 
+                    // === SECTION LABEL ===
+                    Text(
+                      'MÉTRIQUES DÉTAILLÉES',
+                      style: FGTypography.caption.copyWith(
+                        letterSpacing: 2,
+                        fontWeight: FontWeight.w700,
+                        color: FGColors.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: Spacing.md),
+
                     // === THREE MAIN CARDS ===
-                    _buildEnergyCard(),
-                    const SizedBox(height: Spacing.lg),
                     _buildSleepCard(),
-                    const SizedBox(height: Spacing.lg),
+                    const SizedBox(height: Spacing.md),
                     _buildHeartCard(),
+                    const SizedBox(height: Spacing.md),
+                    _buildEnergyCard(),
                     const SizedBox(height: Spacing.xxl),
                   ],
                 ),
@@ -122,8 +247,29 @@ class _HealthScreenState extends State<HealthScreen>
           children: [
             Container(color: FGColors.background),
             Positioned(
-              top: -50,
-              left: -100,
+              top: -80,
+              left: -120,
+              child: Container(
+                width: 400,
+                height: 400,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF6B5BFF)
+                          .withValues(alpha: _pulseAnimation.value * 0.8),
+                      const Color(0xFF6B5BFF)
+                          .withValues(alpha: _pulseAnimation.value * 0.3),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.4, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 50,
+              right: -100,
               child: Container(
                 width: 350,
                 height: 350,
@@ -131,26 +277,8 @@ class _HealthScreenState extends State<HealthScreen>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFF6B5BFF)
-                          .withValues(alpha: _pulseAnimation.value),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 100,
-              right: -80,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFF00D9FF)
-                          .withValues(alpha: _pulseAnimation.value * 0.5),
+                      const Color(0xFFFF5B7F)
+                          .withValues(alpha: _pulseAnimation.value * 0.4),
                       Colors.transparent,
                     ],
                   ),
@@ -164,26 +292,517 @@ class _HealthScreenState extends State<HealthScreen>
   }
 
   Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Text(
-          'SANTÉ',
-          style: FGTypography.caption.copyWith(
-            letterSpacing: 3,
-            fontWeight: FontWeight.w700,
-            color: FGColors.textSecondary,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'SANTÉ',
+              style: FGTypography.caption.copyWith(
+                letterSpacing: 3,
+                fontWeight: FontWeight.w700,
+                color: FGColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Ton corps parle',
+              style: FGTypography.h2.copyWith(
+                fontWeight: FontWeight.w900,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        const Spacer(),
+        // Apple Health sync indicator
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.sm,
+            vertical: Spacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: FGColors.success.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(Spacing.sm),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: FGColors.success,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: FGColors.success.withValues(alpha: 0.5),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: Spacing.xs),
+              Text(
+                'Sync',
+                style: FGTypography.caption.copyWith(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: FGColors.success,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: Spacing.xs),
-        Text(
-          'Ton corps parle',
-          style: FGTypography.h1.copyWith(fontSize: 36),
+      ],
+    );
+  }
+
+  Widget _buildHeroScore() {
+    final score = _globalHealthScore;
+    final scoreColor = score >= 80
+        ? FGColors.success
+        : score >= 60
+            ? const Color(0xFF6B5BFF)
+            : score >= 40
+                ? FGColors.warning
+                : FGColors.error;
+
+    final scoreLabel = score >= 80
+        ? 'Excellent'
+        : score >= 60
+            ? 'Bon'
+            : score >= 40
+                ? 'Moyen'
+                : 'À améliorer';
+
+    return AnimatedBuilder(
+      animation: _scoreAnimation,
+      builder: (context, child) {
+        final animatedScore = (score * _scoreAnimation.value).round();
+
+        return Container(
+          padding: const EdgeInsets.all(Spacing.lg),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                scoreColor.withValues(alpha: 0.15),
+                scoreColor.withValues(alpha: 0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: scoreColor.withValues(alpha: 0.3),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: scoreColor.withValues(alpha: 0.2),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Score circle
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      scoreColor.withValues(alpha: 0.3),
+                      scoreColor.withValues(alpha: 0.1),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: scoreColor.withValues(alpha: 0.5),
+                    width: 3,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: scoreColor.withValues(alpha: 0.4),
+                      blurRadius: 16,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    '$animatedScore',
+                    style: FGTypography.display.copyWith(
+                      fontSize: 32,
+                      color: scoreColor,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: Spacing.lg),
+              // Score info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SCORE SANTÉ',
+                      style: FGTypography.caption.copyWith(
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.w700,
+                        color: FGColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.xs),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        scoreLabel,
+                        style: FGTypography.h2.copyWith(
+                          color: scoreColor,
+                          fontWeight: FontWeight.w900,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.xs),
+                    Text(
+                      'Basé sur sommeil, cœur et activité',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: Spacing.md),
+              // Trend indicator
+              _buildTrendBadge(_getTodayTrend()),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  int _getTodayTrend() {
+    return ((sleepTrend + heartTrend + energyTrend) / 3).round();
+  }
+
+  Widget _buildTrendBadge(int trend) {
+    final icon = trend > 0
+        ? Icons.trending_up
+        : trend < 0
+            ? Icons.trending_down
+            : Icons.trending_flat;
+    final color = trend > 0
+        ? FGColors.success
+        : trend < 0
+            ? FGColors.error
+            : FGColors.textSecondary;
+
+    return Container(
+      padding: const EdgeInsets.all(Spacing.sm),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(Spacing.sm),
+      ),
+      child: Icon(icon, color: color, size: 20),
+    );
+  }
+
+  Widget _buildQuickStats() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildQuickStatPill(
+            icon: Icons.directions_walk,
+            value: _formatSteps(steps),
+            label: 'pas',
+            progress: steps / stepsGoal,
+            color: const Color(0xFF00D9FF),
+          ),
         ),
-        const SizedBox(height: Spacing.xs),
+        const SizedBox(width: Spacing.sm),
+        Expanded(
+          child: _buildQuickStatPill(
+            icon: Icons.local_fire_department,
+            value: '$caloriesBurned',
+            label: 'kcal',
+            progress: (caloriesBurned - bmr) / (calorieGoal - bmr),
+            color: FGColors.accent,
+          ),
+        ),
+        const SizedBox(width: Spacing.sm),
+        Expanded(
+          child: _buildQuickStatPill(
+            icon: Icons.bedtime,
+            value: '${totalSleepMinutes ~/ 60}h${(totalSleepMinutes % 60).toString().padLeft(2, '0')}',
+            label: 'sommeil',
+            progress: totalSleepMinutes / (8 * 60), // Goal: 8h
+            color: const Color(0xFF6B5BFF),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatSteps(int steps) {
+    if (steps >= 1000) {
+      return '${(steps / 1000).toStringAsFixed(1)}k';
+    }
+    return '$steps';
+  }
+
+  Widget _buildQuickStatPill({
+    required IconData icon,
+    required String value,
+    required String label,
+    required double progress,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(Spacing.md),
+      decoration: BoxDecoration(
+        color: FGColors.glassSurface.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(Spacing.md),
+        border: Border.all(color: FGColors.glassBorder),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(height: Spacing.xs),
+          Text(
+            value,
+            style: FGTypography.body.copyWith(
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              fontSize: 16,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: FGTypography.caption.copyWith(
+              fontSize: 9,
+              color: FGColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: Spacing.sm),
+          // Mini progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: SizedBox(
+              height: 3,
+              child: LinearProgressIndicator(
+                value: progress.clamp(0.0, 1.0),
+                backgroundColor: FGColors.glassBorder,
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================
+  // SLEEP CARD
+  // ============================================
+  Widget _buildSleepCard() {
+    final totalHours = totalSleepMinutes / 60;
+    final sleepScore = _calculateSleepScore();
+    final efficiency =
+        ((totalSleepMinutes / timeInBedMinutes) * 100).round();
+
+    return FGGlassCard(
+      onTap: () => _showSleepDetail(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFF6B5BFF).withValues(alpha: 0.3),
+                      const Color(0xFF6B5BFF).withValues(alpha: 0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.bedtime_rounded,
+                  color: Color(0xFF6B5BFF),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: Spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'SOMMEIL',
+                          style: FGTypography.caption.copyWith(
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.w700,
+                            color: FGColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.sm),
+                        _buildMiniTrendIcon(sleepTrend),
+                      ],
+                    ),
+                    Text(
+                      'Dernière nuit',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary.withValues(alpha: 0.7),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildScoreBadge(sleepScore, const Color(0xFF6B5BFF)),
+              const SizedBox(width: Spacing.sm),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: FGColors.textSecondary.withValues(alpha: 0.5),
+                size: 24,
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.lg),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Big sleep duration
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${totalHours.floor()}h${(totalSleepMinutes % 60).toString().padLeft(2, '0')}',
+                    style: FGTypography.display.copyWith(
+                      fontSize: 36,
+                      color: const Color(0xFF6B5BFF),
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: FGColors.glassBorder,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '$efficiency% efficacité',
+                      style: FGTypography.caption.copyWith(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: FGColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: Spacing.lg),
+              // Sleep phases bars
+              Expanded(
+                child: _buildSleepPhasesBar(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSleepPhasesBar() {
+    final total = deepSleepMinutes + coreSleepMinutes + remSleepMinutes;
+    final deepPct = deepSleepMinutes / total;
+    final corePct = coreSleepMinutes / total;
+    final remPct = remSleepMinutes / total;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Stacked bar
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            height: 20,
+            child: Row(
+              children: [
+                Expanded(
+                  flex: (deepPct * 100).round(),
+                  child: Container(color: const Color(0xFF1E3A5F)),
+                ),
+                Expanded(
+                  flex: (corePct * 100).round(),
+                  child: Container(color: const Color(0xFF4A90D9)),
+                ),
+                Expanded(
+                  flex: (remPct * 100).round(),
+                  child: Container(color: const Color(0xFF9B6BFF)),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: Spacing.sm),
+        // Legend
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            _buildPhaseLegend('Profond', const Color(0xFF1E3A5F)),
+            const SizedBox(width: Spacing.sm),
+            _buildPhaseLegend('Core', const Color(0xFF4A90D9)),
+            const SizedBox(width: Spacing.sm),
+            _buildPhaseLegend('REM', const Color(0xFF9B6BFF)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPhaseLegend(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
         Text(
-          'Données Apple Santé • Aujourd\'hui',
+          label,
           style: FGTypography.caption.copyWith(
+            fontSize: 9,
             color: FGColors.textSecondary,
           ),
         ),
@@ -192,7 +811,190 @@ class _HealthScreenState extends State<HealthScreen>
   }
 
   // ============================================
-  // ENERGY CARD (Expandable)
+  // HEART CARD
+  // ============================================
+  Widget _buildHeartCard() {
+    final restingStatus = _getHeartRateStatus(restingHeartRate);
+    final hrvStatus = _getHrvStatus(hrvMs);
+    final heartScore = _calculateHeartScore();
+
+    return FGGlassCard(
+      onTap: () => _showHeartDetail(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFFFF5B7F).withValues(alpha: 0.3),
+                      const Color(0xFFFF5B7F).withValues(alpha: 0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.favorite_rounded,
+                  color: Color(0xFFFF5B7F),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: Spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'CŒUR',
+                          style: FGTypography.caption.copyWith(
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.w700,
+                            color: FGColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.sm),
+                        _buildMiniTrendIcon(heartTrend),
+                      ],
+                    ),
+                    Text(
+                      'Dernière nuit',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary.withValues(alpha: 0.7),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildScoreBadge(heartScore, const Color(0xFFFF5B7F)),
+              const SizedBox(width: Spacing.sm),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: FGColors.textSecondary.withValues(alpha: 0.5),
+                size: 24,
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: _buildHeartMetric(
+                  label: 'FC Repos',
+                  value: '$restingHeartRate',
+                  unit: 'BPM',
+                  status: restingStatus.text,
+                  statusColor: restingStatus.color,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 50,
+                color: FGColors.glassBorder,
+              ),
+              Expanded(
+                child: _buildHeartMetric(
+                  label: 'VFC',
+                  value: '$hrvMs',
+                  unit: 'ms',
+                  status: hrvStatus.text,
+                  statusColor: hrvStatus.color,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 50,
+                color: FGColors.glassBorder,
+              ),
+              Expanded(
+                child: _buildHeartMetric(
+                  label: 'VO₂ Max',
+                  value: vo2Max.toStringAsFixed(1),
+                  unit: '',
+                  status: _getVo2Status(vo2Max).text,
+                  statusColor: _getVo2Status(vo2Max).color,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeartMetric({
+    required String label,
+    required String value,
+    required String unit,
+    required String status,
+    required Color statusColor,
+  }) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              value,
+              style: FGTypography.h3.copyWith(
+                fontWeight: FontWeight.w900,
+                color: const Color(0xFFFF5B7F),
+              ),
+            ),
+            if (unit.isNotEmpty) ...[
+              const SizedBox(width: 2),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  unit,
+                  style: FGTypography.caption.copyWith(
+                    fontSize: 10,
+                    color: const Color(0xFFFF5B7F).withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            status,
+            style: FGTypography.caption.copyWith(
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              color: statusColor,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: FGTypography.caption.copyWith(
+            fontSize: 10,
+            color: FGColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ============================================
+  // ENERGY CARD
   // ============================================
   Widget _buildEnergyCard() {
     final netCalories = caloriesConsumed - caloriesBurned;
@@ -206,11 +1008,18 @@ class _HealthScreenState extends State<HealthScreen>
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: FGColors.accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(Spacing.sm),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      FGColors.accent.withValues(alpha: 0.3),
+                      FGColors.accent.withValues(alpha: 0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.local_fire_department_rounded,
@@ -219,119 +1028,57 @@ class _HealthScreenState extends State<HealthScreen>
                 ),
               ),
               const SizedBox(width: Spacing.md),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ÉNERGIE',
-                    style: FGTypography.caption.copyWith(
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.w700,
-                      color: FGColors.textSecondary,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'ÉNERGIE',
+                          style: FGTypography.caption.copyWith(
+                            letterSpacing: 2,
+                            fontWeight: FontWeight.w700,
+                            color: FGColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.sm),
+                        _buildMiniTrendIcon(energyTrend),
+                      ],
                     ),
-                  ),
-                  Text(
-                    'Balance calorique',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary.withValues(alpha: 0.7),
-                      fontSize: 10,
+                    Text(
+                      'Balance calorique',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary.withValues(alpha: 0.7),
+                        fontSize: 10,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: FGColors.textSecondary.withValues(alpha: 0.5),
-                size: 24,
-              ),
-            ],
-          ),
-          const SizedBox(height: Spacing.lg),
-          Row(
-            children: [
-              Expanded(
-                child: _buildCompactStat(
-                  label: 'Consommé',
-                  value: '$caloriesConsumed',
-                  unit: 'kcal',
-                  color: const Color(0xFF00D9FF),
+                  ],
                 ),
               ),
-              Expanded(
-                child: _buildCompactStat(
-                  label: 'Dépensé',
-                  value: '$caloriesBurned',
-                  unit: 'kcal',
-                  color: FGColors.accent,
-                ),
-              ),
-              Expanded(
-                child: _buildCompactStat(
-                  label: isDeficit ? 'Déficit' : 'Surplus',
-                  value: '${netCalories.abs()}',
-                  unit: 'kcal',
-                  color: isDeficit ? FGColors.success : FGColors.warning,
-                  highlight: true,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================
-  // SLEEP CARD (Expandable with Gauges)
-  // ============================================
-  Widget _buildSleepCard() {
-    final totalHours = totalSleepMinutes / 60;
-    final sleepScore = _calculateSleepScore();
-
-    return FGGlassCard(
-      onTap: () => _showSleepDetail(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
+              // Net calories badge
               Container(
-                width: 36,
-                height: 36,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.sm,
+                  vertical: Spacing.xs,
+                ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6B5BFF).withValues(alpha: 0.15),
+                  color: (isDeficit ? FGColors.success : FGColors.warning)
+                      .withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(Spacing.sm),
+                  border: Border.all(
+                    color: (isDeficit ? FGColors.success : FGColors.warning)
+                        .withValues(alpha: 0.4),
+                  ),
                 ),
-                child: const Icon(
-                  Icons.bedtime_rounded,
-                  color: Color(0xFF6B5BFF),
-                  size: 20,
+                child: Text(
+                  '${isDeficit ? '' : '+'}$netCalories',
+                  style: FGTypography.caption.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: isDeficit ? FGColors.success : FGColors.warning,
+                  ),
                 ),
               ),
-              const SizedBox(width: Spacing.md),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'SOMMEIL',
-                    style: FGTypography.caption.copyWith(
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.w700,
-                      color: FGColors.textSecondary,
-                    ),
-                  ),
-                  Text(
-                    'Analyse des phases',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary.withValues(alpha: 0.7),
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              _buildScoreBadge(sleepScore),
               const SizedBox(width: Spacing.sm),
               Icon(
                 Icons.chevron_right_rounded,
@@ -341,115 +1088,28 @@ class _HealthScreenState extends State<HealthScreen>
             ],
           ),
           const SizedBox(height: Spacing.lg),
+          // Progress visualization
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                '${totalHours.floor()}h${(totalSleepMinutes % 60).toString().padLeft(2, '0')}',
-                style: FGTypography.display.copyWith(
-                  fontSize: 42,
-                  color: const Color(0xFF6B5BFF),
-                  height: 1,
-                ),
-              ),
-              const SizedBox(width: Spacing.lg),
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildSleepMiniStat(
-                        'Profond', deepSleepMinutes, const Color(0xFF1E3A5F)),
-                    _buildSleepMiniStat(
-                        'Core', coreSleepMinutes, const Color(0xFF4A90D9)),
-                    _buildSleepMiniStat(
-                        'REM', remSleepMinutes, const Color(0xFF9B6BFF)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================
-  // HEART CARD (Expandable)
-  // ============================================
-  Widget _buildHeartCard() {
-    final restingStatus = _getHeartRateStatus(restingHeartRate);
-    final hrvStatus = _getHrvStatusRecord(hrvMs);
-
-    return FGGlassCard(
-      onTap: () => _showHeartDetail(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF5B7F).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(Spacing.sm),
-                ),
-                child: const Icon(
-                  Icons.favorite_rounded,
-                  color: Color(0xFFFF5B7F),
-                  size: 20,
+                child: _buildEnergyBar(
+                  label: 'Consommé',
+                  value: caloriesConsumed,
+                  max: caloriesBurned > caloriesConsumed
+                      ? caloriesBurned
+                      : caloriesConsumed,
+                  color: const Color(0xFF00D9FF),
                 ),
               ),
               const SizedBox(width: Spacing.md),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'CŒUR',
-                    style: FGTypography.caption.copyWith(
-                      letterSpacing: 2,
-                      fontWeight: FontWeight.w700,
-                      color: FGColors.textSecondary,
-                    ),
-                  ),
-                  Text(
-                    'Dernière nuit',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary.withValues(alpha: 0.7),
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: FGColors.textSecondary.withValues(alpha: 0.5),
-                size: 24,
-              ),
-            ],
-          ),
-          const SizedBox(height: Spacing.lg),
-          Row(
-            children: [
               Expanded(
-                child: _buildHeartMetricWithStatus(
-                  label: 'Repos',
-                  value: restingHeartRate,
-                  unit: 'BPM',
-                  status: restingStatus.text,
-                  statusColor: restingStatus.color,
-                  highlight: true,
-                ),
-              ),
-              Expanded(
-                child: _buildHeartMetricWithStatus(
-                  label: 'VFC',
-                  value: hrvMs,
-                  unit: 'ms',
-                  status: hrvStatus.text,
-                  statusColor: hrvStatus.color,
-                  highlight: false,
+                child: _buildEnergyBar(
+                  label: 'Dépensé',
+                  value: caloriesBurned,
+                  max: caloriesBurned > caloriesConsumed
+                      ? caloriesBurned
+                      : caloriesConsumed,
+                  color: FGColors.accent,
                 ),
               ),
             ],
@@ -459,79 +1119,112 @@ class _HealthScreenState extends State<HealthScreen>
     );
   }
 
-  Widget _buildHeartMetricWithStatus({
+  Widget _buildEnergyBar({
     required String label,
     required int value,
-    required String unit,
-    required String status,
-    required Color statusColor,
-    bool highlight = false,
+    required int max,
+    required Color color,
   }) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '$value',
-              style: FGTypography.body.copyWith(
-                fontWeight: FontWeight.w900,
-                fontSize: highlight ? 28 : 24,
-                color: const Color(0xFFFF5B7F),
+              label,
+              style: FGTypography.caption.copyWith(
+                fontSize: 10,
+                color: FGColors.textSecondary,
               ),
             ),
-            const SizedBox(width: 2),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Text(
-                unit,
-                style: FGTypography.caption.copyWith(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFFFF5B7F).withValues(alpha: 0.7),
-                ),
+            Text(
+              '$value kcal',
+              style: FGTypography.caption.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: color,
               ),
             ),
           ],
         ),
-        const SizedBox(height: Spacing.xs),
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.sm,
-            vertical: 2,
-          ),
-          decoration: BoxDecoration(
-            color: statusColor.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            status,
-            style: FGTypography.caption.copyWith(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              color: statusColor,
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            height: 8,
+            child: LinearProgressIndicator(
+              value: value / max,
+              backgroundColor: FGColors.glassBorder,
+              valueColor: AlwaysStoppedAnimation(color),
             ),
-          ),
-        ),
-        const SizedBox(height: Spacing.xs),
-        Text(
-          label,
-          style: FGTypography.caption.copyWith(
-            fontSize: 10,
-            color: FGColors.textSecondary,
           ),
         ),
       ],
     );
   }
 
-  ({Color color, String text}) _getHrvStatusRecord(int ms) {
-    if (ms >= 60) return (color: FGColors.success, text: 'EXCELLENT');
-    if (ms >= 50) return (color: FGColors.success, text: 'BON');
-    if (ms >= 40) return (color: FGColors.warning, text: 'MOYEN');
-    if (ms >= 30) return (color: FGColors.warning, text: 'FAIBLE');
-    return (color: FGColors.error, text: 'TRÈS FAIBLE');
+  Widget _buildMiniTrendIcon(int trend) {
+    final icon = trend > 0
+        ? Icons.arrow_upward
+        : trend < 0
+            ? Icons.arrow_downward
+            : Icons.remove;
+    final color = trend > 0
+        ? FGColors.success
+        : trend < 0
+            ? FGColors.error
+            : FGColors.textSecondary;
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Icon(icon, color: color, size: 10),
+    );
+  }
+
+  Widget _buildScoreBadge(int score, Color themeColor) {
+    Color badgeColor;
+    String label;
+
+    if (score >= 85) {
+      badgeColor = FGColors.success;
+      label = 'A+';
+    } else if (score >= 70) {
+      badgeColor = themeColor;
+      label = 'A';
+    } else if (score >= 55) {
+      badgeColor = FGColors.warning;
+      label = 'B';
+    } else {
+      badgeColor = FGColors.error;
+      label = 'C';
+    }
+
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: badgeColor.withValues(alpha: 0.15),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: badgeColor.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Center(
+        child: Text(
+          label,
+          style: FGTypography.caption.copyWith(
+            fontWeight: FontWeight.w900,
+            color: badgeColor,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
   }
 
   // ============================================
@@ -594,141 +1287,14 @@ class _HealthScreenState extends State<HealthScreen>
   }
 
   // ============================================
-  // HELPER WIDGETS
+  // HELPER CALCULATIONS
   // ============================================
-
-  Widget _buildCompactStat({
-    required String label,
-    required String value,
-    required Color color,
-    String? unit,
-    bool highlight = false,
-  }) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              value,
-              style: FGTypography.body.copyWith(
-                fontWeight: FontWeight.w900,
-                fontSize: highlight ? 20 : 18,
-                color: color,
-              ),
-            ),
-            if (unit != null) ...[
-              const SizedBox(width: 2),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 1),
-                child: Text(
-                  unit,
-                  style: FGTypography.caption.copyWith(
-                    fontSize: 9,
-                    color: color.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        const SizedBox(height: Spacing.xs),
-        Text(
-          label,
-          style: FGTypography.caption.copyWith(
-            fontSize: 10,
-            color: FGColors.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSleepMiniStat(String label, int minutes, Color color) {
-    final hours = minutes ~/ 60;
-    final mins = minutes % 60;
-    final timeStr =
-        hours > 0 ? '${hours}h${mins.toString().padLeft(2, '0')}' : '${mins}m';
-
-    return Column(
-      children: [
-        Text(
-          timeStr,
-          style: FGTypography.caption.copyWith(
-            fontWeight: FontWeight.w900,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: FGTypography.caption.copyWith(
-            fontSize: 9,
-            color: FGColors.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildScoreBadge(int score) {
-    Color badgeColor;
-    String label;
-
-    if (score >= 85) {
-      badgeColor = FGColors.success;
-      label = 'EXCELLENT';
-    } else if (score >= 70) {
-      badgeColor = const Color(0xFF6B5BFF);
-      label = 'BON';
-    } else if (score >= 50) {
-      badgeColor = FGColors.warning;
-      label = 'MOYEN';
-    } else {
-      badgeColor = FGColors.error;
-      label = 'FAIBLE';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.sm,
-        vertical: Spacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(Spacing.sm),
-        border: Border.all(
-          color: badgeColor.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$score',
-            style: FGTypography.caption.copyWith(
-              fontWeight: FontWeight.w900,
-              color: badgeColor,
-            ),
-          ),
-          const SizedBox(width: Spacing.xs),
-          Text(
-            label,
-            style: FGTypography.caption.copyWith(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: badgeColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   int _calculateSleepScore() {
     int score = 0;
     final totalHours = totalSleepMinutes / 60;
 
+    // Duration score (40 points max)
     if (totalHours >= 7 && totalHours <= 9) {
       score += 40;
     } else if (totalHours >= 6 && totalHours < 7) {
@@ -739,6 +1305,7 @@ class _HealthScreenState extends State<HealthScreen>
       score += 10;
     }
 
+    // Deep sleep (25 points max)
     final deepPercent = deepSleepMinutes / totalSleepMinutes;
     if (deepPercent >= 0.13 && deepPercent <= 0.23) {
       score += 25;
@@ -748,6 +1315,7 @@ class _HealthScreenState extends State<HealthScreen>
       score += 5;
     }
 
+    // REM (25 points max)
     final remPercent = remSleepMinutes / totalSleepMinutes;
     if (remPercent >= 0.20 && remPercent <= 0.25) {
       score += 25;
@@ -757,6 +1325,7 @@ class _HealthScreenState extends State<HealthScreen>
       score += 5;
     }
 
+    // Awake time (10 points max)
     final awakePercent = awakeMinutes / totalSleepMinutes;
     if (awakePercent <= 0.05) {
       score += 10;
@@ -773,5 +1342,21 @@ class _HealthScreenState extends State<HealthScreen>
     if (bpm <= 70) return (color: FGColors.success, text: 'BON');
     if (bpm <= 80) return (color: FGColors.warning, text: 'NORMAL');
     return (color: FGColors.error, text: 'ÉLEVÉ');
+  }
+
+  ({Color color, String text}) _getHrvStatus(int ms) {
+    if (ms >= 60) return (color: FGColors.success, text: 'EXCELLENT');
+    if (ms >= 50) return (color: FGColors.success, text: 'BON');
+    if (ms >= 40) return (color: FGColors.warning, text: 'MOYEN');
+    if (ms >= 30) return (color: FGColors.warning, text: 'FAIBLE');
+    return (color: FGColors.error, text: 'TRÈS FAIBLE');
+  }
+
+  ({Color color, String text}) _getVo2Status(double vo2) {
+    if (vo2 >= 50) return (color: FGColors.success, text: 'SUPÉRIEUR');
+    if (vo2 >= 45) return (color: FGColors.success, text: 'EXCELLENT');
+    if (vo2 >= 40) return (color: const Color(0xFF6B5BFF), text: 'BON');
+    if (vo2 >= 35) return (color: FGColors.warning, text: 'MOYEN');
+    return (color: FGColors.error, text: 'FAIBLE');
   }
 }

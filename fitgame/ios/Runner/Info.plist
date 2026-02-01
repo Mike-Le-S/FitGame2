@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>FitGame a besoin d'accéder à vos données de santé pour afficher vos statistiques d'activité, sommeil et fréquence cardiaque.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>FitGame peut enregistrer vos données d'entraînement dans Apple Santé.</string>
 </dict>
 </plist>
