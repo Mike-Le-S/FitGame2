@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseService {
   static SupabaseClient get client => Supabase.instance.client;
+  // ignore: unused_field - subscription kept alive for auth state cleanup
   static StreamSubscription<AuthState>? _authSubscription;
 
   static Future<void> initialize() async {
@@ -80,8 +83,68 @@ class SupabaseService {
     );
   }
 
+  // Sign in with Google
+  static Future<AuthResponse> signInWithGoogle() async {
+    // iOS Client ID from Google Cloud Console
+    const iosClientId = '241707453312-24n1s72q44oughb28s7fjhiaehgop7ss.apps.googleusercontent.com';
+    // Web Client ID (needed for Android)
+    const webClientId = '241707453312-bcdt4drl7bi0t10pga3g83f9bp123384.apps.googleusercontent.com';
+
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      clientId: Platform.isIOS ? iosClientId : null,
+      serverClientId: webClientId,
+    );
+
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      throw Exception('Connexion Google annulée');
+    }
+
+    final googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
+
+    if (idToken == null) {
+      throw Exception('Impossible de récupérer le token Google');
+    }
+
+    final response = await client.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: idToken,
+      accessToken: accessToken,
+    );
+
+    // Create profile if it doesn't exist
+    if (response.user != null) {
+      final existingProfile = await client
+          .from('profiles')
+          .select()
+          .eq('id', response.user!.id)
+          .maybeSingle();
+
+      if (existingProfile == null) {
+        await client.from('profiles').insert({
+          'id': response.user!.id,
+          'email': response.user!.email ?? googleUser.email,
+          'full_name': googleUser.displayName ?? 'Utilisateur',
+          'avatar_url': googleUser.photoUrl,
+          'role': 'athlete',
+        });
+      }
+    }
+
+    return response;
+  }
+
   // Sign out
   static Future<void> signOut() async {
+    // Sign out from Google as well
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+    } catch (_) {
+      // Ignore Google sign out errors
+    }
     await client.auth.signOut();
   }
 

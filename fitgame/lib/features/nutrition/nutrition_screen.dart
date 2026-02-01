@@ -38,10 +38,8 @@ class _NutritionScreenState extends State<NutritionScreen>
   String _goalType = 'bulk';
 
   // Supabase state
-  bool _isLoading = true;
   List<Map<String, dynamic>> _myDietPlans = [];
   List<Map<String, dynamic>> _assignedDietPlans = [];
-  Map<String, dynamic>? _coachInfo;
   Map<String, dynamic>? _activePlan; // Currently active diet plan
   String? _activePlanName;
 
@@ -75,284 +73,70 @@ class _NutritionScreenState extends State<NutritionScreen>
   };
 
   // Weekly meal plan - each day has 4 meals (mutable for CRUD operations)
+  // Real data - fetched from backend
   // ignore: prefer_final_fields
   List<Map<String, dynamic>> _weeklyPlan = [
-    // Monday (Training)
+    // Monday
     {
       'meals': [
-        {
-          'name': 'Petit-déjeuner',
-          'icon': Icons.wb_sunny_rounded,
-          'foods': [
-            {'name': 'Flocons d\'avoine', 'quantity': '80g', 'cal': 304, 'p': 12, 'c': 54, 'f': 6},
-            {'name': 'Banane', 'quantity': '1 moyenne', 'cal': 105, 'p': 1, 'c': 27, 'f': 0},
-            {'name': 'Whey Protein', 'quantity': '30g', 'cal': 120, 'p': 24, 'c': 3, 'f': 1},
-            {'name': 'Beurre de cacahuète', 'quantity': '20g', 'cal': 118, 'p': 5, 'c': 4, 'f': 10},
-          ],
-        },
-        {
-          'name': 'Déjeuner',
-          'icon': Icons.restaurant_rounded,
-          'foods': [
-            {'name': 'Poulet grillé', 'quantity': '200g', 'cal': 330, 'p': 62, 'c': 0, 'f': 7},
-            {'name': 'Riz basmati', 'quantity': '150g cuit', 'cal': 195, 'p': 4, 'c': 45, 'f': 0},
-            {'name': 'Brocolis', 'quantity': '150g', 'cal': 51, 'p': 4, 'c': 10, 'f': 1},
-            {'name': 'Huile d\'olive', 'quantity': '15ml', 'cal': 120, 'p': 0, 'c': 0, 'f': 14},
-          ],
-        },
-        {
-          'name': 'Collation',
-          'icon': Icons.apple,
-          'foods': [
-            {'name': 'Fromage blanc 0%', 'quantity': '200g', 'cal': 100, 'p': 16, 'c': 8, 'f': 0},
-            {'name': 'Amandes', 'quantity': '30g', 'cal': 174, 'p': 6, 'c': 6, 'f': 15},
-            {'name': 'Myrtilles', 'quantity': '100g', 'cal': 57, 'p': 1, 'c': 14, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Dîner',
-          'icon': Icons.nights_stay_rounded,
-          'foods': [
-            {'name': 'Saumon', 'quantity': '180g', 'cal': 367, 'p': 40, 'c': 0, 'f': 22},
-            {'name': 'Patate douce', 'quantity': '200g', 'cal': 172, 'p': 3, 'c': 40, 'f': 0},
-            {'name': 'Salade verte', 'quantity': '100g', 'cal': 15, 'p': 1, 'c': 3, 'f': 0},
-            {'name': 'Vinaigrette', 'quantity': '20ml', 'cal': 90, 'p': 0, 'c': 1, 'f': 10},
-          ],
-        },
+        {'name': 'Petit-déjeuner', 'icon': Icons.wb_sunny_rounded, 'foods': []},
+        {'name': 'Déjeuner', 'icon': Icons.restaurant_rounded, 'foods': []},
+        {'name': 'Collation', 'icon': Icons.apple, 'foods': []},
+        {'name': 'Dîner', 'icon': Icons.nights_stay_rounded, 'foods': []},
       ],
     },
-    // Tuesday (Rest)
+    // Tuesday
     {
       'meals': [
-        {
-          'name': 'Petit-déjeuner',
-          'icon': Icons.wb_sunny_rounded,
-          'foods': [
-            {'name': 'Oeufs brouillés', 'quantity': '3 oeufs', 'cal': 219, 'p': 18, 'c': 2, 'f': 15},
-            {'name': 'Pain complet', 'quantity': '2 tranches', 'cal': 160, 'p': 8, 'c': 28, 'f': 2},
-            {'name': 'Avocat', 'quantity': '1/2', 'cal': 160, 'p': 2, 'c': 8, 'f': 15},
-          ],
-        },
-        {
-          'name': 'Déjeuner',
-          'icon': Icons.restaurant_rounded,
-          'foods': [
-            {'name': 'Boeuf haché 5%', 'quantity': '150g', 'cal': 232, 'p': 32, 'c': 0, 'f': 11},
-            {'name': 'Pâtes complètes', 'quantity': '100g sec', 'cal': 348, 'p': 14, 'c': 66, 'f': 3},
-            {'name': 'Sauce tomate', 'quantity': '100g', 'cal': 32, 'p': 2, 'c': 6, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Collation',
-          'icon': Icons.apple,
-          'foods': [
-            {'name': 'Yaourt grec', 'quantity': '170g', 'cal': 100, 'p': 17, 'c': 6, 'f': 1},
-            {'name': 'Miel', 'quantity': '15g', 'cal': 46, 'p': 0, 'c': 12, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Dîner',
-          'icon': Icons.nights_stay_rounded,
-          'foods': [
-            {'name': 'Thon en conserve', 'quantity': '140g', 'cal': 154, 'p': 34, 'c': 0, 'f': 1},
-            {'name': 'Quinoa', 'quantity': '100g cuit', 'cal': 120, 'p': 4, 'c': 21, 'f': 2},
-            {'name': 'Légumes grillés', 'quantity': '200g', 'cal': 80, 'p': 3, 'c': 16, 'f': 1},
-          ],
-        },
+        {'name': 'Petit-déjeuner', 'icon': Icons.wb_sunny_rounded, 'foods': []},
+        {'name': 'Déjeuner', 'icon': Icons.restaurant_rounded, 'foods': []},
+        {'name': 'Collation', 'icon': Icons.apple, 'foods': []},
+        {'name': 'Dîner', 'icon': Icons.nights_stay_rounded, 'foods': []},
       ],
     },
-    // Wednesday (Training)
+    // Wednesday
     {
       'meals': [
-        {
-          'name': 'Petit-déjeuner',
-          'icon': Icons.wb_sunny_rounded,
-          'foods': [
-            {'name': 'Pancakes protéinés', 'quantity': '3 pancakes', 'cal': 350, 'p': 30, 'c': 40, 'f': 8},
-            {'name': 'Sirop d\'érable', 'quantity': '30ml', 'cal': 78, 'p': 0, 'c': 20, 'f': 0},
-            {'name': 'Fruits rouges', 'quantity': '100g', 'cal': 43, 'p': 1, 'c': 10, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Déjeuner',
-          'icon': Icons.restaurant_rounded,
-          'foods': [
-            {'name': 'Escalope de dinde', 'quantity': '200g', 'cal': 236, 'p': 50, 'c': 0, 'f': 3},
-            {'name': 'Riz complet', 'quantity': '150g cuit', 'cal': 166, 'p': 4, 'c': 35, 'f': 1},
-            {'name': 'Haricots verts', 'quantity': '150g', 'cal': 47, 'p': 3, 'c': 10, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Collation',
-          'icon': Icons.apple,
-          'foods': [
-            {'name': 'Shake post-training', 'quantity': '1 shaker', 'cal': 280, 'p': 35, 'c': 30, 'f': 3},
-            {'name': 'Banane', 'quantity': '1 moyenne', 'cal': 105, 'p': 1, 'c': 27, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Dîner',
-          'icon': Icons.nights_stay_rounded,
-          'foods': [
-            {'name': 'Cabillaud', 'quantity': '200g', 'cal': 164, 'p': 36, 'c': 0, 'f': 1},
-            {'name': 'Purée de pommes de terre', 'quantity': '200g', 'cal': 176, 'p': 3, 'c': 36, 'f': 3},
-            {'name': 'Épinards', 'quantity': '100g', 'cal': 23, 'p': 3, 'c': 4, 'f': 0},
-          ],
-        },
+        {'name': 'Petit-déjeuner', 'icon': Icons.wb_sunny_rounded, 'foods': []},
+        {'name': 'Déjeuner', 'icon': Icons.restaurant_rounded, 'foods': []},
+        {'name': 'Collation', 'icon': Icons.apple, 'foods': []},
+        {'name': 'Dîner', 'icon': Icons.nights_stay_rounded, 'foods': []},
       ],
     },
-    // Thursday (Rest)
+    // Thursday
     {
       'meals': [
-        {
-          'name': 'Petit-déjeuner',
-          'icon': Icons.wb_sunny_rounded,
-          'foods': [
-            {'name': 'Muesli', 'quantity': '60g', 'cal': 222, 'p': 6, 'c': 42, 'f': 4},
-            {'name': 'Lait demi-écrémé', 'quantity': '200ml', 'cal': 92, 'p': 6, 'c': 10, 'f': 3},
-            {'name': 'Pomme', 'quantity': '1 moyenne', 'cal': 95, 'p': 0, 'c': 25, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Déjeuner',
-          'icon': Icons.restaurant_rounded,
-          'foods': [
-            {'name': 'Tofu ferme', 'quantity': '150g', 'cal': 144, 'p': 15, 'c': 4, 'f': 8},
-            {'name': 'Nouilles soba', 'quantity': '100g sec', 'cal': 336, 'p': 14, 'c': 74, 'f': 1},
-            {'name': 'Légumes sautés', 'quantity': '150g', 'cal': 75, 'p': 3, 'c': 12, 'f': 2},
-          ],
-        },
-        {
-          'name': 'Collation',
-          'icon': Icons.apple,
-          'foods': [
-            {'name': 'Cottage cheese', 'quantity': '150g', 'cal': 103, 'p': 14, 'c': 4, 'f': 4},
-            {'name': 'Noix', 'quantity': '20g', 'cal': 131, 'p': 3, 'c': 3, 'f': 13},
-          ],
-        },
-        {
-          'name': 'Dîner',
-          'icon': Icons.nights_stay_rounded,
-          'foods': [
-            {'name': 'Omelette', 'quantity': '4 oeufs', 'cal': 292, 'p': 24, 'c': 2, 'f': 20},
-            {'name': 'Champignons', 'quantity': '100g', 'cal': 22, 'p': 3, 'c': 3, 'f': 0},
-            {'name': 'Pain aux céréales', 'quantity': '50g', 'cal': 130, 'p': 5, 'c': 24, 'f': 2},
-          ],
-        },
+        {'name': 'Petit-déjeuner', 'icon': Icons.wb_sunny_rounded, 'foods': []},
+        {'name': 'Déjeuner', 'icon': Icons.restaurant_rounded, 'foods': []},
+        {'name': 'Collation', 'icon': Icons.apple, 'foods': []},
+        {'name': 'Dîner', 'icon': Icons.nights_stay_rounded, 'foods': []},
       ],
     },
-    // Friday (Training)
+    // Friday
     {
       'meals': [
-        {
-          'name': 'Petit-déjeuner',
-          'icon': Icons.wb_sunny_rounded,
-          'foods': [
-            {'name': 'Smoothie bowl', 'quantity': '1 bol', 'cal': 380, 'p': 25, 'c': 55, 'f': 8},
-            {'name': 'Granola', 'quantity': '40g', 'cal': 180, 'p': 4, 'c': 28, 'f': 7},
-          ],
-        },
-        {
-          'name': 'Déjeuner',
-          'icon': Icons.restaurant_rounded,
-          'foods': [
-            {'name': 'Filet de porc', 'quantity': '180g', 'cal': 234, 'p': 42, 'c': 0, 'f': 7},
-            {'name': 'Boulgour', 'quantity': '100g cuit', 'cal': 83, 'p': 3, 'c': 19, 'f': 0},
-            {'name': 'Courgettes grillées', 'quantity': '150g', 'cal': 27, 'p': 2, 'c': 5, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Collation',
-          'icon': Icons.apple,
-          'foods': [
-            {'name': 'Barre protéinée', 'quantity': '1 barre', 'cal': 220, 'p': 20, 'c': 22, 'f': 8},
-            {'name': 'Orange', 'quantity': '1 moyenne', 'cal': 62, 'p': 1, 'c': 15, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Dîner',
-          'icon': Icons.nights_stay_rounded,
-          'foods': [
-            {'name': 'Crevettes', 'quantity': '200g', 'cal': 198, 'p': 46, 'c': 0, 'f': 2},
-            {'name': 'Risotto', 'quantity': '200g', 'cal': 280, 'p': 6, 'c': 52, 'f': 6},
-            {'name': 'Parmesan', 'quantity': '20g', 'cal': 83, 'p': 8, 'c': 1, 'f': 6},
-          ],
-        },
+        {'name': 'Petit-déjeuner', 'icon': Icons.wb_sunny_rounded, 'foods': []},
+        {'name': 'Déjeuner', 'icon': Icons.restaurant_rounded, 'foods': []},
+        {'name': 'Collation', 'icon': Icons.apple, 'foods': []},
+        {'name': 'Dîner', 'icon': Icons.nights_stay_rounded, 'foods': []},
       ],
     },
-    // Saturday (Rest)
+    // Saturday
     {
       'meals': [
-        {
-          'name': 'Petit-déjeuner',
-          'icon': Icons.wb_sunny_rounded,
-          'foods': [
-            {'name': 'Oeufs bénédicte', 'quantity': '2 oeufs', 'cal': 380, 'p': 18, 'c': 22, 'f': 25},
-            {'name': 'Jus d\'orange', 'quantity': '200ml', 'cal': 90, 'p': 2, 'c': 21, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Déjeuner',
-          'icon': Icons.restaurant_rounded,
-          'foods': [
-            {'name': 'Salade César', 'quantity': '1 portion', 'cal': 350, 'p': 22, 'c': 12, 'f': 25},
-            {'name': 'Pain ciabatta', 'quantity': '60g', 'cal': 158, 'p': 5, 'c': 32, 'f': 1},
-          ],
-        },
-        {
-          'name': 'Collation',
-          'icon': Icons.apple,
-          'foods': [
-            {'name': 'Houmous', 'quantity': '100g', 'cal': 166, 'p': 8, 'c': 14, 'f': 10},
-            {'name': 'Crudités', 'quantity': '150g', 'cal': 50, 'p': 2, 'c': 10, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Dîner',
-          'icon': Icons.nights_stay_rounded,
-          'foods': [
-            {'name': 'Pizza maison', 'quantity': '1/2 pizza', 'cal': 450, 'p': 20, 'c': 50, 'f': 18},
-            {'name': 'Salade', 'quantity': '100g', 'cal': 20, 'p': 1, 'c': 4, 'f': 0},
-          ],
-        },
+        {'name': 'Petit-déjeuner', 'icon': Icons.wb_sunny_rounded, 'foods': []},
+        {'name': 'Déjeuner', 'icon': Icons.restaurant_rounded, 'foods': []},
+        {'name': 'Collation', 'icon': Icons.apple, 'foods': []},
+        {'name': 'Dîner', 'icon': Icons.nights_stay_rounded, 'foods': []},
       ],
     },
-    // Sunday (Rest)
+    // Sunday
     {
       'meals': [
-        {
-          'name': 'Petit-déjeuner',
-          'icon': Icons.wb_sunny_rounded,
-          'foods': [
-            {'name': 'French toast', 'quantity': '3 tranches', 'cal': 340, 'p': 12, 'c': 42, 'f': 14},
-            {'name': 'Bacon', 'quantity': '3 tranches', 'cal': 129, 'p': 9, 'c': 0, 'f': 10},
-          ],
-        },
-        {
-          'name': 'Déjeuner',
-          'icon': Icons.restaurant_rounded,
-          'foods': [
-            {'name': 'Rôti de boeuf', 'quantity': '150g', 'cal': 280, 'p': 38, 'c': 0, 'f': 14},
-            {'name': 'Gratin dauphinois', 'quantity': '150g', 'cal': 180, 'p': 5, 'c': 18, 'f': 10},
-            {'name': 'Haricots', 'quantity': '100g', 'cal': 35, 'p': 2, 'c': 8, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Collation',
-          'icon': Icons.apple,
-          'foods': [
-            {'name': 'Fromage', 'quantity': '40g', 'cal': 160, 'p': 10, 'c': 1, 'f': 13},
-            {'name': 'Raisins', 'quantity': '100g', 'cal': 69, 'p': 1, 'c': 18, 'f': 0},
-          ],
-        },
-        {
-          'name': 'Dîner',
-          'icon': Icons.nights_stay_rounded,
-          'foods': [
-            {'name': 'Soupe de légumes', 'quantity': '300ml', 'cal': 90, 'p': 3, 'c': 15, 'f': 2},
-            {'name': 'Tartine fromage', 'quantity': '2 tranches', 'cal': 240, 'p': 12, 'c': 24, 'f': 11},
-          ],
-        },
+        {'name': 'Petit-déjeuner', 'icon': Icons.wb_sunny_rounded, 'foods': []},
+        {'name': 'Déjeuner', 'icon': Icons.restaurant_rounded, 'foods': []},
+        {'name': 'Collation', 'icon': Icons.apple, 'foods': []},
+        {'name': 'Dîner', 'icon': Icons.nights_stay_rounded, 'foods': []},
       ],
     },
   ];
@@ -418,7 +202,6 @@ class _NutritionScreenState extends State<NutritionScreen>
 
   Future<void> _loadData() async {
     if (!SupabaseService.isAuthenticated) {
-      setState(() => _isLoading = false);
       return;
     }
 
@@ -426,20 +209,16 @@ class _NutritionScreenState extends State<NutritionScreen>
       final results = await Future.wait([
         SupabaseService.getDietPlans(),
         SupabaseService.getAssignedDietPlans(),
-        SupabaseService.getCoachInfo(),
       ]);
 
-      final myPlans = results[0] as List<Map<String, dynamic>>;
-      final assignedPlans = results[1] as List<Map<String, dynamic>>;
-      final coachInfo = results[2] as Map<String, dynamic>?;
+      final myPlans = results[0];
+      final assignedPlans = results[1];
 
       if (!mounted) return;
 
       setState(() {
         _myDietPlans = myPlans;
         _assignedDietPlans = assignedPlans;
-        _coachInfo = coachInfo;
-        _isLoading = false;
 
         // If there's an assigned plan from coach, use it as active
         if (assignedPlans.isNotEmpty) {
@@ -451,9 +230,6 @@ class _NutritionScreenState extends State<NutritionScreen>
       });
     } catch (e) {
       debugPrint('Error loading nutrition data: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
     }
   }
 
@@ -471,7 +247,6 @@ class _NutritionScreenState extends State<NutritionScreen>
     final trainingCal = plan['training_calories'] as int?;
     final restCal = plan['rest_calories'] as int?;
     final trainingMacros = plan['training_macros'] as Map<String, dynamic>?;
-    final restMacros = plan['rest_macros'] as Map<String, dynamic>?;
 
     if (trainingCal != null && restCal != null) {
       // Update macro targets based on plan
@@ -788,7 +563,7 @@ class _NutritionScreenState extends State<NutritionScreen>
                   ),
                   const SizedBox(height: Spacing.xs),
                   Text(
-                    '$goalLabel${trainingCal != null ? ' • ${trainingCal} kcal' : ''}',
+                    '$goalLabel${trainingCal != null ? ' • $trainingCal kcal' : ''}',
                     style: FGTypography.caption.copyWith(
                       color: FGColors.textSecondary,
                     ),

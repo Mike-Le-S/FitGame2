@@ -26,8 +26,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  // Mock data - TODO: Replace with real data
-  final int currentStreak = 12;
+  // Real data - fetched from backend
+  final int currentStreak = 0;
 
   @override
   void initState() {

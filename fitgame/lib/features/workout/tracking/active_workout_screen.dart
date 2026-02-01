@@ -6,7 +6,6 @@ import '../../../core/theme/fg_typography.dart';
 import '../../../core/theme/fg_effects.dart';
 import '../../../core/constants/spacing.dart';
 import '../../../core/models/exercise.dart';
-import '../../../core/models/workout_set.dart';
 import '../../../core/services/supabase_service.dart';
 import 'sheets/number_picker_sheet.dart';
 import 'sheets/workout_complete_sheet.dart';
@@ -67,69 +66,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   }
 
   void _initializeWorkout() {
-    _exercises = [
-      Exercise(
-        name: 'Squat Barre',
-        muscle: 'Quadriceps',
-        sets: [
-          // RPT warmup: 60%×8, 80%×5
-          WorkoutSet(targetReps: 8, targetWeight: 72, isWarmup: true),
-          WorkoutSet(targetReps: 5, targetWeight: 96, isWarmup: true),
-          // RPT working sets: 100%×5, 90%×7, 80%×9
-          WorkoutSet(targetReps: 5, targetWeight: 120),
-          WorkoutSet(targetReps: 7, targetWeight: 108),
-          WorkoutSet(targetReps: 9, targetWeight: 96),
-        ],
-        restSeconds: 180,
-        previousBest: 125,
-      ),
-      Exercise(
-        name: 'Presse Jambes',
-        muscle: 'Quadriceps',
-        sets: [
-          WorkoutSet(targetReps: 12, targetWeight: 180),
-          WorkoutSet(targetReps: 12, targetWeight: 180),
-          WorkoutSet(targetReps: 12, targetWeight: 180),
-          WorkoutSet(targetReps: 10, targetWeight: 200),
-        ],
-        restSeconds: 120,
-        previousBest: 200,
-      ),
-      Exercise(
-        name: 'Leg Extension',
-        muscle: 'Quadriceps',
-        sets: [
-          WorkoutSet(targetReps: 15, targetWeight: 60),
-          WorkoutSet(targetReps: 15, targetWeight: 60),
-          WorkoutSet(targetReps: 12, targetWeight: 70),
-        ],
-        restSeconds: 90,
-        previousBest: 70,
-      ),
-      Exercise(
-        name: 'Leg Curl',
-        muscle: 'Ischio-jambiers',
-        sets: [
-          WorkoutSet(targetReps: 12, targetWeight: 50),
-          WorkoutSet(targetReps: 12, targetWeight: 50),
-          WorkoutSet(targetReps: 12, targetWeight: 50),
-        ],
-        restSeconds: 90,
-        previousBest: 55,
-      ),
-      Exercise(
-        name: 'Mollets Debout',
-        muscle: 'Mollets',
-        sets: [
-          WorkoutSet(targetReps: 20, targetWeight: 80),
-          WorkoutSet(targetReps: 20, targetWeight: 80),
-          WorkoutSet(targetReps: 20, targetWeight: 80),
-          WorkoutSet(targetReps: 15, targetWeight: 100),
-        ],
-        restSeconds: 60,
-        previousBest: 100,
-      ),
-    ];
+    // Real data - exercises loaded from selected program/session
+    _exercises = [];
 
     _exercisePageController = PageController(initialPage: 0);
   }

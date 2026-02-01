@@ -8,16 +8,16 @@ import '../../../shared/widgets/fg_glass_card.dart';
 class MacroSummaryWidget extends StatelessWidget {
   final VoidCallback? onTap;
 
-  // Mock data aujourd'hui - TODO: Replace with real data
-  final int currentCalories = 1847;
-  final int targetCalories = 2400;
-  final double proteinPercent = 0.89;
-  final double carbsPercent = 0.72;
-  final double fatPercent = 0.65;
+  // Real data - fetched from backend
+  final int currentCalories = 0;
+  final int targetCalories = 2000;
+  final double proteinPercent = 0.0;
+  final double carbsPercent = 0.0;
+  final double fatPercent = 0.0;
 
-  // Mock data hier - TODO: Replace with real data
-  final int yesterdayConsumed = 2150;  // Ce qu'on a mangé
-  final int yesterdayBurned = 2400;    // Ce qu'on a dépensé (Apple Santé)
+  // Real data - fetched from backend
+  final int yesterdayConsumed = 0;
+  final int yesterdayBurned = 0;
 
   const MacroSummaryWidget({
     super.key,

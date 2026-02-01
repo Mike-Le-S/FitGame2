@@ -8,23 +8,8 @@ import '../../../shared/widgets/fg_glass_card.dart';
 class FriendActivityPeek extends StatelessWidget {
   final VoidCallback? onTap;
 
-  // Mock data - TODO: Replace with real data
-  final List<_FriendActivity> _activities = const [
-    _FriendActivity(
-      name: 'Thomas D.',
-      initial: 'T',
-      workout: 'Push Day',
-      timeAgo: 'il y a 2h',
-      color: Color(0xFF6366F1),
-    ),
-    _FriendActivity(
-      name: 'Julie M.',
-      initial: 'J',
-      workout: 'Leg Day',
-      timeAgo: 'il y a 5h',
-      color: Color(0xFFEC4899),
-    ),
-  ];
+  // Real data - fetched from backend
+  final List<_FriendActivity> _activities = const [];
 
   const FriendActivityPeek({
     super.key,

@@ -46,6 +46,9 @@ dependencies:
   health: ^11.1.0
   permission_handler: ^11.3.1
 
+  # Google Sign-In
+  google_sign_in: ^6.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

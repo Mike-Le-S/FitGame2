@@ -1,5 +1,44 @@
 # Changelog FitGame
 
+## 2026-02-01 - Nettoyage des données mock
+
+### Mobile (Flutter)
+Suppression de toutes les données hardcodées pour afficher un état vide aux nouveaux utilisateurs :
+
+- **home_screen.dart** : `currentStreak` → 0
+- **friend_activity_peek.dart** : `_activities` → liste vide
+- **sleep_summary_widget.dart** : données sommeil → "--" / 0
+- **macro_summary_widget.dart** : calories/macros → 0
+- **social_screen.dart** : `_activities`, `_challenges`, `_friends` → listes vides
+- **nutrition_screen.dart** : `_weeklyPlan` → structure vide (4 repas/jour sans aliments)
+- **health_screen.dart** : fallback mock → 0 (données réelles depuis HealthKit)
+- **active_workout_screen.dart** : `_exercises` → liste vide (chargés depuis programme)
+
+---
+
+## 2026-02-01 - Google Authentication
+
+### Configuration Google Cloud
+- Projet FitGame configuré avec OAuth consent screen (External)
+- iOS OAuth Client : `241707453312-24n1s72q44oughb28s7fjhiaehgop7ss.apps.googleusercontent.com`
+- Web OAuth Client : `241707453312-bcdt4drl7bi0t10pga3g83f9bp123384.apps.googleusercontent.com`
+- Supabase Auth Provider Google activé avec Skip nonce checks (iOS)
+
+### Mobile (Flutter)
+- **pubspec.yaml** : Ajout `google_sign_in: ^6.2.2`
+- **core/services/supabase_service.dart** :
+  - `signInWithGoogle()` : Authentification native Google avec création profil automatique
+  - `signOut()` : Déconnexion Google + Supabase
+- **features/auth/auth_screen.dart** : Bouton "Continuer avec Google" avec glow orange
+- **ios/Runner/Info.plist** : URL scheme `com.googleusercontent.apps.241707453312-...`
+
+### Coach-Web (React)
+- **store/auth-store.ts** :
+  - `loginWithGoogle()` : OAuth redirect vers Google
+- **pages/auth/login-page.tsx** : Bouton Google avec logo SVG multicolore
+
+---
+
 ## 2026-02-01 - Backend Phase 5.3 : Apple Health / Google Fit
 
 ### Mobile (Flutter)

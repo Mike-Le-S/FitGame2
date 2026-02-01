@@ -9,6 +9,7 @@ interface AuthState {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
+  loginWithGoogle: () => Promise<void>
   signUp: (email: string, password: string, fullName: string) => Promise<void>
   logout: () => Promise<void>
   updateProfile: (name: string, email: string) => Promise<void>
@@ -111,6 +112,20 @@ export const useAuthStore = create<AuthState>()(
           token: data.session?.access_token || null,
           isAuthenticated: true,
         })
+      },
+
+      loginWithGoogle: async () => {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+          },
+        })
+
+        if (error) {
+          throw new Error('Erreur de connexion Google')
+        }
+        // After OAuth redirect, checkSession will be called by onAuthStateChange
       },
 
       signUp: async (email: string, password: string, fullName: string) => {

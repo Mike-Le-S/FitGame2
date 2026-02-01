@@ -17,8 +17,10 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   bool _isLogin = true;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  String? _successMessage;
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -56,20 +58,33 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _successMessage = null;
     });
 
     try {
       if (_isLogin) {
-        await SupabaseService.signIn(
+        final response = await SupabaseService.signIn(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
+        // Check if email is not confirmed
+        if (response.session == null && response.user != null) {
+          setState(() {
+            _successMessage = 'Vérifie ton email pour confirmer ton compte';
+          });
+        }
       } else {
-        await SupabaseService.signUp(
+        final response = await SupabaseService.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text,
           fullName: _nameController.text.trim(),
         );
+        // SignUp succeeded but email confirmation required
+        if (response.session == null) {
+          setState(() {
+            _successMessage = 'Compte créé ! Vérifie ton email pour confirmer ton inscription.';
+          });
+        }
       }
     } catch (e) {
       setState(() {
@@ -97,7 +112,32 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     if (error.contains('Invalid email')) {
       return 'Email invalide';
     }
+    if (error.contains('Connexion Google annulée')) {
+      return 'Connexion Google annulée';
+    }
     return 'Une erreur est survenue. Réessayez.';
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() {
+      _isGoogleLoading = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    try {
+      await SupabaseService.signInWithGoogle();
+    } catch (e) {
+      setState(() {
+        _errorMessage = _parseError(e.toString());
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
+    }
   }
 
   void _toggleMode() {
@@ -153,15 +193,48 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         ),
                         const SizedBox(height: Spacing.lg),
 
+                        // Success message
+                        if (_successMessage != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(Spacing.sm),
+                            decoration: BoxDecoration(
+                              color: FGColors.success.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(Spacing.sm),
+                              border: Border.all(
+                                color: FGColors.success.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle_outline,
+                                  color: FGColors.success,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: Spacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    _successMessage!,
+                                    style: FGTypography.bodySmall.copyWith(
+                                      color: FGColors.success,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: Spacing.md),
+                        ],
+
                         // Error message
                         if (_errorMessage != null) ...[
                           Container(
                             padding: const EdgeInsets.all(Spacing.sm),
                             decoration: BoxDecoration(
-                              color: FGColors.error.withOpacity(0.1),
+                              color: FGColors.error.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(Spacing.sm),
                               border: Border.all(
-                                color: FGColors.error.withOpacity(0.3),
+                                color: FGColors.error.withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(
@@ -259,6 +332,38 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         ),
                         const SizedBox(height: Spacing.md),
 
+                        // Divider
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                height: 1,
+                                color: FGColors.glassBorder,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: Spacing.sm),
+                              child: Text(
+                                'ou',
+                                style: FGTypography.caption.copyWith(
+                                  color: FGColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Container(
+                                height: 1,
+                                color: FGColors.glassBorder,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: Spacing.md),
+
+                        // Google Sign-In button
+                        _buildGoogleButton(),
+                        const SizedBox(height: Spacing.md),
+
                         // Toggle mode
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -310,7 +415,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: FGColors.accent.withOpacity(0.4),
+                color: FGColors.accent.withValues(alpha: 0.4),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -348,6 +453,67 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildGoogleButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _isGoogleLoading ? null : _handleGoogleSignIn,
+        borderRadius: BorderRadius.circular(Spacing.sm),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: FGColors.glassSurface,
+            borderRadius: BorderRadius.circular(Spacing.sm),
+            border: Border.all(color: FGColors.glassBorder),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_isGoogleLoading)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: FGColors.textSecondary,
+                  ),
+                )
+              else ...[
+                // Google Logo
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      'G',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: Spacing.sm),
+                Text(
+                  'Continuer avec Google',
+                  style: FGTypography.body.copyWith(
+                    color: FGColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 

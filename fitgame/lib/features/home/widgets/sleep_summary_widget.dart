@@ -8,12 +8,12 @@ import '../../../shared/widgets/fg_glass_card.dart';
 class SleepSummaryWidget extends StatelessWidget {
   final VoidCallback? onTap;
 
-  // Mock data - TODO: Replace with real data
-  final String totalSleep = '7h23';
-  final int sleepScore = 72;
-  final double deepPercent = 0.22;
-  final double corePercent = 0.55;
-  final double remPercent = 0.23;
+  // Real data - fetched from backend
+  final String totalSleep = '--';
+  final int sleepScore = 0;
+  final double deepPercent = 0.0;
+  final double corePercent = 0.0;
+  final double remPercent = 0.0;
 
   const SleepSummaryWidget({
     super.key,

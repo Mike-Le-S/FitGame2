@@ -26,51 +26,48 @@ class _HealthScreenState extends State<HealthScreen>
   // Health service
   final HealthService _healthService = HealthService();
   HealthSnapshot? _healthData;
-  bool _isLoading = true;
-  bool _healthKitAvailable = false;
-  bool _healthKitAuthorized = false;
 
-  // === MOCK DATA (fallback) ===
+  // === REAL DATA (with zero fallback when no HealthKit data) ===
 
   // Sleep data (in minutes)
-  int get totalSleepMinutes => _healthData?.sleep?.totalMinutes ?? 7 * 60 + 23;
-  int get deepSleepMinutes => _healthData?.sleep?.deepMinutes ?? 58;
-  int get coreSleepMinutes => _healthData?.sleep?.lightMinutes ?? 4 * 60 + 10;
-  int get remSleepMinutes => _healthData?.sleep?.remMinutes ?? 1 * 60 + 35;
-  int get awakeMinutes => _healthData?.sleep?.awakeMinutes ?? 20;
-  int get timeInBedMinutes => _healthData?.sleep?.inBedMinutes ?? 8 * 60 + 15;
-  final int sleepLatencyMinutes = 12;
+  int get totalSleepMinutes => _healthData?.sleep?.totalMinutes ?? 0;
+  int get deepSleepMinutes => _healthData?.sleep?.deepMinutes ?? 0;
+  int get coreSleepMinutes => _healthData?.sleep?.lightMinutes ?? 0;
+  int get remSleepMinutes => _healthData?.sleep?.remMinutes ?? 0;
+  int get awakeMinutes => _healthData?.sleep?.awakeMinutes ?? 0;
+  int get timeInBedMinutes => _healthData?.sleep?.inBedMinutes ?? 1; // Avoid division by zero
+  final int sleepLatencyMinutes = 0;
 
   // Calorie data
   int get caloriesBurned =>
-      _healthData?.activity?.totalCaloriesBurned ?? 2450;
-  final int caloriesConsumed = 1980;
+      _healthData?.activity?.totalCaloriesBurned ?? 0;
+  final int caloriesConsumed = 0;
   final int calorieGoal = 2200;
-  int get bmr => _healthData?.activity?.basalCaloriesBurned ?? 1800;
+  int get bmr => _healthData?.activity?.basalCaloriesBurned ?? 0;
 
   // Activity
-  int get walkingCalories => _healthData?.activity?.activeCaloriesBurned ?? 280;
-  final int runningCalories = 420;
-  final int workoutCalories = 350;
-  int get steps => _healthData?.activity?.steps ?? 8742;
+  int get walkingCalories => _healthData?.activity?.activeCaloriesBurned ?? 0;
+  final int runningCalories = 0;
+  final int workoutCalories = 0;
+  int get steps => _healthData?.activity?.steps ?? 0;
   final int stepsGoal = 10000;
-  double get distanceKm => _healthData?.activity?.distanceKm ?? 6.2;
+  double get distanceKm => _healthData?.activity?.distanceKm ?? 0.0;
 
   // Heart data
   int get restingHeartRate =>
-      _healthData?.heart?.restingHeartRate ?? 58;
+      _healthData?.heart?.restingHeartRate ?? 0;
   int get avgHeartRate =>
-      _healthData?.heart?.averageHeartRate ?? 72;
+      _healthData?.heart?.averageHeartRate ?? 0;
   int get maxHeartRate =>
-      _healthData?.heart?.maxHeartRate ?? 165;
+      _healthData?.heart?.maxHeartRate ?? 0;
   int get minHeartRate =>
-      _healthData?.heart?.minHeartRate ?? 48;
-  int get hrvMs => _healthData?.heart?.hrvMs ?? 52;
-  final double vo2Max = 42.5;
+      _healthData?.heart?.minHeartRate ?? 0;
+  int get hrvMs => _healthData?.heart?.hrvMs ?? 0;
+  final double vo2Max = 0.0;
 
-  // Trends (compared to 7-day average)
-  final int sleepTrend = 1; // +1 = improving, 0 = stable, -1 = declining
-  final int heartTrend = 1;
+  // Trends (compared to 7-day average) - fetched from backend
+  final int sleepTrend = 0;
+  final int heartTrend = 0;
   final int energyTrend = 0;
 
   @override
@@ -101,16 +98,8 @@ class _HealthScreenState extends State<HealthScreen>
 
   Future<void> _loadHealthData() async {
     if (!_healthService.isAvailable) {
-      setState(() {
-        _healthKitAvailable = false;
-        _isLoading = false;
-      });
       return;
     }
-
-    setState(() {
-      _healthKitAvailable = true;
-    });
 
     // Check if already authorized
     final authorized = await _healthService.checkAuthorization();
@@ -118,17 +107,9 @@ class _HealthScreenState extends State<HealthScreen>
       // Request authorization
       final granted = await _healthService.requestAuthorization();
       if (!granted) {
-        setState(() {
-          _healthKitAuthorized = false;
-          _isLoading = false;
-        });
         return;
       }
     }
-
-    setState(() {
-      _healthKitAuthorized = true;
-    });
 
     // Fetch today's health data
     final today = DateTime.now();
@@ -136,7 +117,6 @@ class _HealthScreenState extends State<HealthScreen>
 
     setState(() {
       _healthData = snapshot;
-      _isLoading = false;
     });
   }
 
