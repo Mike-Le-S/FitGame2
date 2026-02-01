@@ -1,8 +1,11 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseService {
   static SupabaseClient get client => Supabase.instance.client;
+  static StreamSubscription<AuthState>? _authSubscription;
 
   static Future<void> initialize() async {
     await dotenv.load(fileName: '.env');
@@ -11,6 +14,22 @@ class SupabaseService {
       url: dotenv.env['SUPABASE_URL']!,
       anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
     );
+
+    // Listen for logout to cleanup realtime subscriptions
+    _authSubscription = client.auth.onAuthStateChange.listen((authState) {
+      if (authState.session == null) {
+        // User logged out - cleanup realtime channel
+        _cleanupRealtimeChannel();
+      }
+    });
+  }
+
+  static void _cleanupRealtimeChannel() {
+    _assignmentListeners.clear();
+    if (_assignmentsChannel != null) {
+      client.removeChannel(_assignmentsChannel!);
+      _assignmentsChannel = null;
+    }
   }
 
   // ============================================
@@ -480,5 +499,101 @@ class SupabaseService {
     } catch (e) {
       return null;
     }
+  }
+
+  // ============================================
+  // Realtime Subscriptions
+  // ============================================
+
+  static RealtimeChannel? _assignmentsChannel;
+  static final List<void Function(Map<String, dynamic>)> _assignmentListeners = [];
+
+  /// Add a listener for assignment changes
+  /// Returns an ID to use when removing the listener
+  static void addAssignmentListener(void Function(Map<String, dynamic>) listener) {
+    _assignmentListeners.add(listener);
+
+    // Initialize channel if not already done
+    if (_assignmentsChannel == null && currentUser != null) {
+      _initAssignmentsChannel();
+    }
+  }
+
+  /// Remove a listener for assignment changes
+  static void removeAssignmentListener(void Function(Map<String, dynamic>) listener) {
+    _assignmentListeners.remove(listener);
+
+    // Cleanup channel if no more listeners
+    if (_assignmentListeners.isEmpty && _assignmentsChannel != null) {
+      client.removeChannel(_assignmentsChannel!);
+      _assignmentsChannel = null;
+    }
+  }
+
+  /// Initialize the realtime channel for assignments
+  static void _initAssignmentsChannel() {
+    // Capture userId to avoid race condition if user logs out during setup
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      _assignmentsChannel = client
+          .channel('assignments-realtime')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'assignments',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'student_id',
+              value: userId,
+            ),
+            callback: (payload) {
+              final newAssignment = payload.newRecord;
+              // Copy list to avoid concurrent modification
+              final listeners = List.from(_assignmentListeners);
+              for (final listener in listeners) {
+                listener(newAssignment);
+              }
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'assignments',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'student_id',
+              value: userId,
+            ),
+            callback: (payload) {
+              final updatedAssignment = payload.newRecord;
+              // Copy list to avoid concurrent modification
+              final listeners = List.from(_assignmentListeners);
+              for (final listener in listeners) {
+                listener(updatedAssignment);
+              }
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Failed to initialize realtime channel: $e');
+    }
+  }
+
+  /// Legacy method - kept for compatibility
+  @Deprecated('Use addAssignmentListener() instead')
+  static void subscribeToAssignments({
+    void Function(Map<String, dynamic>)? onNewAssignment,
+  }) {
+    if (onNewAssignment != null) {
+      addAssignmentListener(onNewAssignment);
+    }
+  }
+
+  /// Legacy method - kept for compatibility
+  @Deprecated('Use removeAssignmentListener() instead')
+  static void unsubscribeFromAssignments() {
+    _cleanupRealtimeChannel();
   }
 }

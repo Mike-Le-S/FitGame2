@@ -45,6 +45,9 @@ class _NutritionScreenState extends State<NutritionScreen>
   Map<String, dynamic>? _activePlan; // Currently active diet plan
   String? _activePlanName;
 
+  // Realtime listener reference
+  void Function(Map<String, dynamic>)? _assignmentListener;
+
   // === MACRO TARGETS ===
   // Macro targets based on goal and training/rest day (mutable for coach plans)
   Map<String, Map<String, int>> _macroTargets = {
@@ -385,6 +388,32 @@ class _NutritionScreenState extends State<NutritionScreen>
     _dayPageController = PageController(initialPage: _selectedDayIndex);
 
     _loadData();
+    _subscribeToAssignments();
+  }
+
+  void _subscribeToAssignments() {
+    _assignmentListener = (assignment) {
+      // Only react to diet plan assignments
+      if (assignment['diet_plan_id'] != null) {
+        _loadData();
+
+        // Show snackbar notification
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Nouveau plan nutrition assigné par votre coach !'),
+              backgroundColor: FGColors.accent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    };
+    SupabaseService.addAssignmentListener(_assignmentListener!);
   }
 
   Future<void> _loadData() async {
@@ -780,6 +809,9 @@ class _NutritionScreenState extends State<NutritionScreen>
 
   @override
   void dispose() {
+    if (_assignmentListener != null) {
+      SupabaseService.removeAssignmentListener(_assignmentListener!);
+    }
     _pulseController.dispose();
     _ringController.dispose();
     _dayPageController.dispose();

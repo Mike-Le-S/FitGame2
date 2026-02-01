@@ -43,6 +43,9 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   List<Map<String, dynamic>> _assignedPrograms = [];
   Map<String, dynamic>? _coachInfo;
 
+  // Realtime listener reference
+  void Function(Map<String, dynamic>)? _assignmentListener;
+
   // Week stats
   int weekSessions = 0;
   int weekTarget = 5;
@@ -110,6 +113,33 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     );
 
     _loadData();
+    _subscribeToAssignments();
+  }
+
+  void _subscribeToAssignments() {
+    _assignmentListener = (assignment) {
+      // Only react to program assignments
+      if (assignment['program_id'] != null) {
+        // Reload data when a new program is assigned
+        _loadData();
+
+        // Show snackbar notification
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Nouveau programme assigné par votre coach !'),
+              backgroundColor: FGColors.accent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    };
+    SupabaseService.addAssignmentListener(_assignmentListener!);
   }
 
   Future<void> _loadData() async {
@@ -263,6 +293,9 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
   @override
   void dispose() {
+    if (_assignmentListener != null) {
+      SupabaseService.removeAssignmentListener(_assignmentListener!);
+    }
     _pulseController.dispose();
     _heroController.dispose();
     super.dispose();
@@ -1664,7 +1697,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                           ),
                         ),
                       ],
-                      if (isFromCoach && !isActive) ...[
+                      if (isFromCoach) ...[
                         const SizedBox(width: Spacing.sm),
                         Container(
                           padding: const EdgeInsets.symmetric(
