@@ -13,12 +13,13 @@ import {
   Image,
   Mic,
   Plus,
-  Trash2,
+  Loader2,
 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Avatar } from '@/components/ui'
 import { useStudentsStore } from '@/store/students-store'
 import { useMessagesStore } from '@/store/messages-store'
+import { useAuthStore } from '@/store/auth-store'
 import { formatRelativeTime, cn } from '@/lib/utils'
 
 const quickReplies = [
@@ -31,31 +32,32 @@ const quickReplies = [
 
 export function MessagesPage() {
   const { students } = useStudentsStore()
+  const { coach } = useAuthStore()
   const {
     conversations,
-    addMessage,
+    isLoading,
+    sendMessage,
     markAsRead,
-    createConversation,
-    deleteConversation,
+    getConversationByStudentId,
     getTotalUnread
   } = useMessagesStore()
 
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
-    conversations[0]?.id || null
+  // Selected student ID (conversations are keyed by studentId)
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
+    conversations[0]?.studentId || null
   )
   const [newMessage, setNewMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [focusedInput, setFocusedInput] = useState(false)
   const [showNewConversation, setShowNewConversation] = useState(false)
-  const [showOptions, setShowOptions] = useState(false)
+  const [isSending, setIsSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const optionsRef = useRef<HTMLDivElement>(null)
 
-  const selectedConversation = conversations.find(
-    (c) => c.id === selectedConversationId
-  )
-  const selectedStudent = selectedConversation
-    ? students.find((s) => s.id === selectedConversation.studentId)
+  const selectedConversation = selectedStudentId
+    ? getConversationByStudentId(selectedStudentId)
+    : null
+  const selectedStudent = selectedStudentId
+    ? students.find((s) => s.id === selectedStudentId)
     : null
 
   const filteredConversations = conversations.filter((conv) => {
@@ -65,7 +67,7 @@ export function MessagesPage() {
 
   const totalUnread = getTotalUnread()
 
-  // Students without a conversation
+  // Students without a conversation (for starting new conversations)
   const studentsWithoutConversation = students.filter(
     (s) => !conversations.some((c) => c.studentId === s.id)
   )
@@ -77,39 +79,36 @@ export function MessagesPage() {
 
   // Mark conversation as read when selected
   useEffect(() => {
-    if (selectedConversationId && (selectedConversation?.unreadCount ?? 0) > 0) {
-      markAsRead(selectedConversationId)
+    if (selectedStudentId && (selectedConversation?.unreadCount ?? 0) > 0) {
+      markAsRead(selectedStudentId)
     }
-  }, [selectedConversationId])
+  }, [selectedStudentId, selectedConversation?.unreadCount, markAsRead])
 
-  // Close options menu on outside click
+  // Auto-select first conversation when loaded
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (optionsRef.current && !optionsRef.current.contains(e.target as Node)) {
-        setShowOptions(false)
-      }
+    if (!selectedStudentId && conversations.length > 0) {
+      setSelectedStudentId(conversations[0].studentId)
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  }, [conversations, selectedStudentId])
 
-  const handleSend = () => {
-    if (!newMessage.trim() || !selectedConversationId) return
-    addMessage(selectedConversationId, newMessage.trim(), 'coach-1')
-    setNewMessage('')
+  const handleSend = async () => {
+    if (!newMessage.trim() || !selectedStudentId || isSending) return
+
+    setIsSending(true)
+    try {
+      await sendMessage(selectedStudentId, newMessage.trim())
+      setNewMessage('')
+    } catch (error) {
+      console.error('Error sending message:', error)
+    } finally {
+      setIsSending(false)
+    }
   }
 
-  const handleStartConversation = (studentId: string) => {
-    const convId = createConversation(studentId)
-    setSelectedConversationId(convId)
+  const handleStartConversation = async (studentId: string) => {
+    // Just select the student - conversation will be created on first message
+    setSelectedStudentId(studentId)
     setShowNewConversation(false)
-  }
-
-  const handleDeleteConversation = () => {
-    if (!selectedConversationId) return
-    deleteConversation(selectedConversationId)
-    setSelectedConversationId(conversations[0]?.id || null)
-    setShowOptions(false)
   }
 
   return (
@@ -164,17 +163,21 @@ export function MessagesPage() {
 
             {/* Conversations */}
             <div className="flex-1 overflow-y-auto p-2">
-              {filteredConversations.map((conv, index) => {
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 text-accent animate-spin" />
+                </div>
+              ) : filteredConversations.map((conv, index) => {
                 const student = students.find((s) => s.id === conv.studentId)
                 if (!student) return null
 
                 const lastMessage = conv.messages[conv.messages.length - 1]
-                const isSelected = conv.id === selectedConversationId
+                const isSelected = conv.studentId === selectedStudentId
 
                 return (
                   <button
-                    key={conv.id}
-                    onClick={() => setSelectedConversationId(conv.id)}
+                    key={conv.studentId}
+                    onClick={() => setSelectedStudentId(conv.studentId)}
                     className={cn(
                       'w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all duration-200',
                       'animate-[fadeIn_0.3s_ease-out]',
@@ -270,37 +273,14 @@ export function MessagesPage() {
                     )}>
                       <Video className="w-5 h-5" />
                     </button>
-                    <div className="relative" ref={optionsRef}>
-                      <button
-                        onClick={() => setShowOptions(!showOptions)}
-                        className={cn(
-                          'p-2.5 rounded-lg transition-all duration-200',
-                          'text-text-muted hover:text-text-primary hover:bg-surface-elevated'
-                        )}
-                      >
-                        <MoreVertical className="w-5 h-5" />
-                      </button>
-
-                      {showOptions && (
-                        <div className={cn(
-                          'absolute right-0 top-full mt-2 w-48 z-50',
-                          'bg-surface border border-border rounded-xl shadow-xl',
-                          'animate-[fadeIn_0.2s_ease-out]'
-                        )}>
-                          <button
-                            onClick={handleDeleteConversation}
-                            className={cn(
-                              'w-full flex items-center gap-3 px-4 py-3 text-left',
-                              'text-error hover:bg-error/10 rounded-xl',
-                              'transition-colors'
-                            )}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Supprimer la conversation
-                          </button>
-                        </div>
+                    <button
+                      className={cn(
+                        'p-2.5 rounded-lg transition-all duration-200',
+                        'text-text-muted hover:text-text-primary hover:bg-surface-elevated'
                       )}
-                    </div>
+                    >
+                      <MoreVertical className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
 
@@ -320,7 +300,7 @@ export function MessagesPage() {
                     </div>
                   ) : (
                     selectedConversation.messages.map((message, index) => {
-                      const isCoach = message.senderId === 'coach-1'
+                      const isCoach = message.senderId === coach?.id
 
                       return (
                         <div
@@ -437,15 +417,19 @@ export function MessagesPage() {
                       </button>
                       <button
                         onClick={handleSend}
-                        disabled={!newMessage.trim()}
+                        disabled={!newMessage.trim() || isSending}
                         className={cn(
                           'p-2.5 rounded-xl transition-all duration-300',
-                          newMessage.trim()
+                          newMessage.trim() && !isSending
                             ? 'bg-gradient-to-r from-accent to-[#ff8f5c] text-white shadow-md shadow-accent/30 hover:shadow-lg hover:shadow-accent/40'
                             : 'bg-surface text-text-muted cursor-not-allowed'
                         )}
                       >
-                        <Send className="w-5 h-5" />
+                        {isSending ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Send className="w-5 h-5" />
+                        )}
                       </button>
                     </div>
                   </div>

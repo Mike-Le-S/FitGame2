@@ -9,15 +9,20 @@ import {
   Flame,
   Plus,
   ArrowUpRight,
+  ArrowDownRight,
   Activity,
   Target,
   Calendar,
+  Weight,
+  RefreshCw,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Header } from '@/components/layout'
 import { Badge, Avatar } from '@/components/ui'
 import { useStudentsStore } from '@/store/students-store'
 import { useProgramsStore } from '@/store/programs-store'
+import { useStatsStore } from '@/store/stats-store'
+import { useMessagesStore } from '@/store/messages-store'
 import { formatRelativeTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
@@ -95,6 +100,9 @@ function StatCard({
               {changeType === 'positive' && (
                 <ArrowUpRight className="w-3.5 h-3.5 text-success" />
               )}
+              {changeType === 'negative' && (
+                <ArrowDownRight className="w-3.5 h-3.5 text-error" />
+              )}
               <p className={cn(
                 'text-xs font-medium',
                 changeType === 'positive' ? 'text-success' :
@@ -120,7 +128,7 @@ function StatCard({
 
 // Mini chart component (decorative)
 function MiniChart() {
-  const bars = [35, 52, 45, 68, 55, 72, 48]
+  const bars = [35, 52, 45, 68, 55, 62, 72]
   const maxHeight = Math.max(...bars)
 
   return (
@@ -145,24 +153,36 @@ function MiniChart() {
 export function DashboardPage() {
   const { students } = useStudentsStore()
   const { programs } = useProgramsStore()
+  const { dashboardStats, recentActivity: statsRecentActivity, isLoading: statsLoading, refreshAll } = useStatsStore()
+  const { getTotalUnread } = useMessagesStore()
 
-  // Calculate stats
-  const activeStudents = students.length
-  const totalWorkoutsThisWeek = students.reduce((acc, s) => acc + s.stats.thisWeekWorkouts, 0)
-  const averageCompliance = Math.round(
-    students.reduce((acc, s) => acc + s.stats.complianceRate, 0) / students.length
+  // Use real stats from store, fallback to calculated from students
+  const totalStudents = dashboardStats?.totalStudents ?? students.length
+  const activeStudents = dashboardStats?.activeStudents ?? students.filter(s => s.stats.thisWeekWorkouts > 0).length
+  const totalWorkoutsThisWeek = dashboardStats?.totalSessionsThisWeek ?? students.reduce((acc, s) => acc + s.stats.thisWeekWorkouts, 0)
+  const sessionsGrowthPercent = dashboardStats?.sessionsGrowthPercent ?? 0
+  const averageCompliance = dashboardStats?.averageCompliance ?? Math.round(
+    students.length > 0 ? students.reduce((acc, s) => acc + s.stats.complianceRate, 0) / students.length : 0
   )
+  const totalVolumeThisWeek = dashboardStats?.totalVolumeThisWeek ?? 0
+  const studentsAtRisk = dashboardStats?.studentsAtRisk ?? 0
+  const unreadMessages = getTotalUnread()
 
-  // Students needing attention (low compliance or no recent workout)
+  // Students needing attention (from real stats or fallback)
   const alertStudents = students.filter(
     (s) => s.stats.complianceRate < 70 || s.stats.thisWeekWorkouts < 2
-  )
+  ).slice(0, studentsAtRisk > 0 ? studentsAtRisk : undefined)
 
-  // Recent activity
-  const recentActivity = students
-    .filter((s) => s.lastWorkout)
-    .sort((a, b) => new Date(b.lastWorkout!).getTime() - new Date(a.lastWorkout!).getTime())
-    .slice(0, 5)
+  // Recent activity (from stats store or fallback)
+  const recentActivity = statsRecentActivity.length > 0
+    ? statsRecentActivity.map(a => {
+        const student = students.find(s => s.id === a.studentId)
+        return student ? { ...student, lastWorkout: a.lastWorkout, currentStreak: a.streak } : null
+      }).filter(Boolean) as typeof students
+    : students
+        .filter((s) => s.lastWorkout)
+        .sort((a, b) => new Date(b.lastWorkout!).getTime() - new Date(a.lastWorkout!).getTime())
+        .slice(0, 5)
 
   // Top performers
   const topPerformers = [...students]
@@ -191,8 +211,8 @@ export function DashboardPage() {
         <div className="grid grid-cols-4 gap-5">
           <StatCard
             title="Élèves actifs"
-            value={activeStudents}
-            change="+2 ce mois"
+            value={`${activeStudents}/${totalStudents}`}
+            change={dashboardStats?.newStudentsThisMonth ? `+${dashboardStats.newStudentsThisMonth} ce mois` : undefined}
             changeType="positive"
             icon={Users}
             color="accent"
@@ -201,8 +221,8 @@ export function DashboardPage() {
           <StatCard
             title="Séances cette semaine"
             value={totalWorkoutsThisWeek}
-            change="+12% vs semaine dernière"
-            changeType="positive"
+            change={sessionsGrowthPercent !== 0 ? `${sessionsGrowthPercent > 0 ? '+' : ''}${sessionsGrowthPercent}% vs semaine dernière` : undefined}
+            changeType={sessionsGrowthPercent > 0 ? 'positive' : sessionsGrowthPercent < 0 ? 'negative' : 'neutral'}
             icon={Dumbbell}
             color="success"
             delay={50}
@@ -210,14 +230,15 @@ export function DashboardPage() {
           <StatCard
             title="Compliance moyenne"
             value={`${averageCompliance}%`}
-            changeType={averageCompliance > 80 ? 'positive' : 'neutral'}
+            change={studentsAtRisk > 0 ? `${studentsAtRisk} élève(s) à risque` : 'Tous sur la bonne voie'}
+            changeType={averageCompliance >= 80 ? 'positive' : studentsAtRisk > 0 ? 'negative' : 'neutral'}
             icon={TrendingUp}
             color="info"
             delay={100}
           />
           <StatCard
             title="Messages non lus"
-            value={3}
+            value={unreadMessages}
             icon={MessageSquare}
             color="warning"
             delay={150}
@@ -269,13 +290,37 @@ export function DashboardPage() {
                     <Target className="w-4 h-4 text-accent" />
                     Performance semaine
                   </h3>
-                  <span className="text-xs text-text-muted">7 derniers jours</span>
+                  <button
+                    onClick={() => refreshAll()}
+                    disabled={statsLoading}
+                    className={cn(
+                      'p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10',
+                      'transition-all duration-200',
+                      statsLoading && 'animate-spin'
+                    )}
+                    title="Actualiser les statistiques"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
                 </div>
 
                 <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-3xl font-bold text-text-primary">{totalWorkoutsThisWeek}</p>
-                    <p className="text-sm text-text-muted">séances complétées</p>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-3xl font-bold text-text-primary">{totalWorkoutsThisWeek}</p>
+                      <p className="text-sm text-text-muted">séances complétées</p>
+                    </div>
+                    {totalVolumeThisWeek > 0 && (
+                      <div className="flex items-center gap-2 text-text-secondary">
+                        <Weight className="w-4 h-4" />
+                        <span className="text-sm font-medium">
+                          {totalVolumeThisWeek >= 1000
+                            ? `${(totalVolumeThisWeek / 1000).toFixed(1)}t`
+                            : `${totalVolumeThisWeek}kg`
+                          } volume total
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <MiniChart />
                 </div>

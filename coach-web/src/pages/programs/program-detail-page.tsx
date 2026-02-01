@@ -14,23 +14,17 @@ import {
   Clock,
   Target,
   MoreHorizontal,
+  FileDown,
 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Badge, Avatar } from '@/components/ui'
 import { useProgramsStore } from '@/store/programs-store'
 import { useStudentsStore } from '@/store/students-store'
+import { useAuthStore } from '@/store/auth-store'
 import { formatDate, cn } from '@/lib/utils'
+import { exportProgramToPDF } from '@/lib/pdf-export'
+import { goalConfig } from '@/constants/goals'
 import type { MuscleGroup, ExerciseMode } from '@/types'
-
-const goalConfig = {
-  bulk: { label: 'Prise de masse', color: 'success' },
-  cut: { label: 'Sèche', color: 'warning' },
-  maintain: { label: 'Maintien', color: 'info' },
-  strength: { label: 'Force', color: 'default' },
-  endurance: { label: 'Endurance', color: 'info' },
-  recomp: { label: 'Recomposition', color: 'success' },
-  other: { label: 'Autre', color: 'default' },
-} as const
 
 const muscleLabels: Record<MuscleGroup, string> = {
   chest: 'Pectoraux',
@@ -61,6 +55,7 @@ export function ProgramDetailPage() {
   const navigate = useNavigate()
   const { getProgramById, deleteProgram, duplicateProgram } = useProgramsStore()
   const { students } = useStudentsStore()
+  const { coach } = useAuthStore()
 
   const [expandedDayId, setExpandedDayId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -85,6 +80,11 @@ export function ProgramDetailPage() {
     if (newId) {
       navigate(`/programs/${newId}`)
     }
+  }
+
+  const handleExportPDF = () => {
+    setShowMenu(false)
+    exportProgramToPDF(program, coach?.name)
   }
 
   const handleDelete = () => {
@@ -128,6 +128,13 @@ export function ProgramDetailPage() {
                   >
                     <Edit3 className="w-4 h-4" />
                     Modifier
+                  </button>
+                  <button
+                    onClick={handleExportPDF}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    Exporter PDF
                   </button>
                   <button
                     onClick={handleDuplicate}

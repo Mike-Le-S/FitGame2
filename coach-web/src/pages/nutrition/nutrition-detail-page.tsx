@@ -15,23 +15,16 @@ import {
   Pill,
   Clock,
   Utensils,
+  FileDown,
 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Badge, Avatar } from '@/components/ui'
 import { useNutritionStore } from '@/store/nutrition-store'
 import { useStudentsStore } from '@/store/students-store'
+import { useAuthStore } from '@/store/auth-store'
 import { formatDate, cn } from '@/lib/utils'
-// Goal type extracted from DietPlan
-
-const goalConfig = {
-  bulk: { label: 'Prise de masse', color: 'success' },
-  cut: { label: 'Sèche', color: 'warning' },
-  maintain: { label: 'Maintien', color: 'info' },
-  strength: { label: 'Force', color: 'default' },
-  endurance: { label: 'Endurance', color: 'info' },
-  recomp: { label: 'Recomposition', color: 'success' },
-  other: { label: 'Autre', color: 'default' },
-} as const
+import { goalConfig } from '@/constants/goals'
+import { exportDietPlanToPDF } from '@/lib/pdf-export'
 
 const timingLabels: Record<string, string> = {
   'morning': 'Matin',
@@ -46,6 +39,7 @@ export function NutritionDetailPage() {
   const navigate = useNavigate()
   const { getDietPlanById, deleteDietPlan, duplicateDietPlan } = useNutritionStore()
   const { students } = useStudentsStore()
+  const { coach } = useAuthStore()
 
   const [expandedMealId, setExpandedMealId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -67,6 +61,11 @@ export function NutritionDetailPage() {
     if (newId) {
       navigate(`/nutrition/${newId}`)
     }
+  }
+
+  const handleExportPDF = () => {
+    setShowMenu(false)
+    exportDietPlanToPDF(plan, coach?.name)
   }
 
   const handleDelete = () => {
@@ -107,6 +106,13 @@ export function NutritionDetailPage() {
                   >
                     <Edit3 className="w-4 h-4" />
                     Modifier
+                  </button>
+                  <button
+                    onClick={handleExportPDF}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-elevated rounded-lg transition-colors"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    Exporter PDF
                   </button>
                   <button
                     onClick={handleDuplicate}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   User,
   Bell,
@@ -6,15 +6,12 @@ import {
   Palette,
   HelpCircle,
   LogOut,
-  ChevronRight,
   Check,
   Camera,
   Mail,
   Lock,
   Smartphone,
   Moon,
-  Sun,
-  Monitor,
   ExternalLink,
   MessageCircle,
   Bug,
@@ -23,34 +20,68 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Loader2,
+  BellRing,
+  BellOff,
 } from 'lucide-react'
 import { Header } from '@/components/layout'
 import { Avatar } from '@/components/ui'
+import { Setup2FAModal } from '@/components/modals/setup-2fa-modal'
 import { useAuthStore } from '@/store/auth-store'
+import { useSettingsStore } from '@/store/settings-store'
+import { notificationService, type NotificationPermission } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
 
 type SettingsSection = 'profile' | 'notifications' | 'security' | 'appearance' | 'help'
 
 const accentColors = [
-  { id: 'orange', color: '#FF6B35', label: 'Orange' },
-  { id: 'blue', color: '#3B82F6', label: 'Bleu' },
-  { id: 'green', color: '#22C55E', label: 'Vert' },
-  { id: 'purple', color: '#A855F7', label: 'Violet' },
-  { id: 'pink', color: '#EC4899', label: 'Rose' },
+  { id: 'orange', color: '#FF6B35', label: 'Orange (FitGame)' },
 ]
 
 const themes = [
-  { id: 'dark', label: 'Sombre', icon: Moon, bg: '#0a0a0a', available: true },
-  { id: 'light', label: 'Clair', icon: Sun, bg: '#f5f5f5', available: false },
-  { id: 'system', label: 'Système', icon: Monitor, bg: 'linear-gradient(135deg, #0a0a0a 50%, #f5f5f5 50%)', available: false },
+  { id: 'dark', label: 'Sombre', icon: Moon, bg: '#0a0a0a' },
 ]
 
 export function SettingsPage() {
-  const { coach, logout } = useAuthStore()
+  const { coach, logout, updateProfile } = useAuthStore()
+  const { notifications, updateNotifications, theme, setTheme, twoFactorEnabled, setTwoFactorEnabled } = useSettingsStore()
+
   const [activeSection, setActiveSection] = useState<SettingsSection>('profile')
-  const [selectedTheme, setSelectedTheme] = useState('dark')
-  const [selectedAccent, setSelectedAccent] = useState('orange')
+  const [is2FAModalOpen, setIs2FAModalOpen] = useState(false)
+  const [selectedTheme, setSelectedTheme] = useState(theme)
   const [showPassword, setShowPassword] = useState<Record<string, boolean>>({})
+
+  // Profile form state
+  const [profileForm, setProfileForm] = useState({
+    name: coach?.name || '',
+    email: coach?.email || '',
+  })
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
+
+  // Notifications state
+  const [notificationSettings, setNotificationSettings] = useState(notifications)
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false)
+  const [notificationsSaved, setNotificationsSaved] = useState(false)
+  const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default')
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false)
+
+  // Check browser notification permission on mount
+  useEffect(() => {
+    if (notificationService.isSupported()) {
+      setBrowserPermission(notificationService.getPermission())
+    }
+  }, [])
+
+  // Password form state
+  const [passwordForm, setPasswordForm] = useState({
+    current: '',
+    new: '',
+    confirm: '',
+  })
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [passwordChanged, setPasswordChanged] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
 
   const sections = [
     { id: 'profile' as const, label: 'Profil', icon: User, description: 'Informations personnelles' },
@@ -60,12 +91,12 @@ export function SettingsPage() {
     { id: 'help' as const, label: 'Aide', icon: HelpCircle, description: 'Support & docs' },
   ]
 
-  const notifications = [
-    { id: 'messages', label: 'Nouveaux messages', description: 'Recevoir une notification pour chaque nouveau message', enabled: true },
-    { id: 'sessions', label: 'Séances terminées', description: 'Être notifié quand un élève termine une séance', enabled: true },
-    { id: 'alerts', label: 'Alertes de compliance', description: 'Recevoir des alertes pour les élèves en difficulté', enabled: true },
-    { id: 'checkins', label: 'Rappels de check-in', description: 'Rappels pour les check-ins programmés', enabled: false },
-    { id: 'weekly', label: 'Rapport hebdomadaire', description: 'Résumé des performances de vos élèves', enabled: true },
+  const notificationOptions = [
+    { id: 'messages' as const, label: 'Nouveaux messages', description: 'Recevoir une notification pour chaque nouveau message' },
+    { id: 'sessions' as const, label: 'Séances terminées', description: 'Être notifié quand un élève termine une séance' },
+    { id: 'alerts' as const, label: 'Alertes de compliance', description: 'Recevoir des alertes pour les élèves en difficulté' },
+    { id: 'checkins' as const, label: 'Rappels de check-in', description: 'Rappels pour les check-ins programmés' },
+    { id: 'weekly' as const, label: 'Rapport hebdomadaire', description: 'Résumé des performances de vos élèves' },
   ]
 
   const helpLinks = [
@@ -77,6 +108,68 @@ export function SettingsPage() {
 
   const togglePassword = (field: string) => {
     setShowPassword(prev => ({ ...prev, [field]: !prev[field] }))
+  }
+
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    updateProfile(profileForm.name, profileForm.email)
+    setIsSavingProfile(false)
+    setProfileSaved(true)
+    setTimeout(() => setProfileSaved(false), 2000)
+  }
+
+  const handleSaveNotifications = async () => {
+    setIsSavingNotifications(true)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    updateNotifications(notificationSettings)
+    setIsSavingNotifications(false)
+    setNotificationsSaved(true)
+    setTimeout(() => setNotificationsSaved(false), 2000)
+  }
+
+  const handleRequestNotificationPermission = async () => {
+    setIsRequestingPermission(true)
+    const permission = await notificationService.requestPermission()
+    setBrowserPermission(permission)
+    setIsRequestingPermission(false)
+
+    // Show test notification if granted
+    if (permission === 'granted') {
+      notificationService.show({
+        title: 'Notifications activées !',
+        body: 'Vous recevrez désormais les notifications FitGame Coach.',
+      })
+    }
+  }
+
+  const handleChangePassword = async () => {
+    setPasswordError('')
+
+    if (passwordForm.new !== passwordForm.confirm) {
+      setPasswordError('Les mots de passe ne correspondent pas')
+      return
+    }
+
+    if (passwordForm.new.length < 8) {
+      setPasswordError('Le mot de passe doit contenir au moins 8 caractères')
+      return
+    }
+
+    setIsChangingPassword(true)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    // In real app, would call API to change password
+    setIsChangingPassword(false)
+    setPasswordChanged(true)
+    setPasswordForm({ current: '', new: '', confirm: '' })
+    setTimeout(() => setPasswordChanged(false), 2000)
+  }
+
+  const handleThemeChange = (themeId: string) => {
+    if (themeId === 'dark') {
+      setSelectedTheme('dark')
+      setTheme('dark')
+    }
   }
 
   return (
@@ -177,7 +270,7 @@ export function SettingsPage() {
                   'bg-surface-elevated border border-border'
                 )}>
                   <div className="relative group">
-                    <Avatar name={coach?.name || 'Coach'} size="xl" className="w-24 h-24 text-2xl" />
+                    <Avatar name={profileForm.name || 'Coach'} size="xl" className="w-24 h-24 text-2xl" />
                     <button className={cn(
                       'absolute inset-0 flex items-center justify-center rounded-full',
                       'bg-black/50 opacity-0 group-hover:opacity-100',
@@ -187,8 +280,8 @@ export function SettingsPage() {
                     </button>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-text-primary mb-1">{coach?.name || 'Coach'}</h3>
-                    <p className="text-sm text-text-muted mb-3">{coach?.email || 'coach@fitgame.app'}</p>
+                    <h3 className="font-semibold text-text-primary mb-1">{profileForm.name || 'Coach'}</h3>
+                    <p className="text-sm text-text-muted mb-3">{profileForm.email || 'coach@fitgame.app'}</p>
                     <button className={cn(
                       'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium',
                       'bg-surface border border-border',
@@ -210,7 +303,8 @@ export function SettingsPage() {
                     </label>
                     <input
                       type="text"
-                      defaultValue={coach?.name}
+                      value={profileForm.name}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, name: e.target.value }))}
                       className={cn(
                         'w-full h-12 px-4 rounded-xl',
                         'bg-surface-elevated border border-border',
@@ -227,7 +321,8 @@ export function SettingsPage() {
                     </label>
                     <input
                       type="email"
-                      defaultValue={coach?.email}
+                      value={profileForm.email}
+                      onChange={(e) => setProfileForm(prev => ({ ...prev, email: e.target.value }))}
                       className={cn(
                         'w-full h-12 px-4 rounded-xl',
                         'bg-surface-elevated border border-border',
@@ -241,14 +336,33 @@ export function SettingsPage() {
 
                 {/* Save Button */}
                 <div className="flex justify-end">
-                  <button className={cn(
-                    'flex items-center gap-2 h-11 px-6 rounded-xl font-semibold text-white',
-                    'bg-gradient-to-r from-accent to-[#ff8f5c]',
-                    'hover:shadow-[0_0_25px_rgba(255,107,53,0.35)]',
-                    'transition-all duration-300'
-                  )}>
-                    <Check className="w-5 h-5" />
-                    Enregistrer
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={isSavingProfile}
+                    className={cn(
+                      'flex items-center gap-2 h-11 px-6 rounded-xl font-semibold text-white',
+                      'bg-gradient-to-r from-accent to-[#ff8f5c]',
+                      'hover:shadow-[0_0_25px_rgba(255,107,53,0.35)]',
+                      'disabled:opacity-50 disabled:cursor-not-allowed',
+                      'transition-all duration-300'
+                    )}
+                  >
+                    {isSavingProfile ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Enregistrement...
+                      </>
+                    ) : profileSaved ? (
+                      <>
+                        <Check className="w-5 h-5" />
+                        Enregistré !
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5" />
+                        Enregistrer
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -256,23 +370,104 @@ export function SettingsPage() {
 
             {/* Notifications Section */}
             {activeSection === 'notifications' && (
-              <div className={cn(
-                'p-6 rounded-2xl',
-                'bg-surface border border-border',
-                'animate-[fadeIn_0.4s_ease-out]'
-              )}>
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-info/20 to-info/5 flex items-center justify-center">
-                    <Bell className="w-6 h-6 text-info" />
+              <div className="space-y-6">
+                {/* Browser Notification Permission */}
+                {notificationService.isSupported() && (
+                  <div className={cn(
+                    'p-6 rounded-2xl',
+                    'bg-surface border border-border',
+                    'animate-[fadeIn_0.4s_ease-out]'
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          'w-14 h-14 rounded-xl flex items-center justify-center',
+                          browserPermission === 'granted'
+                            ? 'bg-gradient-to-br from-success/20 to-success/5'
+                            : browserPermission === 'denied'
+                            ? 'bg-gradient-to-br from-error/20 to-error/5'
+                            : 'bg-gradient-to-br from-warning/20 to-warning/5'
+                        )}>
+                          {browserPermission === 'granted' ? (
+                            <BellRing className="w-7 h-7 text-success" />
+                          ) : browserPermission === 'denied' ? (
+                            <BellOff className="w-7 h-7 text-error" />
+                          ) : (
+                            <Bell className="w-7 h-7 text-warning" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-text-primary">
+                              Notifications navigateur
+                            </h3>
+                            {browserPermission === 'granted' && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-success/10 text-success">
+                                Activées
+                              </span>
+                            )}
+                            {browserPermission === 'denied' && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-error/10 text-error">
+                                Bloquées
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-text-muted">
+                            {browserPermission === 'granted'
+                              ? 'Vous recevrez des notifications en temps réel'
+                              : browserPermission === 'denied'
+                              ? 'Débloquez les notifications dans les paramètres de votre navigateur'
+                              : 'Activez les notifications pour être alerté en temps réel'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      {browserPermission === 'default' && (
+                        <button
+                          onClick={handleRequestNotificationPermission}
+                          disabled={isRequestingPermission}
+                          className={cn(
+                            'flex items-center gap-2 h-11 px-5 rounded-xl font-semibold',
+                            'bg-gradient-to-r from-info to-[#60a5fa] text-white',
+                            'hover:shadow-[0_0_25px_rgba(59,130,246,0.35)]',
+                            'disabled:opacity-50 disabled:cursor-not-allowed',
+                            'transition-all duration-300'
+                          )}
+                        >
+                          {isRequestingPermission ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Bell className="w-4 h-4" />
+                          )}
+                          Activer
+                        </button>
+                      )}
+                      {browserPermission === 'granted' && (
+                        <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                          <Check className="w-5 h-5 text-success" />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-text-primary">Notifications</h2>
-                    <p className="text-sm text-text-muted">Configurez vos préférences de notification</p>
-                  </div>
-                </div>
+                )}
 
-                <div className="space-y-3">
-                  {notifications.map((item, index) => (
+                <div className={cn(
+                  'p-6 rounded-2xl',
+                  'bg-surface border border-border',
+                  'animate-[fadeIn_0.4s_ease-out]'
+                )}>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-info/20 to-info/5 flex items-center justify-center">
+                      <Bell className="w-6 h-6 text-info" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-text-primary">Préférences de notification</h2>
+                      <p className="text-sm text-text-muted">Choisissez les notifications que vous souhaitez recevoir</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                  {notificationOptions.map((item, index) => (
                     <div
                       key={item.id}
                       className={cn(
@@ -290,7 +485,11 @@ export function SettingsPage() {
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
                           type="checkbox"
-                          defaultChecked={item.enabled}
+                          checked={notificationSettings[item.id]}
+                          onChange={(e) => setNotificationSettings(prev => ({
+                            ...prev,
+                            [item.id]: e.target.checked
+                          }))}
                           className="sr-only peer"
                         />
                         <div className={cn(
@@ -310,15 +509,35 @@ export function SettingsPage() {
 
                 {/* Save Button */}
                 <div className="flex justify-end mt-6">
-                  <button className={cn(
-                    'flex items-center gap-2 h-11 px-6 rounded-xl font-semibold text-white',
-                    'bg-gradient-to-r from-info to-[#60a5fa]',
-                    'hover:shadow-[0_0_25px_rgba(59,130,246,0.35)]',
-                    'transition-all duration-300'
-                  )}>
-                    <Check className="w-5 h-5" />
-                    Enregistrer
+                  <button
+                    onClick={handleSaveNotifications}
+                    disabled={isSavingNotifications}
+                    className={cn(
+                      'flex items-center gap-2 h-11 px-6 rounded-xl font-semibold text-white',
+                      'bg-gradient-to-r from-info to-[#60a5fa]',
+                      'hover:shadow-[0_0_25px_rgba(59,130,246,0.35)]',
+                      'disabled:opacity-50 disabled:cursor-not-allowed',
+                      'transition-all duration-300'
+                    )}
+                  >
+                    {isSavingNotifications ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Enregistrement...
+                      </>
+                    ) : notificationsSaved ? (
+                      <>
+                        <Check className="w-5 h-5" />
+                        Enregistré !
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5" />
+                        Enregistrer
+                      </>
+                    )}
                   </button>
+                </div>
                 </div>
               </div>
             )}
@@ -344,9 +563,9 @@ export function SettingsPage() {
 
                   <div className="space-y-4">
                     {[
-                      { id: 'current', label: 'Mot de passe actuel' },
-                      { id: 'new', label: 'Nouveau mot de passe' },
-                      { id: 'confirm', label: 'Confirmer le mot de passe' },
+                      { id: 'current', label: 'Mot de passe actuel', value: passwordForm.current },
+                      { id: 'new', label: 'Nouveau mot de passe', value: passwordForm.new },
+                      { id: 'confirm', label: 'Confirmer le mot de passe', value: passwordForm.confirm },
                     ].map((field, index) => (
                       <div
                         key={field.id}
@@ -361,6 +580,11 @@ export function SettingsPage() {
                           <input
                             type={showPassword[field.id] ? 'text' : 'password'}
                             placeholder="••••••••"
+                            value={field.value}
+                            onChange={(e) => setPasswordForm(prev => ({
+                              ...prev,
+                              [field.id]: e.target.value
+                            }))}
                             className={cn(
                               'w-full h-12 px-4 pr-12 rounded-xl',
                               'bg-surface-elevated border border-border',
@@ -370,6 +594,7 @@ export function SettingsPage() {
                             )}
                           />
                           <button
+                            type="button"
                             onClick={() => togglePassword(field.id)}
                             className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
                           >
@@ -383,14 +608,36 @@ export function SettingsPage() {
                       </div>
                     ))}
 
-                    <button className={cn(
-                      'flex items-center gap-2 h-11 px-6 rounded-xl font-semibold',
-                      'bg-warning/10 text-warning border border-warning/30',
-                      'hover:bg-warning/20 hover:shadow-[0_0_15px_rgba(234,179,8,0.2)]',
-                      'transition-all duration-300'
-                    )}>
-                      <Lock className="w-4 h-4" />
-                      Mettre à jour
+                    {passwordError && (
+                      <p className="text-sm text-error">{passwordError}</p>
+                    )}
+
+                    {passwordChanged && (
+                      <p className="text-sm text-success">Mot de passe modifié avec succès !</p>
+                    )}
+
+                    <button
+                      onClick={handleChangePassword}
+                      disabled={isChangingPassword || !passwordForm.current || !passwordForm.new || !passwordForm.confirm}
+                      className={cn(
+                        'flex items-center gap-2 h-11 px-6 rounded-xl font-semibold',
+                        'bg-warning/10 text-warning border border-warning/30',
+                        'hover:bg-warning/20 hover:shadow-[0_0_15px_rgba(234,179,8,0.2)]',
+                        'disabled:opacity-50 disabled:cursor-not-allowed',
+                        'transition-all duration-300'
+                      )}
+                    >
+                      {isChangingPassword ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Mise à jour...
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-4 h-4" />
+                          Mettre à jour
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -403,27 +650,63 @@ export function SettingsPage() {
                 )}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-success/20 to-success/5 flex items-center justify-center">
-                        <Smartphone className="w-7 h-7 text-success" />
+                      <div className={cn(
+                        'w-14 h-14 rounded-xl flex items-center justify-center',
+                        twoFactorEnabled
+                          ? 'bg-gradient-to-br from-success/20 to-success/5'
+                          : 'bg-gradient-to-br from-warning/20 to-warning/5'
+                      )}>
+                        <Smartphone className={cn(
+                          'w-7 h-7',
+                          twoFactorEnabled ? 'text-success' : 'text-warning'
+                        )} />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-text-primary">
-                          Authentification à deux facteurs
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-text-primary">
+                            Authentification à deux facteurs
+                          </h3>
+                          {twoFactorEnabled && (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-success/10 text-success">
+                              Activée
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-text-muted">
-                          Ajoutez une couche de sécurité supplémentaire à votre compte
+                          {twoFactorEnabled
+                            ? 'Votre compte est protégé par la 2FA'
+                            : 'Ajoutez une couche de sécurité supplémentaire à votre compte'
+                          }
                         </p>
                       </div>
                     </div>
-                    <button className={cn(
-                      'flex items-center gap-2 h-11 px-5 rounded-xl font-semibold',
-                      'bg-gradient-to-r from-success to-[#4ade80] text-white',
-                      'hover:shadow-[0_0_25px_rgba(34,197,94,0.35)]',
-                      'transition-all duration-300'
-                    )}>
-                      <Shield className="w-4 h-4" />
-                      Configurer
-                    </button>
+                    {twoFactorEnabled ? (
+                      <button
+                        onClick={() => setTwoFactorEnabled(false)}
+                        className={cn(
+                          'flex items-center gap-2 h-11 px-5 rounded-xl font-semibold',
+                          'bg-error/10 text-error border border-error/30',
+                          'hover:bg-error/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]',
+                          'transition-all duration-300'
+                        )}
+                      >
+                        <Shield className="w-4 h-4" />
+                        Désactiver
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setIs2FAModalOpen(true)}
+                        className={cn(
+                          'flex items-center gap-2 h-11 px-5 rounded-xl font-semibold',
+                          'bg-gradient-to-r from-success to-[#4ade80] text-white',
+                          'hover:shadow-[0_0_25px_rgba(34,197,94,0.35)]',
+                          'transition-all duration-300'
+                        )}
+                      >
+                        <Shield className="w-4 h-4" />
+                        Configurer
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -450,58 +733,49 @@ export function SettingsPage() {
                 <div className="mb-8">
                   <h4 className="text-sm font-semibold text-text-primary mb-4">Thème</h4>
                   <div className="grid grid-cols-3 gap-4">
-                    {themes.map((theme, index) => (
+                    {themes.map((themeOption, index) => (
                       <button
-                        key={theme.id}
-                        onClick={() => theme.available && setSelectedTheme(theme.id)}
-                        disabled={!theme.available}
+                        key={themeOption.id}
+                        onClick={() => handleThemeChange(themeOption.id)}
                         className={cn(
                           'relative p-4 rounded-xl transition-all duration-300',
                           'animate-[fadeIn_0.3s_ease-out]',
-                          selectedTheme === theme.id
+                          selectedTheme === themeOption.id
                             ? 'bg-accent/10 border-2 border-accent shadow-[0_0_20px_rgba(255,107,53,0.1)]'
-                            : 'bg-surface-elevated border border-border hover:border-border',
-                          !theme.available && 'opacity-50 cursor-not-allowed'
+                            : 'bg-surface-elevated border border-border hover:border-border'
                         )}
                         style={{ animationDelay: `${index * 50}ms` }}
                       >
                         {/* Theme preview */}
                         <div
                           className="w-full h-20 rounded-lg mb-3 overflow-hidden border border-border"
-                          style={{ background: theme.bg }}
+                          style={{ background: themeOption.bg }}
                         >
-                          {theme.id === 'dark' && (
-                            <div className="p-2 space-y-1">
-                              <div className="w-1/2 h-2 bg-white/10 rounded" />
-                              <div className="w-3/4 h-2 bg-white/5 rounded" />
-                              <div className="w-1/3 h-2 bg-accent/30 rounded" />
-                            </div>
-                          )}
+                          <div className="p-2 space-y-1">
+                            <div className="w-1/2 h-2 bg-white/10 rounded" />
+                            <div className="w-3/4 h-2 bg-white/5 rounded" />
+                            <div className="w-1/3 h-2 bg-accent/30 rounded" />
+                          </div>
                         </div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <theme.icon className={cn(
+                            <themeOption.icon className={cn(
                               'w-4 h-4',
-                              selectedTheme === theme.id ? 'text-accent' : 'text-text-muted'
+                              selectedTheme === themeOption.id ? 'text-accent' : 'text-text-muted'
                             )} />
                             <span className={cn(
                               'text-sm font-medium',
-                              selectedTheme === theme.id ? 'text-accent' : 'text-text-primary'
+                              selectedTheme === themeOption.id ? 'text-accent' : 'text-text-primary'
                             )}>
-                              {theme.label}
+                              {themeOption.label}
                             </span>
                           </div>
-                          {selectedTheme === theme.id && (
+                          {selectedTheme === themeOption.id && (
                             <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
                               <Check className="w-3 h-3 text-white" />
                             </div>
                           )}
                         </div>
-                        {!theme.available && (
-                          <span className="absolute top-2 right-2 text-xs px-2 py-0.5 rounded-full bg-surface-elevated text-text-muted">
-                            Bientôt
-                          </span>
-                        )}
                       </button>
                     ))}
                   </div>
@@ -511,35 +785,21 @@ export function SettingsPage() {
                 <div>
                   <h4 className="text-sm font-semibold text-text-primary mb-4">Couleur d'accent</h4>
                   <div className="flex items-center gap-3">
-                    {accentColors.map((accent, index) => (
-                      <button
+                    {accentColors.map((accent) => (
+                      <div
                         key={accent.id}
-                        onClick={() => index === 0 && setSelectedAccent(accent.id)}
-                        disabled={index !== 0}
                         className={cn(
-                          'relative w-12 h-12 rounded-xl transition-all duration-300',
-                          'animate-[fadeIn_0.3s_ease-out]',
-                          selectedAccent === accent.id && 'ring-2 ring-white/20 ring-offset-2 ring-offset-background',
-                          index !== 0 && 'opacity-40 cursor-not-allowed'
+                          'relative w-12 h-12 rounded-xl',
+                          'ring-2 ring-white/20 ring-offset-2 ring-offset-background'
                         )}
-                        style={{
-                          backgroundColor: accent.color,
-                          animationDelay: `${index * 50}ms`
-                        }}
+                        style={{ backgroundColor: accent.color }}
                         title={accent.label}
                       >
-                        {selectedAccent === accent.id && (
-                          <Check className="w-5 h-5 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                        )}
-                        {index !== 0 && (
-                          <Lock className="w-3 h-3 text-white/70 absolute bottom-1 right-1" />
-                        )}
-                      </button>
+                        <Check className="w-5 h-5 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                      </div>
                     ))}
+                    <span className="text-sm text-text-muted ml-2">{accentColors[0].label}</span>
                   </div>
-                  <p className="text-xs text-text-muted mt-3">
-                    Plus de couleurs disponibles prochainement
-                  </p>
                 </div>
               </div>
             )}
@@ -627,6 +887,13 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* 2FA Setup Modal */}
+      <Setup2FAModal
+        isOpen={is2FAModalOpen}
+        onClose={() => setIs2FAModalOpen(false)}
+        onSuccess={() => setTwoFactorEnabled(true)}
+      />
     </div>
   )
 }
