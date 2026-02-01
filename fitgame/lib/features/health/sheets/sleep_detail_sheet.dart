@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/constants/spacing.dart';
-import '../../../shared/widgets/fg_glass_card.dart';
 import '../painters/sleep_gauge_painter.dart';
 import '../painters/latency_gauge_painter.dart';
 import '../models/sleep_metric_info.dart';
@@ -317,7 +316,7 @@ class SleepDetailSheetState extends State<SleepDetailSheet>
                   // Awake Time - compact (inverted)
                   _buildCompactGauge(
                     infoKey: 'awake',
-                    label: 'Éveillé',
+                    label: 'Éveillé (moins = mieux)',
                     minutes: widget.awakeMinutes,
                     totalMinutes: widget.totalSleepMinutes,
                     idealMinPercent: 0.0,

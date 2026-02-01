@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -36,17 +36,9 @@ const steps = [
   { id: 'recap', label: 'Récap' },
 ]
 
-const mealNames = ['Petit-déjeuner', 'Déjeuner', 'Collation', 'Dîner', 'Avant-dodo']
+import { goalConfig } from '@/constants/goals'
 
-const goalConfig = {
-  bulk: { label: 'Prise de masse', color: 'success', icon: '📈', desc: 'Surplus calorique contrôlé' },
-  cut: { label: 'Sèche', color: 'warning', icon: '🔥', desc: 'Déficit calorique modéré' },
-  maintain: { label: 'Maintien', color: 'info', icon: '⚖️', desc: 'Équilibre énergétique' },
-  strength: { label: 'Force', color: 'default', icon: '💪', desc: 'Protéines élevées, énergie' },
-  endurance: { label: 'Endurance', color: 'info', icon: '🏃', desc: 'Glucides, récupération' },
-  recomp: { label: 'Recomposition', color: 'success', icon: '🔄', desc: 'Équilibre, timing précis' },
-  other: { label: 'Autre', color: 'default', icon: '🎯', desc: 'Plan personnalisé' },
-}
+const mealNames = ['Petit-déjeuner', 'Déjeuner', 'Collation', 'Dîner', 'Avant-dodo']
 
 export function NutritionCreatePage() {
   const navigate = useNavigate()
@@ -86,6 +78,24 @@ export function NutritionCreatePage() {
   // Focus states
   const [focusedField, setFocusedField] = useState<string | null>(null)
 
+  // Drag & drop state
+  const [draggedMealId, setDraggedMealId] = useState<string | null>(null)
+
+  // Track if user has made changes
+  const hasChanges = name.length > 0 || meals.some(m => m.foods.length > 0) || supplements.length > 0 || notes.length > 0
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasChanges])
+
   const addMeal = () => {
     const newMeal: MealPlan = {
       id: generateId(),
@@ -104,6 +114,17 @@ export function NutritionCreatePage() {
     if (editingMealId === id) {
       setEditingMealId(null)
     }
+  }
+
+  const reorderMeals = (fromId: string, toId: string) => {
+    const fromIndex = meals.findIndex((m) => m.id === fromId)
+    const toIndex = meals.findIndex((m) => m.id === toId)
+    if (fromIndex === -1 || toIndex === -1) return
+
+    const newMeals = [...meals]
+    const [moved] = newMeals.splice(fromIndex, 1)
+    newMeals.splice(toIndex, 0, moved)
+    setMeals(newMeals)
   }
 
   const addFoodToMeal = (mealId: string, food: Omit<FoodEntry, 'id' | 'quantity'>) => {
@@ -683,15 +704,26 @@ export function NutritionCreatePage() {
                 {meals.map((meal, index) => (
                   <div
                     key={meal.id}
+                    draggable
+                    onDragStart={() => setDraggedMealId(meal.id)}
+                    onDragEnd={() => setDraggedMealId(null)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (draggedMealId && draggedMealId !== meal.id) {
+                        reorderMeals(draggedMealId, meal.id)
+                      }
+                    }}
                     className={cn(
                       'group flex items-center gap-4 p-4 rounded-xl',
                       'bg-surface-elevated border border-border',
                       'hover:border-success/30 transition-all duration-200',
-                      'animate-[fadeIn_0.3s_ease-out]'
+                      'animate-[fadeIn_0.3s_ease-out]',
+                      draggedMealId === meal.id && 'opacity-50 border-success',
+                      draggedMealId && draggedMealId !== meal.id && 'border-dashed'
                     )}
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
-                    <GripVertical className="w-5 h-5 text-text-muted cursor-grab opacity-50 group-hover:opacity-100" />
+                    <GripVertical className="w-5 h-5 text-text-muted cursor-grab opacity-50 group-hover:opacity-100 active:cursor-grabbing" />
 
                     <div className="flex-1 grid grid-cols-2 gap-4 items-center">
                       <select

@@ -13,6 +13,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth-store'
+import { ForgotPasswordModal } from '@/components/modals/forgot-password-modal'
 import { cn } from '@/lib/utils'
 
 export function LoginPage() {
@@ -24,6 +25,7 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [focusedField, setFocusedField] = useState<string | null>(null)
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false)
 
   if (isAuthenticated) {
     return <Navigate to="/" replace />
@@ -53,10 +55,7 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left Panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden">
-        {/* Background layers */}
-        <div className="absolute inset-0 bg-gradient-to-br from-surface via-background to-surface" />
-
+      <div className="hidden lg:block lg:w-1/2 xl:w-[55%] relative overflow-hidden bg-gradient-to-br from-surface via-background to-surface">
         {/* Animated gradient orbs */}
         <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-accent/10 rounded-full blur-[150px] animate-pulse" />
         <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-accent/5 rounded-full blur-[120px]" />
@@ -91,8 +90,8 @@ export function LoginPage() {
           </div>
         </div>
 
-        {/* Content */}
-        <div className="relative z-10 flex flex-col justify-between p-12 xl:p-16">
+        {/* Content container */}
+        <div className="relative z-10 h-full flex flex-col justify-between p-12 xl:p-16">
           {/* Logo */}
           <div className="flex items-center gap-4">
             <div className="relative">
@@ -170,7 +169,7 @@ export function LoginPage() {
         {/* Subtle background glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-accent/5 rounded-full blur-[150px]" />
 
-        <div className="w-full max-w-md relative">
+        <div className="w-full max-w-md relative z-10">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-10">
             <div className="relative">
@@ -318,6 +317,7 @@ export function LoginPage() {
 
               <button
                 type="button"
+                onClick={() => setIsForgotPasswordOpen(true)}
                 className="text-sm text-accent hover:text-accent-hover transition-colors"
               >
                 Mot de passe oublié ?
@@ -375,23 +375,24 @@ export function LoginPage() {
             </button>
           </form>
 
-          {/* Demo credentials */}
-          <div className="mt-8 p-4 rounded-xl bg-surface-elevated/50 border border-border/50">
-            <p className="text-xs text-text-muted text-center">
-              <span className="text-text-secondary font-medium">Demo:</span>{' '}
-              coach@fitgame.app / password
-            </p>
-          </div>
-
           {/* Footer */}
           <p className="mt-8 text-center text-sm text-text-muted">
             Pas encore de compte ?{' '}
-            <button className="text-accent hover:text-accent-hover font-medium transition-colors">
+            <a
+              href="mailto:support@fitgame.app"
+              className="text-accent hover:text-accent-hover font-medium transition-colors"
+            >
               Contactez-nous
-            </button>
+            </a>
           </p>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+      />
     </div>
   )
 }

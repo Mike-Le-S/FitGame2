@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme/fg_colors.dart';
 import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/services/supabase_service.dart';
 import '../../shared/widgets/fg_glass_card.dart';
 import 'create/create_choice_screen.dart';
+import 'create/session_creation_screen.dart';
 import 'tracking/active_workout_screen.dart';
+import 'history/workout_history_screen.dart';
+import 'edit/program_edit_screen.dart';
+import 'progress/exercise_progress_screen.dart';
 
 class WorkoutScreen extends StatefulWidget {
   const WorkoutScreen({super.key});
@@ -16,58 +22,71 @@ class WorkoutScreen extends StatefulWidget {
 class _WorkoutScreenState extends State<WorkoutScreen>
     with TickerProviderStateMixin {
   late AnimationController _pulseController;
+  late AnimationController _heroController;
   late Animation<double> _pulseAnimation;
+  late Animation<double> _heroGlow;
 
-  // Mock data
-  final bool hasActiveProgram = true;
-  final String programName = 'Push Pull Legs';
-  final int currentWeek = 3;
-  final int totalWeeks = 8;
-  final String nextSessionName = 'Pull Day';
-  final String nextSessionMuscles = 'Dos • Biceps';
-  final int nextSessionExercises = 5;
+  // State
+  bool _isLoading = true;
+  bool hasActiveProgram = false;
+  String programName = '';
+  int currentWeek = 1;
+  int totalWeeks = 8;
+  int activeProgramIndex = 0;
+  String nextSessionName = '';
+  String nextSessionMuscles = '';
+  int nextSessionExercises = 0;
+  int nextSessionDuration = 45;
 
-  final List<Map<String, dynamic>> recentSessions = [
-    {
-      'name': 'Push Day',
-      'date': 'Aujourd\'hui',
-      'volume': '4,200 kg',
-      'isToday': true,
-    },
-    {
-      'name': 'Leg Day',
-      'date': 'Hier',
-      'volume': '6,800 kg',
-      'isToday': false,
-    },
-    {
-      'name': 'Pull Day',
-      'date': 'Lun',
-      'volume': '3,600 kg',
-      'isToday': false,
-    },
-  ];
+  // Programs from Supabase
+  List<Map<String, dynamic>> _myPrograms = [];
+  List<Map<String, dynamic>> _assignedPrograms = [];
+  Map<String, dynamic>? _coachInfo;
 
-  final List<Map<String, dynamic>> savedPrograms = [
-    {
-      'name': 'Push Pull Legs',
-      'weeks': 8,
-      'currentWeek': 3,
-      'isActive': true,
-    },
-    {
-      'name': 'Full Body 3x',
-      'weeks': 12,
-      'currentWeek': 0,
-      'isActive': false,
-    },
-    {
-      'name': 'Upper Lower',
-      'weeks': 6,
-      'currentWeek': 4,
-      'isActive': false,
-    },
-  ];
+  // Week stats
+  int weekSessions = 0;
+  int weekTarget = 5;
+  double weekVolume = 0.0;
+  int weekTime = 0;
+
+  List<Map<String, dynamic>> recentSessions = [];
+
+  List<Map<String, dynamic>> get savedPrograms {
+    // Combine my programs and assigned programs
+    final List<Map<String, dynamic>> all = [];
+
+    for (final p in _myPrograms) {
+      all.add({
+        'id': p['id'],
+        'name': p['name'] ?? 'Sans nom',
+        'weeks': p['duration_weeks'] ?? 8,
+        'currentWeek': 1, // TODO: track per-user progress
+        'isActive': false,
+        'isFromCoach': false,
+        'days': p['days'] ?? [],
+      });
+    }
+
+    for (final p in _assignedPrograms) {
+      all.add({
+        'id': p['id'],
+        'name': p['name'] ?? 'Sans nom',
+        'weeks': p['duration_weeks'] ?? 8,
+        'currentWeek': 1,
+        'isActive': false,
+        'isFromCoach': true,
+        'coachName': _coachInfo?['full_name'] ?? 'Coach',
+        'days': p['days'] ?? [],
+      });
+    }
+
+    // Mark active program
+    if (all.isNotEmpty && activeProgramIndex < all.length) {
+      all[activeProgramIndex]['isActive'] = true;
+    }
+
+    return all;
+  }
 
   @override
   void initState() {
@@ -77,14 +96,175 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       vsync: this,
     )..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(begin: 0.08, end: 0.2).animate(
+    _heroController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(begin: 0.08, end: 0.25).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _heroGlow = Tween<double>(begin: 0.3, end: 0.6).animate(
+      CurvedAnimation(parent: _heroController, curve: Curves.easeInOut),
+    );
+
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    if (!SupabaseService.isAuthenticated) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      // Load in parallel
+      final results = await Future.wait([
+        SupabaseService.getPrograms(),
+        SupabaseService.getAssignedPrograms(),
+        SupabaseService.getCoachInfo(),
+        SupabaseService.getWorkoutSessions(limit: 10),
+      ]);
+
+      final myPrograms = results[0] as List<Map<String, dynamic>>;
+      final assignedPrograms = results[1] as List<Map<String, dynamic>>;
+      final coachInfo = results[2] as Map<String, dynamic>?;
+      final sessions = results[3] as List<Map<String, dynamic>>;
+
+      if (!mounted) return;
+
+      setState(() {
+        _myPrograms = myPrograms;
+        _assignedPrograms = assignedPrograms;
+        _coachInfo = coachInfo;
+        _isLoading = false;
+
+        // Set active program
+        if (savedPrograms.isNotEmpty) {
+          hasActiveProgram = true;
+          _setActiveProgram(0);
+        }
+
+        // Process recent sessions
+        _processRecentSessions(sessions);
+      });
+    } catch (e) {
+      debugPrint('Error loading workout data: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _setActiveProgram(int index) {
+    if (index >= savedPrograms.length) return;
+
+    final program = savedPrograms[index];
+    activeProgramIndex = index;
+    programName = program['name'] as String;
+    currentWeek = program['currentWeek'] as int;
+    totalWeeks = program['weeks'] as int;
+
+    // Set next session from program days
+    final days = program['days'] as List? ?? [];
+    if (days.isNotEmpty) {
+      final firstDay = days[0] as Map<String, dynamic>;
+      nextSessionName = firstDay['name'] ?? 'Jour 1';
+
+      // Extract muscles from exercises
+      final exercises = firstDay['exercises'] as List? ?? [];
+      final muscles = <String>{};
+      for (final ex in exercises) {
+        final muscle = ex['muscleGroup'] ?? ex['muscle_group'];
+        if (muscle != null) muscles.add(muscle.toString());
+      }
+      nextSessionMuscles = muscles.take(2).join(' • ');
+      nextSessionExercises = exercises.length;
+
+      // Estimate duration
+      nextSessionDuration = exercises.length * 8 + 10;
+    } else {
+      nextSessionName = 'Séance';
+      nextSessionMuscles = '';
+      nextSessionExercises = 0;
+      nextSessionDuration = 45;
+    }
+  }
+
+  void _processRecentSessions(List<Map<String, dynamic>> sessions) {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+
+    final List<Map<String, dynamic>> processed = [];
+    double totalVolume = 0;
+    int totalTime = 0;
+    int sessionsThisWeek = 0;
+
+    for (final session in sessions) {
+      final completedAt = session['completed_at'] != null
+          ? DateTime.tryParse(session['completed_at'].toString())
+          : null;
+
+      if (completedAt == null) continue;
+
+      final isThisWeek = completedAt.isAfter(weekStart);
+      final isToday = completedAt.day == now.day &&
+          completedAt.month == now.month &&
+          completedAt.year == now.year;
+
+      final volume = (session['total_volume_kg'] as num?)?.toDouble() ?? 0;
+      final duration = (session['duration_minutes'] as num?)?.toInt() ?? 0;
+
+      if (isThisWeek) {
+        sessionsThisWeek++;
+        totalVolume += volume;
+        totalTime += duration;
+      }
+
+      // Format date
+      String dateStr;
+      if (isToday) {
+        dateStr = "Aujourd'hui";
+      } else if (completedAt.day == now.day - 1) {
+        dateStr = 'Hier';
+      } else {
+        final weekdays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+        dateStr = weekdays[completedAt.weekday - 1];
+      }
+
+      // Check for PRs
+      final prs = session['personal_records'] as List? ?? [];
+      final hasPR = prs.isNotEmpty;
+      String? prExercise;
+      if (hasPR && prs.first is Map) {
+        prExercise = prs.first['exerciseName']?.toString();
+      }
+
+      processed.add({
+        'name': session['day_name'] ?? 'Séance',
+        'date': dateStr,
+        'volume': (volume * 1000).round(), // Convert to kg
+        'maxVolume': 7000,
+        'duration': duration,
+        'isToday': isToday,
+        'pr': hasPR,
+        'prExercise': prExercise,
+      });
+
+      if (processed.length >= 3) break;
+    }
+
+    recentSessions = processed;
+    weekSessions = sessionsThisWeek;
+    weekVolume = totalVolume / 1000; // Convert to tonnes
+    weekTime = totalTime;
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _heroController.dispose();
     super.dispose();
   }
 
@@ -96,9 +276,22 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         children: [
           _buildMeshGradient(),
           SafeArea(
-            child: hasActiveProgram ? _buildMainContent() : _buildEmptyState(),
+            child: _isLoading
+                ? _buildLoadingState()
+                : hasActiveProgram
+                    ? _buildMainContent()
+                    : _buildEmptyState(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: FGColors.accent,
+        strokeWidth: 2,
       ),
     );
   }
@@ -110,10 +303,30 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         return Stack(
           children: [
             Container(color: FGColors.background),
-            // Subtle bottom-left glow
+            // Top right glow
             Positioned(
-              bottom: 200,
-              left: -100,
+              top: -50,
+              right: -100,
+              child: Container(
+                width: 400,
+                height: 400,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.5),
+                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.2),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.4, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            // Bottom left subtle
+            Positioned(
+              bottom: 100,
+              left: -150,
               child: Container(
                 width: 350,
                 height: 350,
@@ -121,7 +334,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      FGColors.accent.withValues(alpha: _pulseAnimation.value),
+                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.15),
                       Colors.transparent,
                     ],
                   ),
@@ -136,24 +349,78 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, 0),
+      padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.lg, 0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'TRAINING',
+                style: FGTypography.caption.copyWith(
+                  letterSpacing: 3,
+                  fontWeight: FontWeight.w700,
+                  color: FGColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 180),
+                    child: Text(
+                      programName,
+                      style: FGTypography.h3.copyWith(
+                        fontWeight: FontWeight.w900,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: Spacing.sm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: FGColors.success.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'S$currentWeek',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.success,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const Spacer(),
           GestureDetector(
             onTap: () => _openCreateFlow(),
             child: Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: FGColors.glassSurface,
-                borderRadius: BorderRadius.circular(Spacing.sm),
-                border: Border.all(color: FGColors.glassBorder),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    FGColors.accent.withValues(alpha: 0.2),
+                    FGColors.accent.withValues(alpha: 0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(Spacing.md),
+                border: Border.all(color: FGColors.accent.withValues(alpha: 0.3)),
               ),
               child: const Icon(
                 Icons.add_rounded,
-                color: FGColors.textPrimary,
-                size: 22,
+                color: FGColors.accent,
+                size: 24,
               ),
             ),
           ),
@@ -197,19 +464,19 @@ class _WorkoutScreenState extends State<WorkoutScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: Spacing.md),
-
-                  // === NEXT SESSION CARD (HERO) ===
-                  _buildNextSessionCard(),
                   const SizedBox(height: Spacing.lg),
 
-                  // === PROGRAM PROGRESS CARD ===
-                  _buildProgramCard(),
-                  const SizedBox(height: Spacing.xxl),
+                  // === HERO: NEXT SESSION ===
+                  _buildHeroCard(),
+                  const SizedBox(height: Spacing.lg),
 
-                  // === RECENT ACTIVITY ===
-                  _buildRecentActivity(),
-                  const SizedBox(height: Spacing.xxl),
+                  // === WEEK STATS ===
+                  _buildWeekStats(),
+                  const SizedBox(height: Spacing.xl),
+
+                  // === RECENT SESSIONS ===
+                  _buildRecentSessions(),
+                  const SizedBox(height: Spacing.xl),
 
                   // === QUICK ACTIONS ===
                   _buildQuickActions(),
@@ -224,6 +491,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   }
 
   void _startWorkout() {
+    HapticFeedback.mediumImpact();
     Navigator.push(
       context,
       PageRouteBuilder(
@@ -246,288 +514,549 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     );
   }
 
-  Widget _buildNextSessionCard() {
-    return GestureDetector(
-      onTap: _startWorkout,
-      child: FGGlassCard(
-        padding: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(Spacing.lg),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    FGColors.accent.withValues(alpha: 0.12),
-                    FGColors.accent.withValues(alpha: 0.04),
-                  ],
+  Widget _buildHeroCard() {
+    return AnimatedBuilder(
+      animation: _heroGlow,
+      builder: (context, child) {
+        return GestureDetector(
+          onTap: _startWorkout,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: FGColors.accent.withValues(alpha: _heroGlow.value * 0.3),
+                  blurRadius: 30,
+                  spreadRadius: -5,
                 ),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.sm,
-                      vertical: Spacing.xs,
-                    ),
-                    decoration: BoxDecoration(
-                      color: FGColors.accent,
-                      borderRadius: BorderRadius.circular(Spacing.xs),
-                    ),
-                    child: Text(
-                      'PROCHAINE',
-                      style: FGTypography.caption.copyWith(
-                        color: FGColors.textOnAccent,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '$nextSessionExercises exercices',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-
-            // Content
-            Padding(
-              padding: const EdgeInsets.all(Spacing.lg),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          nextSessionName,
-                          style: FGTypography.h1.copyWith(fontSize: 32),
-                        ),
-                        const SizedBox(height: Spacing.xs),
-                        Text(
-                          nextSessionMuscles,
-                          style: FGTypography.body.copyWith(
-                            color: FGColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          FGColors.accent.withValues(alpha: 0.3),
-                          FGColors.accent.withValues(alpha: 0.1),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(Spacing.md),
-                    ),
-                    child: const Icon(
-                      Icons.play_arrow_rounded,
-                      color: FGColors.accent,
-                      size: 28,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProgramCard() {
-    final progress = currentWeek / totalWeeks;
-
-    return GestureDetector(
-      onTap: () => _showProgramSheet(),
-      child: Container(
-        padding: const EdgeInsets.all(Spacing.lg),
-        decoration: BoxDecoration(
-          color: FGColors.glassSurface.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(Spacing.lg),
-          border: Border.all(color: FGColors.glassBorder),
-        ),
-        child: Row(
-          children: [
-            // Progress ring
-            SizedBox(
-              width: 48,
-              height: 48,
+            child: FGGlassCard(
+              padding: EdgeInsets.zero,
               child: Stack(
                 children: [
-                  // Track
-                  SizedBox.expand(
-                    child: CircularProgressIndicator(
-                      value: 1,
-                      strokeWidth: 4,
-                      backgroundColor: Colors.transparent,
-                      valueColor: AlwaysStoppedAnimation(
-                        FGColors.glassBorder,
-                      ),
+                  // Background pattern
+                  Positioned(
+                    right: -20,
+                    bottom: -20,
+                    child: Icon(
+                      Icons.fitness_center,
+                      size: 120,
+                      color: FGColors.accent.withValues(alpha: 0.05),
                     ),
                   ),
-                  // Progress
-                  SizedBox.expand(
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 4,
-                      backgroundColor: Colors.transparent,
-                      valueColor: const AlwaysStoppedAnimation(
-                        FGColors.accent,
+
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top bar
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Spacing.lg,
+                          vertical: Spacing.md,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              FGColors.accent.withValues(alpha: 0.15),
+                              FGColors.accent.withValues(alpha: 0.05),
+                            ],
+                          ),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(24),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: Spacing.sm,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: FGColors.accent,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'PROCHAINE SÉANCE',
+                                style: FGTypography.caption.copyWith(
+                                  color: FGColors.textOnAccent,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ),
+                            const Spacer(),
+                            Icon(
+                              Icons.timer_outlined,
+                              size: 14,
+                              color: FGColors.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '~$nextSessionDuration min',
+                              style: FGTypography.caption.copyWith(
+                                color: FGColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      strokeCap: StrokeCap.round,
-                    ),
-                  ),
-                  // Percentage
-                  Center(
-                    child: Text(
-                      '${(progress * 100).toInt()}%',
-                      style: FGTypography.caption.copyWith(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 11,
+
+                      // Main content
+                      Padding(
+                        padding: const EdgeInsets.all(Spacing.lg),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      nextSessionName,
+                                      style: FGTypography.h1.copyWith(
+                                        fontSize: 36,
+                                        height: 1.0,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: Spacing.xs),
+                                  Text(
+                                    nextSessionMuscles,
+                                    style: FGTypography.body.copyWith(
+                                      color: FGColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: Spacing.md),
+                                  Row(
+                                    children: [
+                                      _buildExerciseChip(
+                                        Icons.fitness_center,
+                                        '$nextSessionExercises exos',
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Play button
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    FGColors.accent,
+                                    FGColors.accent.withValues(alpha: 0.8),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: FGColors.accent.withValues(alpha: 0.4),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                color: FGColors.textOnAccent,
+                                size: 32,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: Spacing.md),
+          ),
+        );
+      },
+    );
+  }
 
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    programName,
-                    style: FGTypography.body.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: Spacing.xs),
-                  Text(
-                    'Semaine $currentWeek sur $totalWeeks',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const Icon(
-              Icons.chevron_right_rounded,
+  Widget _buildExerciseChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: 4),
+      decoration: BoxDecoration(
+        color: FGColors.glassBorder,
+        borderRadius: BorderRadius.circular(Spacing.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: FGColors.textSecondary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: FGTypography.caption.copyWith(
               color: FGColors.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildRecentActivity() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildWeekStats() {
+    return Row(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: Spacing.xs),
-          child: Text(
-            'RÉCENT',
-            style: FGTypography.caption.copyWith(
-              letterSpacing: 2,
-              fontWeight: FontWeight.w700,
-              color: FGColors.textSecondary,
-            ),
+        Expanded(
+          child: _buildStatCard(
+            value: '$weekSessions/$weekTarget',
+            label: 'SÉANCES',
+            icon: Icons.event_available,
+            progress: weekSessions / weekTarget,
           ),
         ),
-        const SizedBox(height: Spacing.md),
-        ...recentSessions.map((session) => _buildRecentItem(session)),
+        const SizedBox(width: Spacing.sm),
+        Expanded(
+          child: _buildStatCard(
+            value: '${weekVolume.toStringAsFixed(1)}t',
+            label: 'VOLUME',
+            icon: Icons.fitness_center,
+            progress: 0.75,
+            isHighlight: true,
+          ),
+        ),
+        const SizedBox(width: Spacing.sm),
+        Expanded(
+          child: _buildStatCard(
+            value: '${(weekTime / 60).floor()}h${weekTime % 60}',
+            label: 'TEMPS',
+            icon: Icons.timer,
+            progress: 0.6,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildRecentItem(Map<String, dynamic> session) {
+  Widget _buildStatCard({
+    required String value,
+    required String label,
+    required IconData icon,
+    required double progress,
+    bool isHighlight = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(Spacing.md),
+      decoration: BoxDecoration(
+        color: isHighlight
+          ? FGColors.accent.withValues(alpha: 0.1)
+          : FGColors.glassSurface.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(Spacing.md),
+        border: Border.all(
+          color: isHighlight
+            ? FGColors.accent.withValues(alpha: 0.3)
+            : FGColors.glassBorder,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: isHighlight ? FGColors.accent : FGColors.textSecondary,
+          ),
+          const SizedBox(height: Spacing.xs),
+          Text(
+            value,
+            style: FGTypography.h3.copyWith(
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              fontSize: 18,
+              color: isHighlight ? FGColors.accent : FGColors.textPrimary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: FGTypography.caption.copyWith(
+              fontSize: 9,
+              letterSpacing: 1,
+              fontWeight: FontWeight.w600,
+              color: FGColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: Spacing.sm),
+          // Mini progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: SizedBox(
+              height: 3,
+              child: LinearProgressIndicator(
+                value: progress.clamp(0.0, 1.0),
+                backgroundColor: FGColors.glassBorder,
+                valueColor: AlwaysStoppedAnimation(
+                  isHighlight ? FGColors.accent : FGColors.success,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentSessions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'CETTE SEMAINE',
+              style: FGTypography.caption.copyWith(
+                letterSpacing: 2,
+                fontWeight: FontWeight.w700,
+                color: FGColors.textSecondary,
+              ),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () => _openHistory(null),
+              child: Row(
+                children: [
+                  Text(
+                    'Tout voir',
+                    style: FGTypography.caption.copyWith(
+                      color: FGColors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 16,
+                    color: FGColors.accent,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: Spacing.md),
+        if (recentSessions.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(Spacing.lg),
+            decoration: BoxDecoration(
+              color: FGColors.glassSurface.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(Spacing.md),
+              border: Border.all(color: FGColors.glassBorder),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.fitness_center,
+                  color: FGColors.textSecondary.withValues(alpha: 0.5),
+                  size: 24,
+                ),
+                const SizedBox(width: Spacing.md),
+                Expanded(
+                  child: Text(
+                    'Aucune séance cette semaine',
+                    style: FGTypography.body.copyWith(
+                      color: FGColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...recentSessions.asMap().entries.map((entry) {
+            return TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: Duration(milliseconds: 400 + entry.key * 100),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                return Transform.translate(
+                  offset: Offset(0, 20 * (1 - value)),
+                  child: Opacity(
+                    opacity: value,
+                    child: _buildRecentSessionCard(entry.value),
+                  ),
+                );
+              },
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildRecentSessionCard(Map<String, dynamic> session) {
     final isToday = session['isToday'] as bool;
+    final hasPR = session['pr'] as bool;
+    final volume = session['volume'] as int;
+    final maxVolume = session['maxVolume'] as int;
+    final volumePercent = volume / maxVolume;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: Spacing.sm),
       child: GestureDetector(
-        onTap: () {},
-        behavior: HitTestBehavior.opaque,
+        onTap: () => _openHistory(session['name'] as String),
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.md,
-            vertical: Spacing.md,
-          ),
+          padding: const EdgeInsets.all(Spacing.md),
           decoration: BoxDecoration(
             color: isToday
                 ? FGColors.success.withValues(alpha: 0.08)
-                : Colors.transparent,
+                : FGColors.glassSurface.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(Spacing.md),
-            border: isToday
-                ? Border.all(color: FGColors.success.withValues(alpha: 0.2))
-                : null,
+            border: Border.all(
+              color: isToday
+                  ? FGColors.success.withValues(alpha: 0.3)
+                  : FGColors.glassBorder,
+            ),
           ),
           child: Row(
             children: [
+              // Check icon
               Container(
-                width: 32,
-                height: 32,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: isToday
                       ? FGColors.success.withValues(alpha: 0.2)
                       : FGColors.glassBorder,
-                  borderRadius: BorderRadius.circular(Spacing.sm),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   Icons.check_rounded,
                   color: isToday ? FGColors.success : FGColors.textSecondary,
-                  size: 16,
+                  size: 18,
                 ),
               ),
               const SizedBox(width: Spacing.md),
+
+              // Session info
               Expanded(
-                child: Text(
-                  session['name'] as String,
-                  style: FGTypography.body.copyWith(
-                    fontWeight: isToday ? FontWeight.w600 : FontWeight.w500,
-                    color: isToday ? FGColors.textPrimary : FGColors.textSecondary,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            session['name'] as String,
+                            style: FGTypography.body.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (hasPR) ...[
+                          const SizedBox(width: Spacing.sm),
+                          GestureDetector(
+                            onTap: () {
+                              final prExercise = session['prExercise'] as String?;
+                              if (prExercise != null) {
+                                _openPRProgress(prExercise);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: FGColors.warning.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.emoji_events,
+                                    size: 10,
+                                    color: FGColors.warning,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    'PR',
+                                    style: FGTypography.caption.copyWith(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w900,
+                                      color: FGColors.warning,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Volume bar
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: SizedBox(
+                              height: 4,
+                              child: LinearProgressIndicator(
+                                value: volumePercent,
+                                backgroundColor: FGColors.glassBorder,
+                                valueColor: AlwaysStoppedAnimation(
+                                  isToday ? FGColors.success : FGColors.accent.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.sm),
+                        Text(
+                          '${(volume / 1000).toStringAsFixed(1)}t',
+                          style: FGTypography.caption.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: FGColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                session['volume'] as String,
-                style: FGTypography.caption.copyWith(
-                  color: FGColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+
               const SizedBox(width: Spacing.md),
-              Text(
-                session['date'] as String,
-                style: FGTypography.caption.copyWith(
-                  color: isToday ? FGColors.success : FGColors.textSecondary,
-                  fontWeight: isToday ? FontWeight.w600 : FontWeight.w400,
-                ),
+
+              // Date & duration
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    session['date'] as String,
+                    style: FGTypography.caption.copyWith(
+                      color: isToday ? FGColors.success : FGColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    '${session['duration']} min',
+                    style: FGTypography.caption.copyWith(
+                      color: FGColors.textSecondary,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -540,64 +1069,211 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     return Row(
       children: [
         Expanded(
-          child: _buildActionButton(
-            icon: Icons.edit_outlined,
+          child: _buildActionCard(
+            icon: Icons.tune,
             label: 'Modifier',
-            onTap: () {},
+            sublabel: 'Programme',
+            onTap: () => _openProgramEdit(),
           ),
         ),
-        const SizedBox(width: Spacing.md),
+        const SizedBox(width: Spacing.sm),
         Expanded(
-          child: _buildActionButton(
-            icon: Icons.history_rounded,
+          child: _buildActionCard(
+            icon: Icons.history,
             label: 'Historique',
-            onTap: () {},
+            sublabel: 'Séances',
+            onTap: () => _openHistory(null),
           ),
         ),
-        const SizedBox(width: Spacing.md),
+        const SizedBox(width: Spacing.sm),
         Expanded(
-          child: _buildActionButton(
-            icon: Icons.add_rounded,
-            label: 'Séance libre',
-            onTap: () {},
+          child: _buildActionCard(
+            icon: Icons.bolt,
+            label: 'Séance',
+            sublabel: 'Libre',
+            isAccent: true,
+            onTap: () => _openFreeSession(),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildActionCard({
     required IconData icon,
     required String label,
+    required String sublabel,
     required VoidCallback onTap,
+    bool isAccent = false,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: Spacing.md),
+        padding: const EdgeInsets.symmetric(vertical: Spacing.md, horizontal: Spacing.sm),
         decoration: BoxDecoration(
-          color: FGColors.glassSurface.withValues(alpha: 0.2),
+          color: isAccent
+            ? FGColors.accent.withValues(alpha: 0.1)
+            : FGColors.glassSurface.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(Spacing.md),
-          border: Border.all(color: FGColors.glassBorder),
+          border: Border.all(
+            color: isAccent
+              ? FGColors.accent.withValues(alpha: 0.3)
+              : FGColors.glassBorder,
+          ),
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: FGColors.textSecondary,
-              size: 20,
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isAccent
+                  ? FGColors.accent.withValues(alpha: 0.2)
+                  : FGColors.glassBorder,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: isAccent ? FGColors.accent : FGColors.textSecondary,
+                size: 18,
+              ),
             ),
-            const SizedBox(height: Spacing.xs),
+            const SizedBox(height: Spacing.sm),
             Text(
               label,
               style: FGTypography.caption.copyWith(
-                color: FGColors.textSecondary,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w700,
+                color: isAccent ? FGColors.accent : FGColors.textPrimary,
                 fontSize: 11,
+              ),
+            ),
+            Text(
+              sublabel,
+              style: FGTypography.caption.copyWith(
+                color: FGColors.textSecondary,
+                fontSize: 9,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _openHistory(String? filter) {
+    HapticFeedback.lightImpact();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            WorkoutHistoryScreen(initialFilter: filter),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
+  void _openProgramEdit() {
+    HapticFeedback.lightImpact();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            ProgramEditScreen(programName: programName),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.0, 1.0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  void _openFreeSession() {
+    HapticFeedback.lightImpact();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const SessionCreationScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.0, 1.0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  void _switchProgram(int index) {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _setActiveProgram(index);
+      hasActiveProgram = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Programme "$programName" activé'),
+        backgroundColor: FGColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  void _openPRProgress(String exerciseName) {
+    HapticFeedback.lightImpact();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            ExerciseProgressScreen(exerciseName: exerciseName),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
       ),
     );
   }
@@ -609,6 +1285,20 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       child: Column(
         children: [
           const Spacer(flex: 2),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: FGColors.accent.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Icon(
+              Icons.fitness_center,
+              color: FGColors.accent,
+              size: 40,
+            ),
+          ),
+          const SizedBox(height: Spacing.xl),
           Text(
             'Prêt à\ncommencer ?',
             textAlign: TextAlign.center,
@@ -634,7 +1324,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
             title: 'Séance libre',
             subtitle: 'Crée ton entraînement',
             isPrimary: false,
-            onTap: () {},
+            onTap: () => _openFreeSession(),
           ),
           const Spacer(flex: 2),
         ],
@@ -757,7 +1447,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                 padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
                 child: Row(
                   children: [
-                    Text('Mes programmes', style: FGTypography.h2),
+                    Text('Programmes', style: FGTypography.h2),
                     const Spacer(),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
@@ -786,12 +1476,65 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                   controller: scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
                   children: [
-                    ...savedPrograms.map(
-                      (program) => Padding(
-                        padding: const EdgeInsets.only(bottom: Spacing.md),
-                        child: _buildProgramListItem(program),
+                    // Section: Coach programs
+                    if (_assignedPrograms.isNotEmpty) ...[
+                      _buildSectionHeader(
+                        'Du coach',
+                        Icons.person_outline,
+                        FGColors.accent,
                       ),
-                    ),
+                      const SizedBox(height: Spacing.sm),
+                      ...savedPrograms
+                          .where((p) => p['isFromCoach'] == true)
+                          .map(
+                            (program) => Padding(
+                              padding: const EdgeInsets.only(bottom: Spacing.md),
+                              child: _buildProgramListItem(program),
+                            ),
+                          ),
+                      const SizedBox(height: Spacing.lg),
+                    ],
+
+                    // Section: My programs
+                    if (_myPrograms.isNotEmpty) ...[
+                      _buildSectionHeader(
+                        'Mes programmes',
+                        Icons.calendar_month_outlined,
+                        FGColors.textSecondary,
+                      ),
+                      const SizedBox(height: Spacing.sm),
+                      ...savedPrograms
+                          .where((p) => p['isFromCoach'] != true)
+                          .map(
+                            (program) => Padding(
+                              padding: const EdgeInsets.only(bottom: Spacing.md),
+                              child: _buildProgramListItem(program),
+                            ),
+                          ),
+                    ],
+
+                    // Empty state
+                    if (savedPrograms.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(Spacing.xl),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.fitness_center,
+                              size: 48,
+                              color: FGColors.textSecondary.withValues(alpha: 0.3),
+                            ),
+                            const SizedBox(height: Spacing.md),
+                            Text(
+                              'Aucun programme',
+                              style: FGTypography.body.copyWith(
+                                color: FGColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
                     const SizedBox(height: Spacing.md),
                     _buildNewProgramButton(),
                     const SizedBox(height: Spacing.xl),
@@ -805,28 +1548,54 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     );
   }
 
+  Widget _buildSectionHeader(String title, IconData icon, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: Spacing.sm),
+        Text(
+          title.toUpperCase(),
+          style: FGTypography.caption.copyWith(
+            letterSpacing: 1.5,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildProgramListItem(Map<String, dynamic> program) {
-    final isActive = program['isActive'] as bool;
+    final index = savedPrograms.indexOf(program);
+    final isActive = index == activeProgramIndex;
     final currentW = program['currentWeek'] as int;
     final totalW = program['weeks'] as int;
     final hasProgress = currentW > 0;
+    final isFromCoach = program['isFromCoach'] == true;
+    final coachName = program['coachName'] as String?;
 
     return GestureDetector(
       onTap: () {
+        if (!isActive) {
+          _switchProgram(index);
+        }
         Navigator.pop(context);
-        // TODO: Switch program
       },
       child: Container(
         padding: const EdgeInsets.all(Spacing.lg),
         decoration: BoxDecoration(
           color: isActive
               ? FGColors.success.withValues(alpha: 0.08)
-              : FGColors.glassSurface.withValues(alpha: 0.3),
+              : isFromCoach
+                  ? FGColors.accent.withValues(alpha: 0.05)
+                  : FGColors.glassSurface.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(Spacing.lg),
           border: Border.all(
             color: isActive
                 ? FGColors.success.withValues(alpha: 0.3)
-                : FGColors.glassBorder,
+                : isFromCoach
+                    ? FGColors.accent.withValues(alpha: 0.2)
+                    : FGColors.glassBorder,
           ),
         ),
         child: Row(
@@ -837,12 +1606,22 @@ class _WorkoutScreenState extends State<WorkoutScreen>
               decoration: BoxDecoration(
                 color: isActive
                     ? FGColors.success.withValues(alpha: 0.2)
-                    : FGColors.glassBorder,
+                    : isFromCoach
+                        ? FGColors.accent.withValues(alpha: 0.15)
+                        : FGColors.glassBorder,
                 borderRadius: BorderRadius.circular(Spacing.sm),
               ),
               child: Icon(
-                isActive ? Icons.play_arrow_rounded : Icons.calendar_month_outlined,
-                color: isActive ? FGColors.success : FGColors.textSecondary,
+                isActive
+                    ? Icons.play_arrow_rounded
+                    : isFromCoach
+                        ? Icons.person_outline
+                        : Icons.calendar_month_outlined,
+                color: isActive
+                    ? FGColors.success
+                    : isFromCoach
+                        ? FGColors.accent
+                        : FGColors.textSecondary,
                 size: 22,
               ),
             ),
@@ -853,10 +1632,14 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                 children: [
                   Row(
                     children: [
-                      Text(
-                        program['name'] as String,
-                        style: FGTypography.body.copyWith(
-                          fontWeight: FontWeight.w700,
+                      Flexible(
+                        child: Text(
+                          program['name'] as String,
+                          style: FGTypography.body.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (isActive) ...[
@@ -881,13 +1664,37 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                           ),
                         ),
                       ],
+                      if (isFromCoach && !isActive) ...[
+                        const SizedBox(width: Spacing.sm),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: Spacing.sm,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: FGColors.accent.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(Spacing.xs),
+                          ),
+                          child: Text(
+                            'COACH',
+                            style: FGTypography.caption.copyWith(
+                              fontSize: 9,
+                              color: FGColors.accent,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: Spacing.xs),
                   Text(
-                    hasProgress
-                        ? 'Semaine $currentW/$totalW'
-                        : '$totalW semaines',
+                    isFromCoach
+                        ? 'Par ${coachName ?? 'Coach'} • $totalW semaines'
+                        : hasProgress
+                            ? 'Semaine $currentW/$totalW'
+                            : '$totalW semaines',
                     style: FGTypography.caption.copyWith(
                       color: FGColors.textSecondary,
                     ),
@@ -910,13 +1717,13 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     return GestureDetector(
       onTap: () {
         Navigator.pop(context);
-        // TODO: Create new program
+        _openCreateFlow();
       },
       child: Container(
         padding: const EdgeInsets.all(Spacing.lg),
         decoration: BoxDecoration(
           border: Border.all(
-            color: FGColors.glassBorder,
+            color: FGColors.accent.withValues(alpha: 0.3),
             width: 2,
           ),
           borderRadius: BorderRadius.circular(Spacing.lg),
@@ -924,16 +1731,16 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.add_rounded,
-              color: FGColors.textSecondary,
+              color: FGColors.accent,
               size: 20,
             ),
             const SizedBox(width: Spacing.sm),
             Text(
               'Nouveau programme',
               style: FGTypography.body.copyWith(
-                color: FGColors.textSecondary,
+                color: FGColors.accent,
                 fontWeight: FontWeight.w600,
               ),
             ),

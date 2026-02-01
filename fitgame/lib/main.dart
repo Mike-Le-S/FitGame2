@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/fg_colors.dart';
+import 'core/services/supabase_service.dart';
+import 'features/auth/auth_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/workout/workout_screen.dart';
 import 'features/health/health_screen.dart';
 import 'features/nutrition/nutrition_screen.dart';
 import 'features/profile/profile_screen.dart';
+import 'features/social/social_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -16,6 +20,10 @@ void main() {
       statusBarIconBrightness: Brightness.light,
     ),
   );
+
+  // Initialize Supabase
+  await SupabaseService.initialize();
+
   runApp(const FitGameApp());
 }
 
@@ -28,7 +36,46 @@ class FitGameApp extends StatelessWidget {
       title: 'FitGame',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const MainNavigation(),
+      home: const AuthWrapper(),
+    );
+  }
+}
+
+/// Wrapper that listens to auth state and shows appropriate screen
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: SupabaseService.authStateChanges,
+      builder: (context, snapshot) {
+        // Show loading while checking auth state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: FGColors.background,
+            body: Center(
+              child: CircularProgressIndicator(
+                color: FGColors.accent,
+              ),
+            ),
+          );
+        }
+
+        // Check if user is authenticated
+        final session = snapshot.data?.session;
+        if (session != null) {
+          return const MainNavigation();
+        }
+
+        // Show auth screen if not authenticated
+        return const AuthScreen();
+      },
     );
   }
 }
@@ -43,9 +90,16 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
+  void _navigateToTab(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
+  List<Widget> get _screens => [
+    HomeScreen(onNavigateToTab: _navigateToTab),
     const WorkoutScreen(),
+    const SocialScreen(),
     const NutritionScreen(),
     const HealthScreen(),
     const ProfileScreen(),
@@ -88,19 +142,24 @@ class _MainNavigationState extends State<MainNavigation> {
                   index: 1,
                 ),
                 _buildNavItem(
+                  icon: Icons.people_rounded,
+                  label: 'Social',
+                  index: 2,
+                ),
+                _buildNavItem(
                   icon: Icons.restaurant_rounded,
                   label: 'Nutrition',
-                  index: 2,
+                  index: 3,
                 ),
                 _buildNavItem(
                   icon: Icons.favorite_rounded,
                   label: 'Santé',
-                  index: 3,
+                  index: 4,
                 ),
                 _buildNavItem(
                   icon: Icons.person_rounded,
                   label: 'Profil',
-                  index: 4,
+                  index: 5,
                 ),
               ],
             ),

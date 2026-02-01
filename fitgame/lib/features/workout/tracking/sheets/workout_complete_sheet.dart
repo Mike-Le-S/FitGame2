@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../../../core/theme/fg_colors.dart';
 import '../../../../core/theme/fg_typography.dart';
 import '../../../../core/theme/fg_effects.dart';
 import '../../../../core/constants/spacing.dart';
-import '../../../../shared/widgets/fg_glass_card.dart';
 
 class WorkoutCompleteSheet extends StatelessWidget {
   final int duration;

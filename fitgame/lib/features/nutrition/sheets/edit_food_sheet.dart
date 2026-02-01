@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/constants/spacing.dart';
-import '../../../shared/widgets/fg_glass_card.dart';
 import '../../../shared/widgets/fg_neon_button.dart';
 
 class EditFoodSheet extends StatefulWidget {

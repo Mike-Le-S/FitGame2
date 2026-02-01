@@ -7,6 +7,7 @@ import '../../../core/theme/fg_effects.dart';
 import '../../../core/constants/spacing.dart';
 import '../../../core/models/exercise.dart';
 import '../../../core/models/workout_set.dart';
+import '../../../core/services/supabase_service.dart';
 import 'sheets/number_picker_sheet.dart';
 import 'sheets/workout_complete_sheet.dart';
 import 'sheets/exit_confirmation_sheet.dart';
@@ -53,8 +54,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   double _totalVolume = 0;
   bool _showPRCelebration = false;
 
-  // Mock workout data
+  // Workout data
   late List<Exercise> _exercises;
+  String? _sessionId; // Supabase session ID
 
   @override
   void initState() {
@@ -272,7 +274,12 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     });
   }
 
-  void _showWorkoutCompleteSheet() {
+  Future<void> _showWorkoutCompleteSheet() async {
+    // Save workout session to Supabase
+    await _saveWorkoutSession();
+
+    if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -288,6 +295,75 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         },
       ),
     );
+  }
+
+  Future<void> _saveWorkoutSession() async {
+    try {
+      // Build exercises data for Supabase
+      final exercisesData = _exercises.map((ex) {
+        final setsData = ex.sets.map((set) => {
+          'setNumber': ex.sets.indexOf(set) + 1,
+          'isWarmup': set.isWarmup,
+          'targetWeight': set.targetWeight,
+          'targetReps': set.targetReps,
+          'actualWeight': set.actualWeight,
+          'actualReps': set.actualReps,
+          'completed': set.isCompleted,
+        }).toList();
+
+        return {
+          'exerciseName': ex.name,
+          'muscle': ex.muscle,
+          'sets': setsData,
+        };
+      }).toList();
+
+      // Calculate total sets completed
+      int totalSets = 0;
+      for (final ex in _exercises) {
+        totalSets += ex.sets.where((s) => s.isCompleted && !s.isWarmup).length;
+      }
+
+      // Detect PRs (simplified - compare to previousBest)
+      final prs = <Map<String, dynamic>>[];
+      for (final ex in _exercises) {
+        final maxWeight = ex.sets
+            .where((s) => s.isCompleted && !s.isWarmup)
+            .fold<double>(0, (max, s) => s.actualWeight > max ? s.actualWeight : max);
+        if (maxWeight > ex.previousBest) {
+          prs.add({
+            'exerciseName': ex.name,
+            'weightKg': maxWeight,
+            'previousBest': ex.previousBest,
+          });
+        }
+      }
+
+      // Save to Supabase if user is authenticated
+      if (SupabaseService.isAuthenticated) {
+        // Start session if not already started
+        if (_sessionId == null) {
+          final session = await SupabaseService.startWorkoutSession(
+            dayName: 'Legs A', // TODO: Get from program data
+            exercises: exercisesData,
+          );
+          _sessionId = session['id'];
+        }
+
+        // Complete the session
+        await SupabaseService.completeWorkoutSession(
+          sessionId: _sessionId!,
+          durationMinutes: (_workoutSeconds / 60).round(),
+          totalVolumeKg: _totalVolume,
+          totalSets: totalSets,
+          exercises: exercisesData,
+          personalRecords: prs.isNotEmpty ? prs : null,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving workout session: $e');
+      // Don't block the completion flow on save error
+    }
   }
 
   void _showExitConfirmation() {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link, Navigate, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -27,28 +27,20 @@ import { Badge, Avatar } from '@/components/ui'
 import { EditStudentModal } from '@/components/modals/edit-student-modal'
 import { AssignProgramModal } from '@/components/modals/assign-program-modal'
 import { AssignDietModal } from '@/components/modals/assign-diet-modal'
+import { SessionDetailModal } from '@/components/modals/session-detail-modal'
 import { useStudentsStore } from '@/store/students-store'
 import { useProgramsStore } from '@/store/programs-store'
 import { useNutritionStore } from '@/store/nutrition-store'
 import { formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { goalConfig } from '@/constants/goals'
 
 type Tab = 'overview' | 'workouts' | 'nutrition' | 'health' | 'progress'
-
-const goalConfig = {
-  bulk: { label: 'Prise de masse', color: 'success' },
-  cut: { label: 'Sèche', color: 'warning' },
-  maintain: { label: 'Maintien', color: 'info' },
-  strength: { label: 'Force', color: 'default' },
-  endurance: { label: 'Endurance', color: 'info' },
-  recomp: { label: 'Recomposition', color: 'success' },
-  other: { label: 'Autre', color: 'default' },
-} as const
 
 export function StudentProfilePage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { getStudentById, deleteStudent } = useStudentsStore()
+  const { getStudentById, deleteStudent, fetchStudentSessions, studentSessions } = useStudentsStore()
   const { programs } = useProgramsStore()
   const { dietPlans } = useNutritionStore()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
@@ -57,8 +49,21 @@ export function StudentProfilePage() {
   const [showAssignProgramModal, setShowAssignProgramModal] = useState(false)
   const [showAssignDietModal, setShowAssignDietModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [selectedSession, setSelectedSession] = useState<any>(null)
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true)
 
   const student = getStudentById(id!)
+
+  // Fetch real workout sessions from Supabase
+  useEffect(() => {
+    if (id) {
+      setIsLoadingSessions(true)
+      fetchStudentSessions(id, 20).finally(() => setIsLoadingSessions(false))
+    }
+  }, [id, fetchStudentSessions])
+
+  // Get sessions from store
+  const realSessions = id ? (studentSessions[id] || []) : []
 
   if (!student) {
     return <Navigate to="/students" replace />
@@ -75,15 +80,8 @@ export function StudentProfilePage() {
     { id: 'progress', label: 'Progression', icon: TrendingUp },
   ]
 
-  // Mock data
+  // Mock data for weekly progress and health
   const weeklyProgress = [65, 72, 68, 85, 78, 92, 88]
-
-  const mockSessions = [
-    { date: new Date(Date.now() - 86400000), name: 'Push A', duration: 58, exercises: 5, completed: true },
-    { date: new Date(Date.now() - 172800000), name: 'Pull A', duration: 62, exercises: 5, completed: true },
-    { date: new Date(Date.now() - 259200000), name: 'Legs A', duration: 55, exercises: 5, completed: true },
-    { date: new Date(Date.now() - 345600000), name: 'Push B', duration: 0, exercises: 5, completed: false },
-  ]
 
   const mockHealthData = {
     weight: [82.5, 82.3, 82.1, 82.0, 81.8, 81.7, 81.5],
@@ -324,50 +322,83 @@ export function StudentProfilePage() {
                 </div>
 
                 <div className="space-y-3">
-                  {mockSessions.map((session, i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        'group flex items-center justify-between p-4 rounded-xl',
-                        'hover:bg-surface-elevated transition-all duration-200'
-                      )}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          'w-12 h-12 rounded-xl flex items-center justify-center',
-                          session.completed ? 'bg-accent/10' : 'bg-surface-elevated'
-                        )}>
-                          <Dumbbell className={cn(
-                            'w-5 h-5',
-                            session.completed ? 'text-accent' : 'text-text-muted'
+                  {isLoadingSessions ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : realSessions.length === 0 ? (
+                    <div className="text-center py-8 text-text-muted">
+                      Aucune séance récente
+                    </div>
+                  ) : (
+                    realSessions.slice(0, 4).map((session) => (
+                      <button
+                        key={session.id}
+                        onClick={() => setSelectedSession({
+                          id: session.id,
+                          name: session.dayName,
+                          date: new Date(session.completedAt || session.startedAt),
+                          duration: session.durationMinutes,
+                          completed: !!session.completedAt,
+                          exercises: session.exercises.map((ex: any, i: number) => ({
+                            id: `ex-${i}`,
+                            name: ex.exerciseName,
+                            muscle: ex.muscleGroup || 'other',
+                            mode: 'classic',
+                            sets: (ex.sets || []).map((s: any, j: number) => ({
+                              id: `s-${j}`,
+                              targetReps: s.reps,
+                              targetWeight: s.weight,
+                              actualReps: s.reps,
+                              actualWeight: s.weight,
+                              isWarmup: s.isWarmup || false,
+                              restSeconds: 120,
+                            })),
+                          })),
+                          notes: session.notes,
+                        })}
+                        className={cn(
+                          'w-full group flex items-center justify-between p-4 rounded-xl text-left',
+                          'hover:bg-surface-elevated transition-all duration-200'
+                        )}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            'w-12 h-12 rounded-xl flex items-center justify-center',
+                            session.completedAt ? 'bg-accent/10' : 'bg-surface-elevated'
+                          )}>
+                            <Dumbbell className={cn(
+                              'w-5 h-5',
+                              session.completedAt ? 'text-accent' : 'text-text-muted'
+                            )} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <h4 className="font-medium text-text-primary truncate">{session.dayName}</h4>
+                              {session.personalRecords && session.personalRecords.length > 0 && (
+                                <Badge variant="warning" className="text-[10px]">PR</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-text-muted">
+                              {formatDate(new Date(session.completedAt || session.startedAt))} - {session.exercises.length} exercices
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          {session.completedAt && (
+                            <div className="text-right">
+                              <p className="text-xs text-text-muted">Durée</p>
+                              <p className="font-semibold text-text-primary">{session.durationMinutes} min</p>
+                            </div>
+                          )}
+                          <ChevronRight className={cn(
+                            'w-5 h-5 text-text-muted transition-all duration-200',
+                            'opacity-0 group-hover:opacity-100 group-hover:translate-x-1'
                           )} />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2 min-w-0">
-                            <h4 className="font-medium text-text-primary truncate">{session.name}</h4>
-                            {!session.completed && (
-                              <Badge variant="warning" className="text-[10px]">Manquée</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-text-muted">
-                            {formatDate(session.date)} - {session.exercises} exercices
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        {session.completed && (
-                          <div className="text-right">
-                            <p className="text-xs text-text-muted">Durée</p>
-                            <p className="font-semibold text-text-primary">{session.duration} min</p>
-                          </div>
-                        )}
-                        <ChevronRight className={cn(
-                          'w-5 h-5 text-text-muted transition-all duration-200',
-                          'opacity-0 group-hover:opacity-100 group-hover:translate-x-1'
-                        )} />
-                      </div>
-                    </div>
-                  ))}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -577,44 +608,78 @@ export function StudentProfilePage() {
             <div className="p-5 rounded-2xl bg-surface border border-border">
               <h3 className="text-lg font-semibold text-text-primary mb-4">Historique des séances</h3>
               <div className="space-y-3">
-                {[...mockSessions, ...mockSessions].map((session, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'flex items-center justify-between p-4 rounded-xl',
-                      'bg-surface-elevated hover:bg-surface-elevated/80 transition-colors'
-                    )}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={cn(
-                        'w-12 h-12 rounded-xl flex items-center justify-center',
-                        session.completed ? 'bg-accent/10' : 'bg-error/10'
-                      )}>
-                        <Dumbbell className={cn(
-                          'w-5 h-5',
-                          session.completed ? 'text-accent' : 'text-error'
-                        )} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-text-primary">{session.name}</h4>
-                          <Badge variant={session.completed ? 'success' : 'warning'} className="text-xs">
-                            {session.completed ? 'Complétée' : 'Manquée'}
-                          </Badge>
+                {isLoadingSessions ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : realSessions.length === 0 ? (
+                  <div className="text-center py-8 text-text-muted">
+                    Aucune séance enregistrée
+                  </div>
+                ) : (
+                  realSessions.map((session) => (
+                    <button
+                      key={session.id}
+                      onClick={() => setSelectedSession({
+                        id: session.id,
+                        name: session.dayName,
+                        date: new Date(session.completedAt || session.startedAt),
+                        duration: session.durationMinutes,
+                        completed: !!session.completedAt,
+                        exercises: session.exercises.map((ex: any, i: number) => ({
+                          id: `ex-${i}`,
+                          name: ex.exerciseName,
+                          muscle: ex.muscleGroup || 'other',
+                          mode: 'classic',
+                          sets: (ex.sets || []).map((s: any, j: number) => ({
+                            id: `s-${j}`,
+                            targetReps: s.reps,
+                            targetWeight: s.weight,
+                            actualReps: s.reps,
+                            actualWeight: s.weight,
+                            isWarmup: s.isWarmup || false,
+                            restSeconds: 120,
+                          })),
+                        })),
+                        notes: session.notes,
+                      })}
+                      className={cn(
+                        'w-full flex items-center justify-between p-4 rounded-xl text-left',
+                        'bg-surface-elevated hover:bg-surface-elevated/80 transition-colors'
+                      )}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          'w-12 h-12 rounded-xl flex items-center justify-center',
+                          session.completedAt ? 'bg-accent/10' : 'bg-error/10'
+                        )}>
+                          <Dumbbell className={cn(
+                            'w-5 h-5',
+                            session.completedAt ? 'text-accent' : 'text-error'
+                          )} />
                         </div>
-                        <p className="text-sm text-text-muted">
-                          {formatDate(session.date)} - {session.exercises} exercices
-                        </p>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium text-text-primary">{session.dayName}</h4>
+                            {session.personalRecords && session.personalRecords.length > 0 && (
+                              <Badge variant="warning" className="text-[10px]">PR</Badge>
+                            )}
+                            <Badge variant="success" className="text-xs">
+                              Complétée
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-text-muted">
+                            {formatDate(new Date(session.completedAt || session.startedAt))} - {session.exercises.length} exercices
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    {session.completed && (
                       <div className="text-right">
-                        <p className="font-semibold text-text-primary">{session.duration} min</p>
+                        <p className="font-semibold text-text-primary">{session.durationMinutes} min</p>
                         <p className="text-xs text-text-muted">Durée</p>
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -917,6 +982,13 @@ export function StudentProfilePage() {
         isOpen={showAssignDietModal}
         onClose={() => setShowAssignDietModal(false)}
         student={student}
+      />
+
+      {/* Session Detail Modal */}
+      <SessionDetailModal
+        isOpen={selectedSession !== null}
+        onClose={() => setSelectedSession(null)}
+        session={selectedSession}
       />
 
       {/* Delete Confirmation */}

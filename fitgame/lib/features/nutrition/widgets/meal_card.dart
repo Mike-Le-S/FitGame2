@@ -80,6 +80,8 @@ class _MealCardState extends State<MealCard> {
                       style: FGTypography.body.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       '${foods.length} aliments',

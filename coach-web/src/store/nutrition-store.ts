@@ -1,14 +1,21 @@
 import { create } from 'zustand'
 import type { DietPlan, FoodEntry, MealPlan, SupplementEntry, Macros } from '@/types'
 import { generateId } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from './auth-store'
 
 interface NutritionState {
   dietPlans: DietPlan[]
-  addDietPlan: (plan: Omit<DietPlan, 'id' | 'createdAt' | 'updatedAt' | 'assignedStudentIds'>) => string
-  updateDietPlan: (id: string, updates: Partial<DietPlan>) => void
-  deleteDietPlan: (id: string) => void
-  assignToStudent: (planId: string, studentId: string) => void
-  unassignFromStudent: (planId: string, studentId: string) => void
+  isLoading: boolean
+  error: string | null
+  fetchDietPlans: () => Promise<void>
+  addDietPlan: (plan: Omit<DietPlan, 'id' | 'createdAt' | 'updatedAt' | 'assignedStudentIds'>) => Promise<string>
+  updateDietPlan: (id: string, updates: Partial<DietPlan>) => Promise<void>
+  deleteDietPlan: (id: string) => Promise<void>
+  duplicateDietPlan: (id: string) => Promise<string | null>
+  getDietPlanById: (id: string) => DietPlan | undefined
+  assignToStudent: (planId: string, studentId: string) => Promise<void>
+  unassignFromStudent: (planId: string, studentId: string) => Promise<void>
 }
 
 // Food catalog for meal creation
@@ -101,91 +108,128 @@ export function calculateMealMacros(foods: FoodEntry[]): { calories: number; mac
   )
 }
 
-// Mock diet plans
-const mockDietPlans: DietPlan[] = [
-  {
-    id: 'diet-1',
-    name: 'Sèche Femme -500kcal',
-    goal: 'cut',
-    trainingCalories: 1800,
-    restCalories: 1500,
-    trainingMacros: { protein: 140, carbs: 180, fat: 50 },
-    restMacros: { protein: 140, carbs: 120, fat: 50 },
-    meals: [
-      createMealPlan('Petit-déjeuner'),
-      createMealPlan('Déjeuner'),
-      createMealPlan('Collation'),
-      createMealPlan('Dîner'),
-    ],
-    supplements: [
-      { id: 's1', name: 'Omega-3', dosage: '2g', timing: 'with-meal' },
-      { id: 's2', name: 'Vitamine D3', dosage: '2000 UI', timing: 'morning' },
-    ],
-    createdAt: '2025-01-10T00:00:00Z',
-    updatedAt: '2025-01-15T00:00:00Z',
-    assignedStudentIds: ['student-1'],
-  },
-  {
-    id: 'diet-2',
-    name: 'Prise de masse +300kcal',
-    goal: 'bulk',
-    trainingCalories: 3200,
-    restCalories: 2800,
-    trainingMacros: { protein: 180, carbs: 400, fat: 90 },
-    restMacros: { protein: 180, carbs: 320, fat: 80 },
-    meals: [
-      createMealPlan('Petit-déjeuner'),
-      createMealPlan('Déjeuner'),
-      createMealPlan('Collation'),
-      createMealPlan('Dîner'),
-      createMealPlan('Avant-dodo'),
-    ],
-    supplements: [
-      { id: 's3', name: 'Créatine monohydrate', dosage: '5g', timing: 'post-workout' },
-      { id: 's4', name: 'Omega-3', dosage: '3g', timing: 'with-meal' },
-    ],
-    createdAt: '2025-01-08T00:00:00Z',
-    updatedAt: '2025-01-12T00:00:00Z',
-    assignedStudentIds: ['student-2'],
-  },
-  {
-    id: 'diet-3',
-    name: 'Maintien Athlète',
-    goal: 'maintain',
-    trainingCalories: 2600,
-    restCalories: 2200,
-    trainingMacros: { protein: 160, carbs: 300, fat: 70 },
-    restMacros: { protein: 160, carbs: 230, fat: 65 },
-    meals: [
-      createMealPlan('Petit-déjeuner'),
-      createMealPlan('Déjeuner'),
-      createMealPlan('Dîner'),
-    ],
-    supplements: [],
-    createdAt: '2025-01-01T00:00:00Z',
-    updatedAt: '2025-01-01T00:00:00Z',
-    assignedStudentIds: ['student-4'],
-  },
-]
+// Transform database row to DietPlan type
+function dbToDietPlan(row: any): DietPlan {
+  return {
+    id: row.id,
+    name: row.name,
+    goal: row.goal,
+    trainingCalories: row.training_calories,
+    restCalories: row.rest_calories,
+    trainingMacros: row.training_macros || { protein: 0, carbs: 0, fat: 0 },
+    restMacros: row.rest_macros || { protein: 0, carbs: 0, fat: 0 },
+    meals: row.meals || [],
+    supplements: row.supplements || [],
+    notes: row.notes || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    assignedStudentIds: [], // Will be populated from assignments table
+  }
+}
 
-export const useNutritionStore = create<NutritionState>((set) => ({
-  dietPlans: mockDietPlans,
+// Transform DietPlan to database row
+function dietPlanToDb(plan: Omit<DietPlan, 'id' | 'createdAt' | 'updatedAt' | 'assignedStudentIds'>, createdBy: string) {
+  return {
+    created_by: createdBy,
+    name: plan.name,
+    goal: plan.goal,
+    training_calories: plan.trainingCalories,
+    rest_calories: plan.restCalories,
+    training_macros: plan.trainingMacros,
+    rest_macros: plan.restMacros,
+    meals: plan.meals,
+    supplements: plan.supplements,
+    notes: plan.notes || null,
+  }
+}
 
-  addDietPlan: (planData) => {
-    const id = generateId()
-    const now = new Date().toISOString()
-    const newPlan: DietPlan = {
-      ...planData,
-      id,
-      createdAt: now,
-      updatedAt: now,
-      assignedStudentIds: [],
+export const useNutritionStore = create<NutritionState>((set, get) => ({
+  dietPlans: [],
+  isLoading: false,
+  error: null,
+
+  fetchDietPlans: async () => {
+    const coach = useAuthStore.getState().coach
+    if (!coach) return
+
+    set({ isLoading: true, error: null })
+
+    try {
+      // Fetch diet plans created by this coach
+      const { data: plans, error: plansError } = await supabase
+        .from('diet_plans')
+        .select('*')
+        .eq('created_by', coach.id)
+        .order('created_at', { ascending: false })
+
+      if (plansError) throw plansError
+
+      // Fetch assignments to get assigned students
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('assignments')
+        .select('diet_plan_id, student_id')
+        .eq('coach_id', coach.id)
+        .not('diet_plan_id', 'is', null)
+        .eq('status', 'active')
+
+      if (assignmentsError) throw assignmentsError
+
+      // Transform and merge data
+      const transformedPlans = (plans || []).map(row => {
+        const plan = dbToDietPlan(row)
+        plan.assignedStudentIds = (assignments || [])
+          .filter(a => a.diet_plan_id === plan.id)
+          .map(a => a.student_id)
+        return plan
+      })
+
+      set({ dietPlans: transformedPlans, isLoading: false })
+    } catch (error: any) {
+      console.error('Error fetching diet plans:', error)
+      set({ error: error.message, isLoading: false })
     }
-    set((state) => ({ dietPlans: [...state.dietPlans, newPlan] }))
-    return id
   },
 
-  updateDietPlan: (id, updates) => {
+  addDietPlan: async (planData) => {
+    const coach = useAuthStore.getState().coach
+    if (!coach) throw new Error('Non authentifié')
+
+    const dbData = dietPlanToDb(planData, coach.id)
+
+    const { data, error } = await supabase
+      .from('diet_plans')
+      .insert(dbData)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    const newPlan = dbToDietPlan(data)
+    newPlan.assignedStudentIds = []
+
+    set((state) => ({ dietPlans: [newPlan, ...state.dietPlans] }))
+    return newPlan.id
+  },
+
+  updateDietPlan: async (id, updates) => {
+    const dbUpdates: any = {}
+    if (updates.name !== undefined) dbUpdates.name = updates.name
+    if (updates.goal !== undefined) dbUpdates.goal = updates.goal
+    if (updates.trainingCalories !== undefined) dbUpdates.training_calories = updates.trainingCalories
+    if (updates.restCalories !== undefined) dbUpdates.rest_calories = updates.restCalories
+    if (updates.trainingMacros !== undefined) dbUpdates.training_macros = updates.trainingMacros
+    if (updates.restMacros !== undefined) dbUpdates.rest_macros = updates.restMacros
+    if (updates.meals !== undefined) dbUpdates.meals = updates.meals
+    if (updates.supplements !== undefined) dbUpdates.supplements = updates.supplements
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes
+
+    const { error } = await supabase
+      .from('diet_plans')
+      .update(dbUpdates)
+      .eq('id', id)
+
+    if (error) throw error
+
     set((state) => ({
       dietPlans: state.dietPlans.map((p) =>
         p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
@@ -193,13 +237,88 @@ export const useNutritionStore = create<NutritionState>((set) => ({
     }))
   },
 
-  deleteDietPlan: (id) => {
+  deleteDietPlan: async (id) => {
+    const { error } = await supabase
+      .from('diet_plans')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+
     set((state) => ({
       dietPlans: state.dietPlans.filter((p) => p.id !== id),
     }))
   },
 
-  assignToStudent: (planId, studentId) => {
+  duplicateDietPlan: async (id) => {
+    const plan = get().dietPlans.find((p) => p.id === id)
+    if (!plan) return null
+
+    const coach = useAuthStore.getState().coach
+    if (!coach) return null
+
+    // Create new plan with copied data
+    const duplicateData = {
+      name: `${plan.name} (copie)`,
+      goal: plan.goal,
+      trainingCalories: plan.trainingCalories,
+      restCalories: plan.restCalories,
+      trainingMacros: { ...plan.trainingMacros },
+      restMacros: { ...plan.restMacros },
+      meals: plan.meals.map((meal) => ({
+        ...meal,
+        id: generateId(),
+        foods: meal.foods.map((food) => ({
+          ...food,
+          id: generateId(),
+        })),
+      })),
+      supplements: plan.supplements.map((supp) => ({
+        ...supp,
+        id: generateId(),
+      })),
+      notes: plan.notes,
+    }
+
+    const newId = await get().addDietPlan(duplicateData)
+    return newId
+  },
+
+  getDietPlanById: (id) => get().dietPlans.find((p) => p.id === id),
+
+  assignToStudent: async (planId, studentId) => {
+    const coach = useAuthStore.getState().coach
+    if (!coach) return
+
+    // Check if assignment already exists
+    const { data: existing } = await supabase
+      .from('assignments')
+      .select('id')
+      .eq('coach_id', coach.id)
+      .eq('student_id', studentId)
+      .eq('diet_plan_id', planId)
+      .single()
+
+    if (existing) {
+      // Update existing assignment to active
+      await supabase
+        .from('assignments')
+        .update({ status: 'active' })
+        .eq('id', existing.id)
+    } else {
+      // Create new assignment
+      const { error } = await supabase
+        .from('assignments')
+        .insert({
+          coach_id: coach.id,
+          student_id: studentId,
+          diet_plan_id: planId,
+          status: 'active',
+        })
+
+      if (error) throw error
+    }
+
     set((state) => ({
       dietPlans: state.dietPlans.map((p) =>
         p.id === planId
@@ -213,7 +332,20 @@ export const useNutritionStore = create<NutritionState>((set) => ({
     }))
   },
 
-  unassignFromStudent: (planId, studentId) => {
+  unassignFromStudent: async (planId, studentId) => {
+    const coach = useAuthStore.getState().coach
+    if (!coach) return
+
+    // Set assignment status to paused instead of deleting
+    const { error } = await supabase
+      .from('assignments')
+      .update({ status: 'paused' })
+      .eq('coach_id', coach.id)
+      .eq('student_id', studentId)
+      .eq('diet_plan_id', planId)
+
+    if (error) throw error
+
     set((state) => ({
       dietPlans: state.dietPlans.map((p) =>
         p.id === planId

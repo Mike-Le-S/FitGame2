@@ -2,23 +2,154 @@
 
 | Écran | Fichier | Status | Description |
 |-------|---------|--------|-------------|
-| HomeScreen | `lib/features/home/home_screen.dart` | ✅ | Écran d'accueil principal avec salutation, niveau, stats, séance suggérée |
+| HomeScreen | `lib/features/home/home_screen.dart` | ✅ | Dashboard multi-domaines avec workout, sommeil, nutrition, social et navigation inter-onglets |
 | WorkoutScreen | `lib/features/workout/workout_screen.dart` | ✅ | Interface épurée : prochaine séance, progression programme, activité récente, actions rapides, bouton "+" |
-| MainNavigation | `lib/main.dart` | ✅ | Shell de navigation avec bottom nav bar (Accueil, Entraînement, Nutrition, Santé, Profil) |
-| NutritionScreen | `lib/features/nutrition/nutrition_screen.dart` | ✅ | Planificateur diète hebdomadaire avec macros, repas et génération IA |
+| MainNavigation | `lib/main.dart` | ✅ | Shell de navigation avec bottom nav bar (Accueil, Training, Social, Nutrition, Santé, Profil) |
+| SocialScreen | `lib/features/social/social_screen.dart` | ✅ | Écran social avec Feed (séances potes) et Défis (compétitions) |
+| NutritionScreen | `lib/features/nutrition/nutrition_screen.dart` | ✅ | Planificateur diète hebdomadaire avec macros, repas et bouton création |
+| DietCreationFlow | `lib/features/nutrition/create/diet_creation_flow.dart` | ✅ | Flow 9 étapes création diète (nom, objectif, calories, macros, repas, préférences, noms repas, planning, compléments) |
 | HealthScreen | `lib/features/health/health_screen.dart` | ✅ | Écran santé avec 3 cartes expandables (Énergie, Sommeil, Cœur) + bottom sheets détaillés |
-| ProfileScreen | `lib/features/profile/profile_screen.dart` | ✅ | Écran profil avec réglages notifications, préférences app, liens utiles |
+| ProfileScreen | `lib/features/profile/profile_screen.dart` | ✅ | Écran profil premium avec accomplissements et réglages |
 | CreateChoiceScreen | `lib/features/workout/create/create_choice_screen.dart` | ✅ | Choix initial : créer programme ou séance unique |
 | ProgramCreationFlow | `lib/features/workout/create/program_creation_flow.dart` | ✅ | Flow multi-étapes création programme (nom, durée, jours, exercices) - Refactorisé en 15 sous-fichiers |
 | SessionCreationScreen | `lib/features/workout/create/session_creation_screen.dart` | ✅ | Création rapide séance unique avec sélection exercices |
 | ActiveWorkoutScreen | `lib/features/workout/tracking/active_workout_screen.dart` | ✅ | Tracking workout en temps réel avec timer repos, validation séries, célébration PR |
+| WorkoutHistoryScreen | `lib/features/workout/history/workout_history_screen.dart` | ✅ | Historique séances avec filtrage par type, stats par séance, détails |
+| ProgramEditScreen | `lib/features/workout/edit/program_edit_screen.dart` | ✅ | Édition programme avec réorganisation séances, preview exercices |
+| PlaceholderSheet | `lib/shared/sheets/placeholder_sheet.dart` | ✅ | Sheet réutilisable "Coming soon" pour fonctionnalités non implémentées |
+| EditProfileSheet | `lib/features/profile/sheets/edit_profile_sheet.dart` | ✅ | Édition profil avec avatar, nom, email |
+| AdvancedSettingsSheet | `lib/features/profile/sheets/advanced_settings_sheet.dart` | ✅ | Paramètres avancés : thème, données, export, zone danger |
+| AchievementsSheet | `lib/features/profile/sheets/achievements_sheet.dart` | ✅ | Liste complète accomplissements avec progression et rareté |
+| HelpSupportSheet | `lib/features/profile/sheets/help_support_sheet.dart` | ✅ | FAQ interactive avec contact support |
+| LegalSheet | `lib/features/profile/sheets/legal_sheet.dart` | ✅ | CGU et Politique de confidentialité |
+| NotificationsSheet | `lib/features/social/sheets/notifications_sheet.dart` | ✅ | Liste notifications sociales (respect, défis, PR, amis) |
+| ExerciseProgressScreen | `lib/features/workout/progress/exercise_progress_screen.dart` | ✅ | Visualisation évolution des poids avec graphique et historique PRs |
+
+## Détail HomeScreen
+
+Dashboard multi-domaines intégrant un aperçu de chaque feature principale.
+
+### Architecture
+```
+lib/features/home/
+├── home_screen.dart              # Écran principal (orchestrateur)
+└── widgets/
+    ├── home_header.dart          # Header avec greeting + avatar + streak badge
+    ├── quick_stats_row.dart      # 3 pills stats (séances, temps, kcal)
+    ├── today_workout_card.dart   # Card workout héro
+    ├── last_workout_row.dart     # Dernière séance avec check vert
+    ├── sleep_summary_widget.dart # Résumé sommeil avec phases
+    ├── macro_summary_widget.dart # Résumé nutrition avec macros
+    └── friend_activity_peek.dart # Aperçu activité amis
+```
+
+### Structure de l'écran
+| Position | Widget | Description | Navigation |
+|----------|--------|-------------|------------|
+| 1 | HomeHeader | Greeting + avatar + 🔥 badge streak compact | - |
+| 2 | TodayWorkoutCard | Séance du jour héro avec muscles | ActiveWorkoutScreen |
+| 3 | QuickStatsRow | 3 pills: séances/cible, temps, kcal | - |
+| 4 | SleepSummaryWidget | Durée + phases + score qualité | Onglet Santé (4) |
+| 5 | MacroSummaryWidget | Calories + barres P/C/F | Onglet Nutrition (3) |
+| 6 | FriendActivityPeek | 2 activités récentes amis | Onglet Social (2) |
+| 7 | LastWorkoutRow | Dernière séance avec check | Historique |
+| 8 | BottomCTA | Bouton "Commencer la séance" | ActiveWorkoutScreen |
+
+### Sleep Summary Widget
+```
+┌─────────────────────────────────────────────────┐
+│ 😴 SOMMEIL           ┌──────┐    72 BON      > │
+│    7h23              │██████│                   │
+│ Profond  Core   REM  └──────┘                   │
+└─────────────────────────────────────────────────┘
+```
+- Durée totale en grand
+- Barre combinée 3 couleurs (Profond/Core/REM)
+- Score qualité avec badge coloré
+- Tap → onglet Santé
+
+### Macro Summary Widget
+```
+┌─────────────────────────────────────────────────┐
+│ 🍽️ NUTRITION          1847 / 2400 kcal       > │
+│    [==========77%==========]                    │
+│  P 89%  ●────   C 72%  ●────   F 65%  ●────    │
+└─────────────────────────────────────────────────┘
+```
+- Barre calories avec glow
+- 3 mini barres colorées P/C/F
+- Tap → onglet Nutrition
+
+### Friend Activity Peek
+```
+┌─────────────────────────────────────────────────┐
+│ 👥 ACTIVITÉ                              VOIR > │
+│  [●] Thomas D.    Push Day         il y a 2h   │
+│  [●] Julie M.     Leg Day          il y a 5h   │
+└─────────────────────────────────────────────────┘
+```
+- 2 activités récentes avec mini avatar
+- Nom + workout + timestamp
+- Tap → onglet Social
+
+### Navigation inter-onglets
+```dart
+// main.dart
+HomeScreen(onNavigateToTab: (index) => setState(() => _currentIndex = index))
+```
+- Callback passé depuis MainNavigation
+- Permet navigation directe vers les onglets depuis les widgets
+
+### Effets visuels
+- Mesh gradient animé (orbes orange pulsants, 3s cycle)
+- Haptic feedback sur tap des widgets
+- Chevron indicateur de navigation sur chaque section
+
+---
 
 ## Détail HealthScreen
 
-### Cartes principales (page santé)
-- **Énergie** : Consommé/Dépensé/Déficit avec chevron → ouvre bottom sheet détail
-- **Sommeil** : Durée totale + score + aperçu phases → ouvre bottom sheet avec jauges
-- **Cœur** : FC repos/moyenne/VFC + badge status → ouvre bottom sheet détail
+### Structure de l'écran
+| Position | Widget | Description |
+|----------|--------|-------------|
+| 1 | Header | "SANTÉ" + "Ton corps parle" + badge Sync vert |
+| 2 | Hero Score | Score global 0-100 avec cercle animé + label + tendance |
+| 3 | Quick Stats | 3 pills (Pas, Kcal, Sommeil) avec barres progression |
+| 4 | Label section | "MÉTRIQUES DÉTAILLÉES" |
+| 5 | Sleep Card | Durée + efficacité + barre phases → bottom sheet |
+| 6 | Heart Card | FC/VFC/VO₂ en colonnes → bottom sheet |
+| 7 | Energy Card | Balance calorique avec barres → bottom sheet |
+
+### Hero Score Santé
+```
+┌─────────────────────────────────────────────────┐
+│  ┌────┐                                     ↗   │
+│  │ 78 │  SCORE SANTÉ                            │
+│  └────┘  Bon                                    │
+│          Basé sur sommeil, cœur et activité    │
+└─────────────────────────────────────────────────┘
+```
+- Cercle avec score animé (count-up 1.5s)
+- Couleur contextuelle : vert ≥80, violet ≥60, orange ≥40, rouge <40
+- Label : Excellent / Bon / Moyen / À améliorer
+- Badge tendance : moyenne des 3 métriques vs 7 jours
+
+### Quick Stats Pills
+```
+┌─────────┐  ┌─────────┐  ┌─────────┐
+│   🚶    │  │   🔥    │  │   🌙    │
+│  8.7k   │  │  2450   │  │  7h23   │
+│   pas   │  │   kcal  │  │ sommeil │
+│ [====]  │  │ [====]  │  │ [====]  │
+└─────────┘  └─────────┘  └─────────┘
+```
+- Barre de progression vs objectif
+- Couleurs : cyan (pas), orange (kcal), violet (sommeil)
+
+### Cartes principales
+- **Sommeil** : Durée + efficacité% + barre phases empilées + score lettre
+- **Cœur** : FC repos + VFC + VO₂ Max en 3 colonnes avec status badges
+- **Énergie** : Badge net calories + barres consommé/dépensé côte à côte
 
 ### Bottom Sheet Sommeil (version compacte)
 **Header compact** : Icône + titre + durée totale + badge efficacité%
@@ -78,6 +209,61 @@
 - Balance calorique détaillée
 - Breakdown par activité (BMR, Marche, Course, Musculation)
 - Pas et distance
+
+---
+
+## Détail ProfileScreen
+
+Dashboard profil avec accomplissements et réglages.
+
+### Structure de l'écran
+| Position | Widget | Description |
+|----------|--------|-------------|
+| 1 | Header | "PROFIL" + "Tes réglages" + bouton paramètres |
+| 2 | Hero Profile Card | Avatar + Nom + Email + Stats |
+| 3 | Accomplissements | Grid 6 badges (3 débloqués, 3 verrouillés) |
+| 4 | Notifications | Switches pour notifications app |
+| 5 | Préférences | Unités, langue, Apple Health, Sauvegarde |
+| 6 | À propos | Noter, Aide, CGU, Confidentialité |
+| 7 | Version | Footer avec version app |
+
+### Hero Profile Card
+```
+┌─────────────────────────────────────────────────┐
+│  ┌────────┐  Mike                               │
+│  │   M    │  mike@fitgame.pro                   │
+│  │  [✏️]  │                                     │
+│  └────────┘                                     │
+├─────────────────────────────────────────────────┤
+│  147        🔥 12        Jan 2025               │
+│  Séances    Streak      Membre                  │
+└─────────────────────────────────────────────────┘
+```
+- Avatar avec gradient accent et glow 24px
+- Bouton édition overlay sur l'avatar
+- Stats en 3 colonnes avec dividers
+
+### Section Accomplissements
+```
+ACCOMPLISSEMENTS                             3/6
+┌─────────────────────────────────────────────────┐
+│ 🏆        🔥        💪        🏃        🧠       ⭐ │
+│Premier PR 7j Streak 100 Sé.. Marathon Iron Will Elite │
+│ [accent]  [accent] [accent] [gris]    [gris]  [gris]│
+└─────────────────────────────────────────────────┘
+```
+- Badges débloqués : gradient accent + border + glow
+- Badges verrouillés : fond gris + icône grisée
+- Compteur X/Y dans le header de section
+- Tap → placeholder sheet
+
+### Thème couleur
+- **Accent** : Orange (#FF6B35) - cohérent avec le reste de l'app
+- **Mesh gradient** : Orbes accent animés
+
+### Animations
+- **Mesh gradient** : Pulse 4s cycle (0.08→0.22 alpha)
+- **Switches** : Transition fluide + glow
 
 ---
 
@@ -223,7 +409,7 @@ Planificateur de diète hebdomadaire complet (différent du logging quotidien ty
 ### Header
 - **Titre** : "NUTRITION" + "Plan semaine"
 - **Chip objectif** : Prise / Sèche / Maintien (tap → bottom sheet sélection)
-- **Bouton IA** : Icône sparkle orange avec glow → génère un plan semaine
+- **Bouton "+"** : Icône add verte avec glow → ouvre DietCreationFlow
 
 ### Sélecteur de jour
 Barre horizontale de 7 jours (LUN-DIM) avec :
@@ -320,6 +506,265 @@ DraggableScrollableSheet avec :
 | Prise | 3200 | 2800 | 180g | 380g | 90g |
 | Sèche | 2400 | 2000 | 200g | 200g | 70g |
 | Maintien | 2800 | 2500 | 170g | 300g | 80g |
+
+---
+
+## DietCreationFlow
+
+Flow complet de création de diète personnalisée en 8 étapes.
+
+### Accès
+- Bouton "+" vert en haut à droite de NutritionScreen
+- Animation slide-up à l'ouverture
+
+### Architecture
+```
+lib/features/nutrition/create/
+├── diet_creation_flow.dart      # Orchestrateur principal
+├── steps/
+│   ├── name_step.dart           # Étape 1 - Nom
+│   ├── goal_step.dart           # Étape 2 - Objectif
+│   ├── calories_step.dart       # Étape 3 - Calories
+│   ├── macros_step.dart         # Étape 4 - Macros
+│   ├── meals_step.dart          # Étape 5 - Nombre repas
+│   ├── preferences_step.dart    # Étape 6 - Préférences alimentaires 🆕
+│   ├── meal_names_step.dart     # Étape 7 - Noms repas
+│   ├── meal_planning_step.dart  # Étape 8 - Planning repas
+│   └── supplements_step.dart    # Étape 9 - Compléments
+├── sheets/
+│   ├── diet_success_modal.dart  # Modal de succès
+│   └── food_quantity_sheet.dart # Sélecteur quantité aliment (NEW)
+└── ../models/
+    └── diet_models.dart         # FoodEntry, MealPlan, SupplementEntry (NEW)
+```
+
+### Étape 1 - Nom (`name_step.dart`)
+- **Titre** : "Nomme ton plan"
+- **TextField** glassmorphism avec placeholder
+- **Suggestions chips** : Plan Prise, Diète Sèche, Nutrition Équilibre, Plan Perso
+- Chips verts quand sélectionnés
+
+### Étape 2 - Objectif (`goal_step.dart`)
+- **Titre** : "Ton objectif"
+- **3 cards sélectionnables** :
+
+| Objectif | Icône | Couleur | Description |
+|----------|-------|---------|-------------|
+| Prise de masse | trending_up | Orange | Surplus calorique pour développer le muscle |
+| Sèche | trending_down | Bleu | Déficit calorique pour perdre du gras |
+| Maintien | remove | Vert | Équilibre pour maintenir le poids actuel |
+
+- Animation glow + bordure colorée quand sélectionné
+- Met à jour automatiquement les calories par défaut
+
+### Étape 3 - Calories (`calories_step.dart`)
+- **Titre** : "Objectifs caloriques"
+- **2 cards** :
+  - Jour Training : icône fitness_center, glow orange
+  - Jour Repos : icône hotel, glow vert
+- **Contrôles** :
+  - Boutons +/- (±50 kcal) pour ajustement rapide
+  - Tap sur valeur → ListWheelScrollView picker (1000-5000 kcal, pas de 50)
+- **Indicateur différence** entre jours training et repos
+
+### Étape 4 - Macros (`macros_step.dart`)
+- **Titre** : "Répartition macros"
+- **Presets** :
+
+| Preset | P | C | F |
+|--------|---|---|---|
+| Équilibré | 30% | 45% | 25% |
+| High Protein | 40% | 35% | 25% |
+| Low Carb | 35% | 25% | 40% |
+
+- **3 sliders** avec couleurs distinctes :
+  - Protéines : Rouge (#E74C3C)
+  - Glucides : Bleu (#3498DB)
+  - Lipides : Jaune (#F39C12)
+- **Validation** : warning si total != 100%
+- **Résumé** : badges P/C/F avec grammes calculés
+
+### Étape 5 - Repas (`meals_step.dart`)
+- **Titre** : "Repas par jour"
+- **Sélecteur** : 4 boxes (3, 4, 5, 6) avec glow vert sur actif
+- **Preview liste repas** :
+
+| Nombre | Repas |
+|--------|-------|
+| 3 | Petit-déjeuner, Déjeuner, Dîner |
+| 4 | Petit-déjeuner, Déjeuner, Collation, Dîner |
+| 5 | Petit-déjeuner, Collation AM, Déjeuner, Collation PM, Dîner |
+| 6 | Petit-déjeuner, Collation AM, Déjeuner, Collation PM, Dîner, Collation soir |
+
+- **Icônes** par type : soleil, resto, pomme, lune
+- **Info tip** : "Plus de repas = portions plus petites"
+
+### Étape 6 - Préférences alimentaires (`preferences_step.dart`) 🆕
+- **Titre** : "Préférences alimentaires"
+- **Subtitle** : "Personnalise ton plan selon tes goûts"
+- **Section Restrictions** :
+
+| Restriction | Icône | Couleur sélection |
+|-------------|-------|-------------------|
+| Végétarien | eco | Rouge (#E74C3C) |
+| Vegan | spa | Rouge |
+| Sans gluten | grain | Rouge |
+| Sans lactose | no_drinks | Rouge |
+
+- **Section Aliments préférés** :
+
+| Aliment | Icône | Couleur sélection |
+|---------|-------|-------------------|
+| Poulet | restaurant | Vert (#2ECC71) |
+| Poisson | set_meal | Vert |
+| Boeuf | lunch_dining | Vert |
+| Oeufs | egg | Vert |
+| Riz | rice_bowl | Vert |
+| Pâtes | ramen_dining | Vert |
+| Légumes | grass | Vert |
+| Fruits | apple | Vert |
+
+- **Chips sélectionnables** : Multi-select avec animation
+- **Info card** : "Cette étape est optionnelle. Tu peux la passer si tu veux."
+- **Étape optionnelle** : bouton "Passer" disponible
+
+### Étape 7 - Noms des repas (`meal_names_step.dart`)
+- **Titre** : "Nomme tes repas"
+- **ReorderableListView** pour réorganiser l'ordre des repas
+- **Chaque carte repas** :
+  - Drag handle pour réordonner
+  - Badge numéro vert
+  - Icône tappable → bottom sheet sélecteur (8 icônes)
+  - TextField éditable pour le nom
+- **Icônes disponibles** : soleil, restaurant, pomme, lune, café, oeuf, haltère, nuit
+- **Info tip** : "Maintiens et glisse pour réorganiser"
+
+### Étape 8 - Planification repas (`meal_planning_step.dart`)
+- **Titre** : "Planifie tes repas"
+- **DayTypeToggle** : TRAINING (orange) / REPOS (vert)
+  - Chaque type a ses propres listes de repas
+  - Objectifs caloriques différents
+- **Macro Dashboard** temps réel :
+  - Barre progression calories avec couleur contextuelle
+  - Mini indicateurs P/C/F avec valeurs actuelles/cibles
+- **Bouton "Copier Training → Repos"** (visible sur jours repos si training a des aliments)
+- **Cards repas expandables** :
+  - Header : icône + nom + nombre aliments + calories + protéines
+  - Contenu expanded : liste aliments + bouton ajouter
+  - Tap "+ Ajouter" → FoodLibrarySheet → FoodQuantitySheet → ajout
+  - Aliments avec nom, quantité (ex: "2× 100g"), calories, macros (P/C/F)
+  - Bouton suppression par aliment
+- **FoodQuantitySheet** (`create/sheets/food_quantity_sheet.dart`) :
+  - Slider quantité 0.25x → 5x
+  - Presets rapides : 0.5, 1, 1.5, 2, 3
+  - Preview macros calculés en temps réel
+  - Bouton "Ajouter" pour confirmer
+- **Étape optionnelle** : bouton "Passer" disponible
+
+### Étape 9 - Compléments (`supplements_step.dart`)
+- **Titre** : "Compléments"
+- **Catalogue** : 8 compléments prédéfinis en chips
+
+| Complément | Icône | Dosage défaut | Moment |
+|------------|-------|---------------|--------|
+| Créatine | science | 5g | Post-workout |
+| Whey Protein | local_drink | 30g | Post-workout |
+| BCAA | bubble_chart | 5g | Pré-workout |
+| Multivitamines | medication | 1 capsule | Matin |
+| Oméga-3 | water_drop | 2 capsules | Avec repas |
+| Vitamine D | wb_sunny | 2000 IU | Matin |
+| Zinc | shield | 25mg | Soir |
+| Magnésium | flash_on | 400mg | Soir |
+
+- **Cards compléments sélectionnés** :
+  - Header : icône + nom + timing (tappable) + dosage (tappable) + bouton supprimer
+  - Timing : bottom sheet avec 5 options (Matin, Pré/Post-workout, Soir, Avec repas)
+  - Dosage : bottom sheet avec TextField
+  - Toggle notification + time picker
+- **Étape optionnelle** : bouton "Passer" disponible
+
+### Modal Succès (`diet_success_modal.dart`)
+- Animation scale elasticOut (600ms)
+- Icône restaurant_menu dans cercle vert avec gradient
+- Nom de la diète en couleur accent
+- **Stats** : Objectif | Kcal | Repas/jour | Compléments (si > 0)
+- Bouton "Parfait" vert
+
+### Orchestrateur (`diet_creation_flow.dart`)
+- **Mesh gradient** vert/teal pulsant (4s cycle)
+- **Header** : bouton retour/fermer + "Étape X/9"
+- **Progress bar** : 9 segments, glow vert sur actif
+- **Validation par étape** :
+  - Étape 1 : nom requis
+  - Étape 2 : objectif sélectionné
+  - Étape 3 : calories > 0
+  - Étape 4 : total macros = 100%
+  - Étape 5 : repas entre 3-6
+  - Étape 6 : optionnelle (préférences alimentaires)
+  - Étape 7 : tous les noms de repas remplis
+  - Étape 8 : optionnelle (planning repas)
+  - Étape 9 : optionnelle (compléments)
+- **Bouton bottom** : "Continuer" ou "Créer le plan" (dernier step)
+- **Bouton "Passer"** visible sur étapes 6, 8 et 9
+
+### State Management
+```dart
+// Basic info
+String _dietName = '';
+String _goalType = 'maintain';
+int _trainingCalories = 2800;
+int _restCalories = 2500;
+int _proteinPercent = 30;
+int _carbsPercent = 45;
+int _fatPercent = 25;
+int _mealsPerDay = 4;
+
+// Dietary preferences
+Set<String> _restrictions = {};     // vegetarian, vegan, gluten_free, lactose_free
+Set<String> _preferences = {};      // chicken, fish, beef, eggs, rice, pasta, vegetables, fruits
+
+// Meal customization
+List<String> _mealNames = [];
+List<IconData> _mealIcons = [];
+
+// Meal planning
+List<MealPlan> _trainingDayMeals = [];
+List<MealPlan> _restDayMeals = [];
+
+// Supplements
+List<SupplementEntry> _supplements = [];
+```
+
+### Models (`diet_models.dart`)
+
+```dart
+// Food entry in a meal
+class FoodEntry {
+  final String id, name, quantity, unit;
+  final int calories, protein, carbs, fat;
+}
+
+// Meal with foods
+class MealPlan {
+  final String name;
+  final IconData icon;
+  final List<FoodEntry> foods;
+  int get totalCalories => ...;
+  int get totalProtein => ...;
+}
+
+// Supplement timing options
+enum SupplementTiming { morning, preWorkout, postWorkout, evening, withMeal }
+
+// Supplement entry
+class SupplementEntry {
+  final String id, name, dosage;
+  final IconData icon;
+  final SupplementTiming timing;
+  final bool notificationsEnabled;
+  final TimeOfDay? reminderTime;
+}
+```
 
 ---
 
@@ -495,3 +940,395 @@ Déclenchée quand poids > record précédent :
 - Transitions exercices : slide horizontal
 - Timer ring : progression smooth
 - PR celebration : scale + fade combo
+
+---
+
+## SocialScreen
+
+Écran social avec deux sections : Feed (séances des potes) et Défis (compétitions).
+
+### Accès
+- 3ème onglet dans la bottom navigation bar (icône people)
+
+### Header
+- **Titre** : "SOCIAL" + "Ta communauté"
+- **Cloche notifications** : Badge rouge si non lues
+
+### Segmented Control
+Toggle entre deux onglets :
+- **FEED** : Voir les séances des amis
+- **DÉFIS** : Voir et créer des défis
+
+### Feed - Séances des potes
+
+**ActivityCard** - Carte de séance :
+| Section | Contenu |
+|---------|---------|
+| Header | Avatar + nom + workout name + "il y a Xh" |
+| PR Badge | Banner vert si nouveau record (exercice + valeur + gain) |
+| Stats | Muscles • durée • volume • exercices |
+| Top 3 | Chips avec nom exercice + poids×reps |
+| Respect | Compteur + "Mike, Julie et X autres" + bouton respect |
+
+**RespectButton** - Alternative au "like" :
+- Icône : haltère (fitness_center)
+- Animation : scale 1.0→1.3→1.0 + glow orange
+- Haptic : mediumImpact au tap
+- États : normal (gris) / respecté (fond orange)
+
+**ActivityDetailSheet** :
+- Header complet avec avatar 56px
+- Stats grid (Durée/Volume/Exercices/Muscles)
+- Liste complète des exercices
+- Section respect avec noms
+
+### Défis - Compétitions
+
+**ChallengeCard** - Carte de défi :
+| Section | Contenu |
+|---------|---------|
+| Header | Badge status (ACTIF/TERMINÉ/EXPIRÉ) + "Xj restants" |
+| Titre | "100kg au bench" + exercice cible |
+| Participants | Créateur + avatars empilés (+N) |
+| Leaderboard | Top 3 avec 🥇🥈🥉 + % + valeur |
+| Actions | "VOIR DÉTAILS" / "PARTICIPER" |
+
+**ChallengeDetailSheet** :
+- Progress ring 180px avec % leader
+- Info : Objectif / Participants / Deadline
+- Classement complet avec barres progression
+- Bouton "PARTICIPER AU DÉFI"
+
+**ParticipantAvatars** :
+- Avatars empilés avec chevauchement 60%
+- Maximum 3 visibles + "+N" si plus
+
+### Création de Défi (FAB)
+
+**CreateChallengeSheet** - Flow 4 étapes :
+
+**Étape 1 - Type** :
+| Type | Icône | Description |
+|------|-------|-------------|
+| Défi poids | fitness_center | Premier à X kg |
+| Défi reps | repeat | Max reps à X kg |
+| Défi temps | timer | Meilleur temps |
+| Défi libre | edit_note | Description custom |
+
+**Étape 2 - Configuration** :
+- Dropdown sélection exercice (8 exercices principaux)
+- Picker valeur cible avec +/- (±5)
+- Date picker deadline (optionnel)
+
+**Étape 3 - Invitations** :
+- Liste amis avec recherche
+- Multi-select avec checkboxes
+- Status online (badge vert)
+- Streak affiché 🔥
+
+**Étape 4 - Confirmation** :
+- Preview card avec récap complet
+- Chips participants sélectionnés
+- Bouton "LANCER LE DÉFI"
+
+### Models
+
+```dart
+// Activity
+Activity(
+  id, userName, userAvatarUrl, workoutName, muscles,
+  durationMinutes, volumeKg, exerciseCount, timestamp,
+  topExercises: [ExerciseSummary],
+  pr: PersonalRecord?,
+  respectCount, hasGivenRespect, respectGivers
+)
+
+// Challenge
+Challenge(
+  id, title, exerciseName, type: ChallengeType,
+  targetValue, unit, deadline?, status: ChallengeStatus,
+  creatorId, creatorName,
+  participants: [ChallengeParticipant]
+)
+
+// Friend
+Friend(
+  id, name, avatarUrl, isOnline, lastActive?,
+  totalWorkouts, streak
+)
+```
+
+### Structure fichiers
+
+```
+lib/features/social/
+├── social_screen.dart              # Écran principal
+├── models/
+│   ├── activity.dart               # Activity, ExerciseSummary, PersonalRecord
+│   ├── challenge.dart              # Challenge, ChallengeType, ChallengeStatus, ChallengeParticipant
+│   └── friend.dart                 # Friend
+├── widgets/
+│   ├── activity_card.dart          # Carte séance
+│   ├── challenge_card.dart         # Carte défi
+│   ├── pr_badge.dart               # Badge PR vert
+│   ├── respect_button.dart         # Bouton respect animé
+│   └── participant_avatars.dart    # Avatars empilés
+├── sheets/
+│   ├── activity_detail_sheet.dart  # Détail séance
+│   ├── challenge_detail_sheet.dart # Détail défi
+│   ├── create_challenge_sheet.dart # Création défi (4 étapes)
+│   └── friends_list_sheet.dart     # Sélection amis
+└── painters/
+    └── challenge_progress_painter.dart # Ring progression
+```
+
+### Animations & Effets
+
+- Mesh gradient orange/violet (différent des autres écrans)
+- RespectButton : scale + glow au tap
+- Segmented control : transition couleur 200ms
+- FAB : visible uniquement sur onglet Défis
+
+---
+
+## WorkoutHistoryScreen
+
+Écran d'historique des séances d'entraînement.
+
+### Accès
+- Tap sur "Historique" dans WorkoutScreen (quick actions)
+- Tap sur un item récent dans WorkoutScreen (filtré par type)
+
+### Header
+- Bouton retour
+- Titre "Historique" + compteur séances
+- Badge stat total volume
+
+### Filtres
+Chips horizontaux pour filtrer par type de session :
+- Tout
+- Push Day
+- Pull Day
+- Leg Day
+- (autres types selon historique)
+
+### Liste des séances
+**WorkoutCard** pour chaque séance :
+| Section | Contenu |
+|---------|---------|
+| Icône | Dépend du type (fitness_center/rowing/running) |
+| Header | Nom session + badge PR si nouveau record |
+| Date | Aujourd'hui / Hier / Lun 27 Jan |
+| Stats | Timer durée + exercices + volume (formaté k) |
+
+### Bottom Sheet Détail
+Tap sur une carte ouvre un DraggableScrollableSheet :
+- Header avec nom et date
+- Stats grid : durée, exercices, volume, PRs
+- Liste exercices avec sets×reps
+
+---
+
+## ProgramEditScreen
+
+Écran d'édition d'un programme d'entraînement.
+
+### Accès
+- Tap sur "Modifier" dans WorkoutScreen (quick actions)
+
+### Header
+- Bouton fermer (X) avec confirmation si modifications
+- Titre "Modifier programme"
+
+### Contenu
+**Nom du programme** :
+- TextField glassmorphism
+
+**Liste des séances** :
+- ReorderableListView avec drag handles
+- Chaque carte affiche :
+  - Drag indicator
+  - Nom + muscles
+  - Preview 3 premiers exercices (bullet points)
+  - "+N exercices" si plus de 3
+  - Bouton éditer (icône edit)
+  - Bouton supprimer (icône delete, rouge)
+
+**Bouton ajouter séance** :
+- Full width, style outline
+
+### Footer
+Bouton "Sauvegarder" :
+- Inactif (gris) si pas de modifications
+- Actif (accent + glow) si modifications
+
+### Confirmation
+Dialog si tentative de fermeture avec modifications non sauvegardées :
+- "Abandonner les modifications ?"
+- Boutons : Continuer / Abandonner
+
+---
+
+## PlaceholderSheet
+
+Sheet réutilisable pour fonctionnalités "Coming soon".
+
+### Utilisation
+```dart
+PlaceholderSheet.show(
+  context,
+  title: 'Apple Health',
+  message: 'Synchronisation bientôt disponible.',
+  icon: Icons.sync_outlined,
+);
+```
+
+### Contenu
+- Handle
+- Icône dans cercle accent 15%
+- Titre (h3)
+- Message (body, secondary)
+- Bouton "Compris"
+
+---
+
+## EditProfileSheet
+
+Sheet pour modifier le profil utilisateur.
+
+### Accès
+- Tap sur l'icône crayon dans la carte profil (ProfileScreen)
+
+### Contenu
+**Avatar selector** :
+- ListView horizontal de 8 emojis fitness
+- Animation sélection avec bordure accent
+
+**Champs** :
+- Nom (TextField)
+- Email (TextField)
+
+**Actions** :
+- Annuler (secondary)
+- Sauvegarder (accent) → SnackBar confirmation
+
+### Avatars disponibles
+💪 🏋️ 🏃 🧘 🚴 ⚡ 🔥 🎯
+
+---
+
+## ExerciseProgressScreen
+
+Écran de visualisation de la progression des poids sur un exercice.
+
+### Accès
+- Tap sur un badge PR dans les séances récentes (WorkoutScreen)
+
+### Architecture
+```
+lib/features/workout/progress/
+├── exercise_progress_screen.dart    # Écran principal
+├── models/
+│   └── exercise_history.dart        # Modèles + mock data
+└── widgets/
+    ├── progress_chart.dart          # CustomPainter graphique
+    └── pr_history_list.dart         # Liste des PRs
+```
+
+### Header
+| Élément | Description |
+|---------|-------------|
+| Bouton retour | Navigation pop |
+| Nom exercice | Uppercase avec letterSpacing |
+| Groupe musculaire | Caption secondary |
+| Badge PR | Gradient doré avec icône trophée + poids actuel |
+
+### Graphique de progression
+**ProgressChart** - CustomPainter animé :
+- **Axes** : Y (poids en kg), X (semaines S1-S7)
+- **Grille** : Lignes horizontales avec labels
+- **Courbe** : Ligne orange avec courbe de Bézier lisse
+- **Gradient** : Zone sous la courbe avec gradient accent
+- **Points normaux** : Cercles orange (6px) avec bordure background
+- **Points PR** : Cercles dorés (7px) avec glow et bordure blanche
+- **Animation** : Apparition progressive de gauche à droite (1.2s)
+
+### Card stats progression
+| Donnée | Format | Exemple |
+|--------|--------|---------|
+| Pourcentage | +X.X% depuis le début | +11.1% |
+| Gain total | +Xkg en Y semaines | +10kg en 7 semaines |
+| Icône | trending_up vert | - |
+
+### Liste historique PRs (PRHistoryList)
+Affiche uniquement les entrées marquées comme PR, triées par date décroissante.
+
+**Chaque item** :
+| Section | Contenu |
+|---------|---------|
+| Icône | Trophée dans carré (doré si plus récent, orange sinon) |
+| Poids × Reps | "100kg × 5" en h3 (doré si plus récent) |
+| Session | Nom de la séance en caption |
+| Date | Badge avec date relative (Aujourd'hui, Hier, S1-S7) |
+
+**Style item plus récent** :
+- Fond doré 10%
+- Bordure dorée 30%
+- Textes en couleur dorée
+
+### Modèles
+
+```dart
+// Entrée d'historique
+class ExerciseProgressEntry {
+  final DateTime date;
+  final double weight;
+  final int reps;
+  final bool isPR;
+  final String? sessionName;
+}
+
+// Historique complet
+class ExerciseHistory {
+  final String exerciseName;
+  final String muscleGroup;
+  final double currentPR;
+  final List<ExerciseProgressEntry> entries;
+
+  // Getters calculés
+  double get progressPercentage;  // % gain depuis début
+  double get totalGain;           // kg gagnés
+  int get weeksOfProgress;        // semaines de données
+  List<ExerciseProgressEntry> get prEntries;  // filtré PRs only
+}
+```
+
+### Mock Data (MockExerciseData)
+3 exercices avec historique 7 semaines :
+
+| Exercice | Muscle | PR initial | PR actuel | Progression |
+|----------|--------|------------|-----------|-------------|
+| Bench Press | Pectoraux | 90kg | 100kg | +11.1% |
+| Squat | Quadriceps | 120kg | 140kg | +16.7% |
+| Deadlift | Dos | 140kg | 160kg | +14.3% |
+
+### Animations & Effets
+- **Fade-in** : Écran entier avec animation 600ms
+- **Chart animation** : Progression linéaire 1.2s
+- **Glow** : Points PR avec MaskFilter blur
+- **Gradient background** : Orbe accent en haut à droite
+
+### Navigation
+```dart
+// Depuis WorkoutScreen
+void _openPRProgress(String exerciseName) {
+  Navigator.push(
+    context,
+    PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          ExerciseProgressScreen(exerciseName: exerciseName),
+      // slide from right transition
+    ),
+  );
+}
+```

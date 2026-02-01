@@ -4,6 +4,12 @@ import '../../core/theme/fg_colors.dart';
 import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
 import '../../shared/widgets/fg_glass_card.dart';
+import '../../shared/sheets/placeholder_sheet.dart';
+import 'sheets/edit_profile_sheet.dart';
+import 'sheets/advanced_settings_sheet.dart';
+import 'sheets/achievements_sheet.dart';
+import 'sheets/help_support_sheet.dart';
+import 'sheets/legal_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -30,7 +36,47 @@ class _ProfileScreenState extends State<ProfileScreen>
   final String _userEmail = 'mike@fitgame.pro';
   final int _totalWorkouts = 147;
   final int _currentStreak = 12;
-  final String _memberSince = 'Jan 2025';
+  final String _memberSince = 'Jan 25';
+
+  // Achievements
+  final List<Map<String, dynamic>> _achievements = [
+    {
+      'id': 'first_pr',
+      'name': 'Premier PR',
+      'icon': Icons.emoji_events_rounded,
+      'unlocked': true
+    },
+    {
+      'id': 'streak_7',
+      'name': '7j Streak',
+      'icon': Icons.local_fire_department_rounded,
+      'unlocked': true
+    },
+    {
+      'id': '100_workouts',
+      'name': '100 Séances',
+      'icon': Icons.fitness_center_rounded,
+      'unlocked': true
+    },
+    {
+      'id': 'marathon',
+      'name': 'Marathon',
+      'icon': Icons.directions_run_rounded,
+      'unlocked': false
+    },
+    {
+      'id': 'iron_will',
+      'name': 'Iron Will',
+      'icon': Icons.psychology_rounded,
+      'unlocked': false
+    },
+    {
+      'id': 'elite',
+      'name': 'Elite',
+      'icon': Icons.military_tech_rounded,
+      'unlocked': false
+    },
+  ];
 
   @override
   void initState() {
@@ -40,7 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       vsync: this,
     )..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(begin: 0.1, end: 0.25).animate(
+    _pulseAnimation = Tween<double>(begin: 0.08, end: 0.22).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
@@ -50,6 +96,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     _pulseController.dispose();
     super.dispose();
   }
+
+  int get _unlockedCount =>
+      _achievements.where((a) => a['unlocked'] as bool).length;
 
   @override
   Widget build(BuildContext context) {
@@ -69,14 +118,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: Spacing.lg),
+                    const SizedBox(height: Spacing.md),
 
                     // === HEADER ===
                     _buildHeader(),
+                    const SizedBox(height: Spacing.lg),
+
+                    // === HERO PROFILE CARD ===
+                    _buildHeroProfileCard(),
                     const SizedBox(height: Spacing.xl),
 
-                    // === PROFILE CARD ===
-                    _buildProfileCard(),
+                    // === ACHIEVEMENTS SECTION ===
+                    _buildAchievementsSection(),
                     const SizedBox(height: Spacing.xl),
 
                     // === NOTIFICATIONS SECTION ===
@@ -125,10 +178,33 @@ class _ProfileScreenState extends State<ProfileScreen>
           children: [
             Container(color: FGColors.background),
 
-            // Top-left subtle glow
+            // Top-left accent glow
             Positioned(
-              top: -50,
+              top: -80,
               left: -100,
+              child: Container(
+                width: 350,
+                height: 350,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      FGColors.accent
+                          .withValues(alpha: _pulseAnimation.value * 0.5),
+                      FGColors.accent
+                          .withValues(alpha: _pulseAnimation.value * 0.2),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.4, 1.0],
+                  ),
+                ),
+              ),
+            ),
+
+            // Bottom-right subtle glow
+            Positioned(
+              bottom: 150,
+              right: -100,
               child: Container(
                 width: 300,
                 height: 300,
@@ -137,30 +213,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   gradient: RadialGradient(
                     colors: [
                       FGColors.accent
-                          .withValues(alpha: _pulseAnimation.value * 0.4),
-                      FGColors.accent
-                          .withValues(alpha: _pulseAnimation.value * 0.1),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.5, 1.0],
-                  ),
-                ),
-              ),
-            ),
-
-            // Bottom-right glow
-            Positioned(
-              bottom: 200,
-              right: -80,
-              child: Container(
-                width: 250,
-                height: 250,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      FGColors.accent
-                          .withValues(alpha: _pulseAnimation.value * 0.2),
+                          .withValues(alpha: _pulseAnimation.value * 0.25),
                       Colors.transparent,
                     ],
                     stops: const [0.0, 1.0],
@@ -175,20 +228,61 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildHeader() {
-    return Text(
-      'Profil',
-      style: FGTypography.h1.copyWith(
-        fontSize: 36,
-      ),
+    return Row(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'PROFIL',
+              style: FGTypography.caption.copyWith(
+                letterSpacing: 3,
+                fontWeight: FontWeight.w700,
+                color: FGColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Tes réglages',
+              style: FGTypography.h2.copyWith(
+                fontWeight: FontWeight.w900,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        const Spacer(),
+        // Settings gear icon
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            AdvancedSettingsSheet.show(context);
+          },
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: FGColors.glassSurface.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(Spacing.md),
+              border: Border.all(color: FGColors.glassBorder),
+            ),
+            child: const Icon(
+              Icons.settings_outlined,
+              color: FGColors.textSecondary,
+              size: 22,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildProfileCard() {
+  Widget _buildHeroProfileCard() {
     return FGGlassCard(
       padding: EdgeInsets.zero,
       child: Column(
         children: [
-          // Top gradient section with avatar
+          // Top section with avatar and info
           Container(
             padding: const EdgeInsets.all(Spacing.lg),
             decoration: BoxDecoration(
@@ -207,37 +301,74 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
             child: Row(
               children: [
-                // Avatar
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        FGColors.accent,
-                        FGColors.accent.withValues(alpha: 0.7),
-                      ],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: FGColors.accent.withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        spreadRadius: 2,
+                // Avatar with glow
+                Stack(
+                  children: [
+                    Container(
+                      width: 76,
+                      height: 76,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            FGColors.accent,
+                            FGColors.accent.withValues(alpha: 0.7),
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: FGColors.accent.withValues(alpha: 0.5),
+                            blurRadius: 24,
+                            spreadRadius: 2,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      _userName[0].toUpperCase(),
-                      style: FGTypography.h1.copyWith(
-                        fontSize: 32,
-                        color: FGColors.textOnAccent,
+                      child: Center(
+                        child: Text(
+                          _userName[0].toUpperCase(),
+                          style: FGTypography.h1.copyWith(
+                            fontSize: 32,
+                            color: FGColors.textOnAccent,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    // Edit button overlay
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          EditProfileSheet.show(
+                            context,
+                            currentName: _userName,
+                            currentEmail: _userEmail,
+                            currentAvatarIndex: 0,
+                          );
+                        },
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: FGColors.background,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: FGColors.accent,
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.edit_rounded,
+                            size: 14,
+                            color: FGColors.accent,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(width: Spacing.lg),
 
@@ -253,34 +384,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                           fontStyle: FontStyle.italic,
                         ),
                       ),
-                      const SizedBox(height: Spacing.xs),
+                      const SizedBox(height: 4),
                       Text(
                         _userEmail,
                         style: FGTypography.bodySmall.copyWith(
                           color: FGColors.textSecondary,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                  ),
-                ),
-
-                // Edit button
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    // TODO: Edit profile
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(Spacing.sm),
-                    decoration: BoxDecoration(
-                      color: FGColors.glassBorder,
-                      borderRadius: BorderRadius.circular(Spacing.sm),
-                    ),
-                    child: const Icon(
-                      Icons.edit_outlined,
-                      color: FGColors.textPrimary,
-                      size: 20,
-                    ),
                   ),
                 ),
               ],
@@ -292,11 +405,24 @@ class _ProfileScreenState extends State<ProfileScreen>
             padding: const EdgeInsets.all(Spacing.lg),
             child: Row(
               children: [
-                _buildProfileStat('$_totalWorkouts', 'Séances'),
+                _buildProfileStat(
+                  '$_totalWorkouts',
+                  'Séances',
+                  Icons.fitness_center_rounded,
+                ),
                 _buildStatDivider(),
-                _buildProfileStat('$_currentStreak', 'Jours série'),
+                _buildProfileStat(
+                  '$_currentStreak',
+                  'Streak',
+                  Icons.local_fire_department_rounded,
+                  isStreak: true,
+                ),
                 _buildStatDivider(),
-                _buildProfileStat(_memberSince, 'Membre'),
+                _buildProfileStat(
+                  _memberSince,
+                  'Membre',
+                  Icons.calendar_today_rounded,
+                ),
               ],
             ),
           ),
@@ -305,16 +431,32 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildProfileStat(String value, String label) {
+  Widget _buildProfileStat(String value, String label, IconData icon,
+      {bool isStreak = false}) {
     return Expanded(
       child: Column(
         children: [
-          Text(
-            value,
-            style: FGTypography.h3.copyWith(
-              color: FGColors.accent,
-              fontWeight: FontWeight.w900,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isStreak)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    icon,
+                    size: 18,
+                    color: FGColors.accent,
+                  ),
+                ),
+              Text(
+                value,
+                style: FGTypography.h3.copyWith(
+                  color: FGColors.accent,
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: Spacing.xs),
           Text(
@@ -336,11 +478,135 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  Widget _buildAchievementsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'ACCOMPLISSEMENTS',
+              style: FGTypography.caption.copyWith(
+                letterSpacing: 2,
+                fontWeight: FontWeight.w700,
+                color: FGColors.textSecondary,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Spacing.sm,
+                vertical: 3,
+              ),
+              decoration: BoxDecoration(
+                color: FGColors.accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: FGColors.accent.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Text(
+                '$_unlockedCount/${_achievements.length}',
+                style: FGTypography.caption.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: FGColors.accent,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: Spacing.md),
+        FGGlassCard(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            AchievementsSheet.show(context);
+          },
+          child: Row(
+            children: _achievements.map((achievement) {
+              final isUnlocked = achievement['unlocked'] as bool;
+              return _buildAchievementBadge(
+                icon: achievement['icon'] as IconData,
+                name: achievement['name'] as String,
+                isUnlocked: isUnlocked,
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAchievementBadge({
+    required IconData icon,
+    required String name,
+    required bool isUnlocked,
+  }) {
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: isUnlocked
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        FGColors.accent.withValues(alpha: 0.25),
+                        FGColors.accent.withValues(alpha: 0.1),
+                      ],
+                    )
+                  : null,
+              color: isUnlocked ? null : FGColors.glassBorder.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(10),
+              border: isUnlocked
+                  ? Border.all(
+                      color: FGColors.accent.withValues(alpha: 0.4),
+                    )
+                  : null,
+              boxShadow: isUnlocked
+                  ? [
+                      BoxShadow(
+                        color: FGColors.accent.withValues(alpha: 0.2),
+                        blurRadius: 8,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: isUnlocked
+                  ? FGColors.accent
+                  : FGColors.textSecondary.withValues(alpha: 0.4),
+            ),
+          ),
+          const SizedBox(height: Spacing.xs),
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: FGTypography.caption.copyWith(
+              fontSize: 8,
+              fontWeight: isUnlocked ? FontWeight.w600 : FontWeight.w400,
+              color: isUnlocked
+                  ? FGColors.textPrimary
+                  : FGColors.textSecondary.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSectionTitle(String title) {
     return Text(
       title.toUpperCase(),
       style: FGTypography.caption.copyWith(
-        letterSpacing: 3,
+        letterSpacing: 2,
         fontWeight: FontWeight.w700,
         color: FGColors.textSecondary,
       ),
@@ -390,7 +656,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             _buildDivider(),
             _buildSwitchTile(
               icon: Icons.trending_up_outlined,
-              title: 'Alertes progression',
+              title: 'Alertes de progression',
               subtitle: 'Nouveau PR, objectifs atteints',
               value: _progressAlerts,
               onChanged: (val) {
@@ -433,24 +699,37 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           _buildDivider(),
           _buildNavigationTile(
-            icon: Icons.sync_outlined,
+            icon: Icons.favorite_rounded,
+            iconGradient: const [Color(0xFFFF5B7F), Color(0xFFFF8066)],
             title: 'Apple Health',
             subtitle: 'Connecté',
             subtitleColor: FGColors.success,
             onTap: () {
               HapticFeedback.lightImpact();
-              // TODO: Health settings
+              PlaceholderSheet.show(
+                context,
+                title: 'Apple Health',
+                message:
+                    'Synchronisation avec Apple Health bientôt disponible.',
+                icon: Icons.sync_outlined,
+              );
             },
           ),
           _buildDivider(),
           _buildNavigationTile(
-            icon: Icons.backup_outlined,
+            icon: Icons.cloud_outlined,
+            iconGradient: const [Color(0xFF00D9FF), Color(0xFF6B5BFF)],
             title: 'Sauvegarde',
             subtitle: 'iCloud activé',
             subtitleColor: FGColors.success,
             onTap: () {
               HapticFeedback.lightImpact();
-              // TODO: Backup settings
+              PlaceholderSheet.show(
+                context,
+                title: 'Sauvegarde',
+                message: 'Configuration iCloud bientôt disponible.',
+                icon: Icons.backup_outlined,
+              );
             },
           ),
         ],
@@ -464,11 +743,17 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: Column(
         children: [
           _buildNavigationTile(
-            icon: Icons.star_outline_rounded,
+            icon: Icons.star_rounded,
+            iconGradient: const [FGColors.accent, Color(0xFFFF8844)],
             title: 'Noter l\'app',
             onTap: () {
               HapticFeedback.lightImpact();
-              // TODO: Rate app
+              PlaceholderSheet.show(
+                context,
+                title: 'Noter l\'app',
+                message: 'Lien vers l\'App Store bientôt disponible.',
+                icon: Icons.star_outline_rounded,
+              );
             },
           ),
           _buildDivider(),
@@ -477,7 +762,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             title: 'Aide & Support',
             onTap: () {
               HapticFeedback.lightImpact();
-              // TODO: Help
+              HelpSupportSheet.show(context);
             },
           ),
           _buildDivider(),
@@ -486,7 +771,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             title: 'Conditions d\'utilisation',
             onTap: () {
               HapticFeedback.lightImpact();
-              // TODO: Terms
+              LegalSheet.show(context, type: LegalDocumentType.terms);
             },
           ),
           _buildDivider(),
@@ -495,7 +780,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             title: 'Politique de confidentialité',
             onTap: () {
               HapticFeedback.lightImpact();
-              // TODO: Privacy
+              LegalSheet.show(context, type: LegalDocumentType.privacy);
             },
           ),
         ],
@@ -519,17 +804,26 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(Spacing.sm),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: value
-                  ? FGColors.accent.withValues(alpha: 0.15)
-                  : FGColors.glassBorder,
-              borderRadius: BorderRadius.circular(Spacing.sm),
+              gradient: value
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        FGColors.accent.withValues(alpha: 0.25),
+                        FGColors.accent.withValues(alpha: 0.1),
+                      ],
+                    )
+                  : null,
+              color: value ? null : FGColors.glassBorder,
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
               icon,
               color: value ? FGColors.accent : FGColors.textSecondary,
-              size: 20,
+              size: 18,
             ),
           ),
           const SizedBox(width: Spacing.md),
@@ -624,15 +918,16 @@ class _ProfileScreenState extends State<ProfileScreen>
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(Spacing.sm),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: FGColors.glassBorder,
-              borderRadius: BorderRadius.circular(Spacing.sm),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
               icon,
               color: FGColors.textSecondary,
-              size: 20,
+              size: 18,
             ),
           ),
           const SizedBox(width: Spacing.md),
@@ -710,6 +1005,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     required String title,
     String? subtitle,
     Color? subtitleColor,
+    List<Color>? iconGradient,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -723,15 +1019,28 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(Spacing.sm),
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                color: FGColors.glassBorder,
-                borderRadius: BorderRadius.circular(Spacing.sm),
+                gradient: iconGradient != null
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          iconGradient[0].withValues(alpha: 0.25),
+                          iconGradient[1].withValues(alpha: 0.15),
+                        ],
+                      )
+                    : null,
+                color: iconGradient == null ? FGColors.glassBorder : null,
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 icon,
-                color: FGColors.textSecondary,
-                size: 20,
+                color: iconGradient != null
+                    ? iconGradient[0]
+                    : FGColors.textSecondary,
+                size: 18,
               ),
             ),
             const SizedBox(width: Spacing.md),
@@ -741,6 +1050,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 style: FGTypography.body.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             if (subtitle != null) ...[
@@ -755,7 +1066,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             ],
             Icon(
               Icons.chevron_right_rounded,
-              color: FGColors.textSecondary,
+              color: FGColors.textSecondary.withValues(alpha: 0.5),
               size: 20,
             ),
           ],

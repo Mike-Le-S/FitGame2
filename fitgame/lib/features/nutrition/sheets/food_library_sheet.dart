@@ -3,9 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/constants/spacing.dart';
-import '../../../shared/widgets/fg_glass_card.dart';
-import '../../../shared/widgets/fg_neon_button.dart';
-import '../painters/mini_progress_ring_painter.dart';
+import '../../../shared/sheets/placeholder_sheet.dart';
 
 class FoodLibrarySheet extends StatefulWidget {
   final Function(Map<String, dynamic>) onSelectFood;
@@ -20,6 +18,118 @@ class FoodLibrarySheetState extends State<FoodLibrarySheet> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'Tous';
 
+  void _showCreateFoodDialog(BuildContext context) {
+    final nameController = TextEditingController();
+    final calController = TextEditingController();
+    final proteinController = TextEditingController();
+    final carbsController = TextEditingController();
+    final fatController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: FGColors.background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: FGColors.glassBorder),
+        ),
+        title: Text(
+          'Créer un aliment',
+          style: FGTypography.h3,
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDialogTextField(nameController, 'Nom de l\'aliment'),
+              const SizedBox(height: Spacing.sm),
+              _buildDialogTextField(calController, 'Calories (kcal)', isNumber: true),
+              const SizedBox(height: Spacing.sm),
+              Row(
+                children: [
+                  Expanded(child: _buildDialogTextField(proteinController, 'Protéines (g)', isNumber: true)),
+                  const SizedBox(width: Spacing.sm),
+                  Expanded(child: _buildDialogTextField(carbsController, 'Glucides (g)', isNumber: true)),
+                ],
+              ),
+              const SizedBox(height: Spacing.sm),
+              _buildDialogTextField(fatController, 'Lipides (g)', isNumber: true),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(
+              'Annuler',
+              style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              if (nameController.text.isNotEmpty) {
+                final newFood = {
+                  'name': nameController.text,
+                  'category': 'Récents',
+                  'cal': int.tryParse(calController.text) ?? 0,
+                  'p': int.tryParse(proteinController.text) ?? 0,
+                  'c': int.tryParse(carbsController.text) ?? 0,
+                  'f': int.tryParse(fatController.text) ?? 0,
+                  'unit': '100g',
+                };
+                setState(() {
+                  _foods.insert(0, newFood);
+                });
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${nameController.text} ajouté à ta bibliothèque'),
+                    backgroundColor: FGColors.success,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+              }
+            },
+            child: Text(
+              'Créer',
+              style: FGTypography.body.copyWith(
+                color: FGColors.accent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogTextField(TextEditingController controller, String hint, {bool isNumber = false}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: FGColors.glassSurface,
+        borderRadius: BorderRadius.circular(Spacing.sm),
+        border: Border.all(color: FGColors.glassBorder),
+      ),
+      child: TextField(
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        style: FGTypography.body,
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: FGTypography.body.copyWith(color: FGColors.textSecondary),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: Spacing.md,
+            vertical: Spacing.sm,
+          ),
+          border: InputBorder.none,
+        ),
+      ),
+    );
+  }
+
   final List<String> _categories = [
     'Tous',
     'Récents',
@@ -31,7 +141,7 @@ class FoodLibrarySheetState extends State<FoodLibrarySheet> {
     'Laitiers',
   ];
 
-  final List<Map<String, dynamic>> _foods = [
+  final List<Map<String, dynamic>> _foods = <Map<String, dynamic>>[
     {'name': 'Poulet grillé', 'category': 'Protéines', 'cal': 165, 'p': 31, 'c': 0, 'f': 4, 'unit': '100g'},
     {'name': 'Riz basmati', 'category': 'Glucides', 'cal': 130, 'p': 3, 'c': 28, 'f': 0, 'unit': '100g cuit'},
     {'name': 'Brocolis', 'category': 'Légumes', 'cal': 34, 'p': 3, 'c': 7, 'f': 0, 'unit': '100g'},
@@ -94,8 +204,13 @@ class FoodLibrarySheetState extends State<FoodLibrarySheet> {
                         const Spacer(),
                         GestureDetector(
                           onTap: () {
-                            // TODO: Open barcode scanner
                             HapticFeedback.lightImpact();
+                            PlaceholderSheet.show(
+                              context,
+                              title: 'Scanner de codes-barres',
+                              message: 'Le scanner de codes-barres nécessite la caméra et sera disponible dans une prochaine version.',
+                              icon: Icons.qr_code_scanner_rounded,
+                            );
                           },
                           child: Container(
                             width: 40,
@@ -114,8 +229,8 @@ class FoodLibrarySheetState extends State<FoodLibrarySheet> {
                         const SizedBox(width: Spacing.sm),
                         GestureDetector(
                           onTap: () {
-                            // TODO: Create custom food
                             HapticFeedback.lightImpact();
+                            _showCreateFoodDialog(context);
                           },
                           child: Container(
                             width: 40,

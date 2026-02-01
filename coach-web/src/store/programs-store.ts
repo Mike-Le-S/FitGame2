@@ -1,14 +1,21 @@
 import { create } from 'zustand'
 import type { Program, Exercise, WorkoutSet, MuscleGroup, ExerciseMode } from '@/types'
 import { generateId } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from './auth-store'
 
 interface ProgramsState {
   programs: Program[]
-  addProgram: (program: Omit<Program, 'id' | 'createdAt' | 'updatedAt' | 'assignedStudentIds'>) => string
-  updateProgram: (id: string, updates: Partial<Program>) => void
-  deleteProgram: (id: string) => void
-  assignToStudent: (programId: string, studentId: string) => void
-  unassignFromStudent: (programId: string, studentId: string) => void
+  isLoading: boolean
+  error: string | null
+  fetchPrograms: () => Promise<void>
+  addProgram: (program: Omit<Program, 'id' | 'createdAt' | 'updatedAt' | 'assignedStudentIds'>) => Promise<string>
+  updateProgram: (id: string, updates: Partial<Program>) => Promise<void>
+  deleteProgram: (id: string) => Promise<void>
+  duplicateProgram: (id: string) => Promise<string | null>
+  getProgramById: (id: string) => Program | undefined
+  assignToStudent: (programId: string, studentId: string) => Promise<void>
+  unassignFromStudent: (programId: string, studentId: string) => Promise<void>
 }
 
 // Exercise catalog for program creation
@@ -123,102 +130,119 @@ export function createExercise(
   }
 }
 
-// Mock programs
-const mockPrograms: Program[] = [
-  {
-    id: 'program-1',
-    name: 'Push Pull Legs',
-    description: 'Programme classique PPL sur 6 jours',
-    goal: 'bulk',
-    durationWeeks: 12,
-    deloadFrequency: 4,
-    days: [
-      {
-        id: 'day-1',
-        name: 'Push A',
-        dayOfWeek: 1,
-        isRestDay: false,
-        exercises: [
-          createExercise('Développé couché', 'chest', 'rpt'),
-          createExercise('Développé incliné', 'chest'),
-          createExercise('Développé militaire', 'shoulders'),
-          createExercise('Élévations latérales', 'shoulders'),
-          createExercise('Pushdown triceps', 'triceps'),
-        ],
-      },
-      {
-        id: 'day-2',
-        name: 'Pull A',
-        dayOfWeek: 2,
-        isRestDay: false,
-        exercises: [
-          createExercise('Soulevé de terre', 'back', 'rpt'),
-          createExercise('Tractions', 'back'),
-          createExercise('Rowing barre', 'back'),
-          createExercise('Face pull', 'shoulders'),
-          createExercise('Curl barre', 'biceps'),
-        ],
-      },
-      {
-        id: 'day-3',
-        name: 'Legs A',
-        dayOfWeek: 3,
-        isRestDay: false,
-        exercises: [
-          createExercise('Squat', 'quads', 'rpt'),
-          createExercise('Presse à cuisses', 'quads'),
-          createExercise('Soulevé de terre roumain', 'hamstrings'),
-          createExercise('Leg curl', 'hamstrings'),
-          createExercise('Mollets debout', 'calves'),
-        ],
-      },
-    ],
-    createdAt: '2025-01-15T00:00:00Z',
-    updatedAt: '2025-01-20T00:00:00Z',
-    assignedStudentIds: ['student-1', 'student-3'],
-  },
-  {
-    id: 'program-2',
-    name: 'Upper Lower',
-    description: 'Programme Upper/Lower 4 jours pour prise de masse',
-    goal: 'bulk',
-    durationWeeks: 8,
-    days: [],
-    createdAt: '2025-01-10T00:00:00Z',
-    updatedAt: '2025-01-10T00:00:00Z',
-    assignedStudentIds: ['student-2'],
-  },
-  {
-    id: 'program-3',
-    name: 'Full Body Débutant',
-    description: 'Programme full body 3x/semaine',
-    goal: 'maintain',
-    durationWeeks: 6,
-    days: [],
-    createdAt: '2025-01-05T00:00:00Z',
-    updatedAt: '2025-01-05T00:00:00Z',
-    assignedStudentIds: ['student-4'],
-  },
-]
+// Transform database row to Program type
+function dbToProgram(row: any): Program {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || undefined,
+    goal: row.goal,
+    durationWeeks: row.duration_weeks,
+    deloadFrequency: row.deload_frequency || undefined,
+    days: row.days || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    assignedStudentIds: [], // Will be populated from assignments table
+  }
+}
 
-export const useProgramsStore = create<ProgramsState>((set) => ({
-  programs: mockPrograms,
+// Transform Program to database row
+function programToDb(program: Omit<Program, 'id' | 'createdAt' | 'updatedAt' | 'assignedStudentIds'>, createdBy: string) {
+  return {
+    created_by: createdBy,
+    name: program.name,
+    description: program.description || null,
+    goal: program.goal,
+    duration_weeks: program.durationWeeks,
+    deload_frequency: program.deloadFrequency || null,
+    days: program.days,
+  }
+}
 
-  addProgram: (programData) => {
-    const id = generateId()
-    const now = new Date().toISOString()
-    const newProgram: Program = {
-      ...programData,
-      id,
-      createdAt: now,
-      updatedAt: now,
-      assignedStudentIds: [],
+export const useProgramsStore = create<ProgramsState>((set, get) => ({
+  programs: [],
+  isLoading: false,
+  error: null,
+
+  fetchPrograms: async () => {
+    const coach = useAuthStore.getState().coach
+    if (!coach) return
+
+    set({ isLoading: true, error: null })
+
+    try {
+      // Fetch programs created by this coach
+      const { data: programs, error: programsError } = await supabase
+        .from('programs')
+        .select('*')
+        .eq('created_by', coach.id)
+        .order('created_at', { ascending: false })
+
+      if (programsError) throw programsError
+
+      // Fetch assignments to get assigned students
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('assignments')
+        .select('program_id, student_id')
+        .eq('coach_id', coach.id)
+        .not('program_id', 'is', null)
+        .eq('status', 'active')
+
+      if (assignmentsError) throw assignmentsError
+
+      // Transform and merge data
+      const transformedPrograms = (programs || []).map(row => {
+        const program = dbToProgram(row)
+        program.assignedStudentIds = (assignments || [])
+          .filter(a => a.program_id === program.id)
+          .map(a => a.student_id)
+        return program
+      })
+
+      set({ programs: transformedPrograms, isLoading: false })
+    } catch (error: any) {
+      console.error('Error fetching programs:', error)
+      set({ error: error.message, isLoading: false })
     }
-    set((state) => ({ programs: [...state.programs, newProgram] }))
-    return id
   },
 
-  updateProgram: (id, updates) => {
+  addProgram: async (programData) => {
+    const coach = useAuthStore.getState().coach
+    if (!coach) throw new Error('Non authentifié')
+
+    const dbData = programToDb(programData, coach.id)
+
+    const { data, error } = await supabase
+      .from('programs')
+      .insert(dbData)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    const newProgram = dbToProgram(data)
+    newProgram.assignedStudentIds = []
+
+    set((state) => ({ programs: [newProgram, ...state.programs] }))
+    return newProgram.id
+  },
+
+  updateProgram: async (id, updates) => {
+    const dbUpdates: any = {}
+    if (updates.name !== undefined) dbUpdates.name = updates.name
+    if (updates.description !== undefined) dbUpdates.description = updates.description
+    if (updates.goal !== undefined) dbUpdates.goal = updates.goal
+    if (updates.durationWeeks !== undefined) dbUpdates.duration_weeks = updates.durationWeeks
+    if (updates.deloadFrequency !== undefined) dbUpdates.deload_frequency = updates.deloadFrequency
+    if (updates.days !== undefined) dbUpdates.days = updates.days
+
+    const { error } = await supabase
+      .from('programs')
+      .update(dbUpdates)
+      .eq('id', id)
+
+    if (error) throw error
+
     set((state) => ({
       programs: state.programs.map((p) =>
         p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
@@ -226,13 +250,86 @@ export const useProgramsStore = create<ProgramsState>((set) => ({
     }))
   },
 
-  deleteProgram: (id) => {
+  deleteProgram: async (id) => {
+    const { error } = await supabase
+      .from('programs')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+
     set((state) => ({
       programs: state.programs.filter((p) => p.id !== id),
     }))
   },
 
-  assignToStudent: (programId, studentId) => {
+  duplicateProgram: async (id) => {
+    const program = get().programs.find((p) => p.id === id)
+    if (!program) return null
+
+    const coach = useAuthStore.getState().coach
+    if (!coach) return null
+
+    // Create new program with copied data
+    const duplicateData = {
+      name: `${program.name} (copie)`,
+      description: program.description,
+      goal: program.goal,
+      durationWeeks: program.durationWeeks,
+      deloadFrequency: program.deloadFrequency,
+      days: program.days.map((day) => ({
+        ...day,
+        id: generateId(),
+        exercises: day.exercises.map((ex) => ({
+          ...ex,
+          id: generateId(),
+          sets: ex.sets.map((set) => ({
+            ...set,
+            id: generateId(),
+          })),
+        })),
+      })),
+    }
+
+    const newId = await get().addProgram(duplicateData)
+    return newId
+  },
+
+  getProgramById: (id) => get().programs.find((p) => p.id === id),
+
+  assignToStudent: async (programId, studentId) => {
+    const coach = useAuthStore.getState().coach
+    if (!coach) return
+
+    // Check if assignment already exists
+    const { data: existing } = await supabase
+      .from('assignments')
+      .select('id')
+      .eq('coach_id', coach.id)
+      .eq('student_id', studentId)
+      .eq('program_id', programId)
+      .single()
+
+    if (existing) {
+      // Update existing assignment to active
+      await supabase
+        .from('assignments')
+        .update({ status: 'active' })
+        .eq('id', existing.id)
+    } else {
+      // Create new assignment
+      const { error } = await supabase
+        .from('assignments')
+        .insert({
+          coach_id: coach.id,
+          student_id: studentId,
+          program_id: programId,
+          status: 'active',
+        })
+
+      if (error) throw error
+    }
+
     set((state) => ({
       programs: state.programs.map((p) =>
         p.id === programId
@@ -246,7 +343,20 @@ export const useProgramsStore = create<ProgramsState>((set) => ({
     }))
   },
 
-  unassignFromStudent: (programId, studentId) => {
+  unassignFromStudent: async (programId, studentId) => {
+    const coach = useAuthStore.getState().coach
+    if (!coach) return
+
+    // Set assignment status to paused instead of deleting
+    const { error } = await supabase
+      .from('assignments')
+      .update({ status: 'paused' })
+      .eq('coach_id', coach.id)
+      .eq('student_id', studentId)
+      .eq('program_id', programId)
+
+    if (error) throw error
+
     set((state) => ({
       programs: state.programs.map((p) =>
         p.id === programId

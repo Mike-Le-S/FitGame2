@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -22,6 +22,7 @@ import { Stepper } from '@/components/shared/stepper'
 import { Badge } from '@/components/ui'
 import { useProgramsStore, exerciseCatalog, createExercise, createDefaultSets } from '@/store/programs-store'
 import { generateId, cn } from '@/lib/utils'
+import { goalConfig } from '@/constants/goals'
 import type { Goal, WorkoutDay, Exercise, MuscleGroup, ExerciseMode } from '@/types'
 
 const steps = [
@@ -70,15 +71,6 @@ const modeLabels: Record<ExerciseMode, string> = {
   dropset: 'Dropset',
 }
 
-const goalConfig = {
-  bulk: { label: 'Prise de masse', color: 'success', icon: '📈' },
-  cut: { label: 'Sèche', color: 'warning', icon: '🔥' },
-  maintain: { label: 'Maintien', color: 'info', icon: '⚖️' },
-  strength: { label: 'Force', color: 'default', icon: '💪' },
-  endurance: { label: 'Endurance', color: 'info', icon: '🏃' },
-  recomp: { label: 'Recomposition', color: 'success', icon: '🔄' },
-  other: { label: 'Autre', color: 'default', icon: '🎯' },
-}
 
 export function ProgramCreatePage() {
   const navigate = useNavigate()
@@ -101,6 +93,21 @@ export function ProgramCreatePage() {
 
   // Focus states
   const [focusedField, setFocusedField] = useState<string | null>(null)
+
+  // Track if user has made changes
+  const hasChanges = name.length > 0 || days.length > 0 || description.length > 0
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasChanges])
 
   const addDay = () => {
     const newDay: WorkoutDay = {

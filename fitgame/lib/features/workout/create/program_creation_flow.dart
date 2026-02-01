@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/constants/spacing.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/fg_neon_button.dart';
 
 // Steps
@@ -89,10 +90,73 @@ class _ProgramCreationFlowState extends State<ProgramCreationFlow>
     }
   }
 
-  void _finishCreation() {
+  bool _isSaving = false;
+
+  Future<void> _finishCreation() async {
+    if (_isSaving) return;
+
+    setState(() => _isSaving = true);
     HapticFeedback.heavyImpact();
-    // TODO: Save program to persistent storage
-    _showSuccessModal();
+
+    try {
+      // Build days array for database
+      final days = <Map<String, dynamic>>[];
+      final sortedDays = List<int>.from(_trainingDays)..sort();
+
+      for (int i = 0; i < sortedDays.length; i++) {
+        final dayNumber = sortedDays[i];
+        final exercises = _exercisesByDay[dayNumber] ?? [];
+        final supersets = _supersetsByDay[dayNumber] ?? [];
+
+        days.add({
+          'id': 'day-$i',
+          'name': _getDayName(dayNumber),
+          'dayOfWeek': dayNumber,
+          'isRestDay': false,
+          'exercises': exercises.map((ex) => {
+            'id': 'ex-${DateTime.now().millisecondsSinceEpoch}-${exercises.indexOf(ex)}',
+            'name': ex['name'],
+            'muscle': ex['muscle'] ?? 'other',
+            'mode': ex['mode'] ?? 'classic',
+            'sets': ex['sets'] ?? 3,
+            'reps': ex['reps'] ?? 10,
+            'warmupEnabled': ex['warmup'] ?? false,
+          }).toList(),
+          'supersets': supersets,
+        });
+      }
+
+      // Save to Supabase
+      await SupabaseService.createProgram(
+        name: _programName,
+        goal: 'bulk', // Default goal, could be added to the flow
+        durationWeeks: _hasCycle ? _trainingWeeksBeforeDeload : 8,
+        deloadFrequency: _hasCycle ? _trainingWeeksBeforeDeload : null,
+        days: days,
+      );
+
+      if (mounted) {
+        _showSuccessModal();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: ${e.toString()}'),
+            backgroundColor: FGColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  String _getDayName(int dayNumber) {
+    const names = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    return names[dayNumber];
   }
 
   void _showSuccessModal() {

@@ -8,8 +8,10 @@ import { StudentsListPage } from '@/pages/students/students-list-page'
 import { StudentProfilePage } from '@/pages/students/student-profile-page'
 import { ProgramsListPage } from '@/pages/programs/programs-list-page'
 import { ProgramCreatePage } from '@/pages/programs/program-create-page'
+import { ProgramDetailPage } from '@/pages/programs/program-detail-page'
 import { NutritionListPage } from '@/pages/nutrition/nutrition-list-page'
 import { NutritionCreatePage } from '@/pages/nutrition/nutrition-create-page'
+import { NutritionDetailPage } from '@/pages/nutrition/nutrition-detail-page'
 import { CalendarPage } from '@/pages/calendar/calendar-page'
 import { MessagesPage } from '@/pages/messages/messages-page'
 import { SettingsPage } from '@/pages/settings/settings-page'
@@ -35,10 +37,12 @@ function App() {
             {/* Programs */}
             <Route path="/programs" element={<ProgramsListPage />} />
             <Route path="/programs/create" element={<ProgramCreatePage />} />
+            <Route path="/programs/:id" element={<ProgramDetailPage />} />
 
             {/* Nutrition */}
             <Route path="/nutrition" element={<NutritionListPage />} />
             <Route path="/nutrition/create" element={<NutritionCreatePage />} />
+            <Route path="/nutrition/:id" element={<NutritionDetailPage />} />
 
             {/* Calendar */}
             <Route path="/calendar" element={<CalendarPage />} />

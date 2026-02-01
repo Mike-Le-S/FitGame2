@@ -20,7 +20,7 @@ flutter pub get              # Installer les dépendances
 
 ```
 fitgame/lib/
-├── main.dart                              # Entry point + MainNavigation (5 onglets)
+├── main.dart                              # Entry point + MainNavigation (6 onglets)
 │
 ├── core/
 │   ├── constants/spacing.dart             # Grille 8px (xs/sm/md/lg/xl/xxl)
@@ -31,25 +31,39 @@ fitgame/lib/
 │       ├── fg_effects.dart                # Blur, glow, shadows
 │       └── app_theme.dart                 # ThemeData
 │
-├── shared/widgets/
-│   ├── fg_glass_card.dart                 # Card glassmorphism
-│   └── fg_neon_button.dart                # Bouton CTA avec glow
+├── shared/
+│   ├── widgets/
+│   │   ├── fg_glass_card.dart             # Card glassmorphism
+│   │   └── fg_neon_button.dart            # Bouton CTA avec glow
+│   └── sheets/
+│       └── placeholder_sheet.dart         # Sheet placeholder pour features à venir
 │
 └── features/
-    ├── home/home_screen.dart              # Onglet 1: Accueil
+    ├── home/
+    │   ├── home_screen.dart               # Onglet 1: Accueil
+    │   └── widgets/                       # 7 widgets extraits
+    │       ├── home_header.dart
+    │       ├── quick_stats_row.dart
+    │       ├── today_workout_card.dart
+    │       ├── last_workout_row.dart
+    │       ├── sleep_summary_widget.dart
+    │       ├── macro_summary_widget.dart
+    │       └── friend_activity_peek.dart
     ├── workout/                           # Onglet 2: Entraînement
-    ├── nutrition/                         # Onglet 3: Nutrition
-    ├── health/                            # Onglet 4: Santé
-    └── profile/profile_screen.dart        # Onglet 5: Profil
+    ├── social/social_screen.dart          # Onglet 3: Social
+    ├── nutrition/                         # Onglet 4: Nutrition
+    ├── health/                            # Onglet 5: Santé
+    └── profile/profile_screen.dart        # Onglet 6: Profil
 ```
 
 ## Écrans principaux (chemins exacts)
 
 | Écran | Fichier | Description |
 |-------|---------|-------------|
-| **Navigation** | `lib/main.dart` | Bottom nav 5 onglets |
+| **Navigation** | `lib/main.dart` | Bottom nav 6 onglets |
 | **Accueil** | `lib/features/home/home_screen.dart` | Streak, stats, séance du jour |
 | **Entraînement** | `lib/features/workout/workout_screen.dart` | Dashboard programmes |
+| **Social** | `lib/features/social/social_screen.dart` | Activité, défis, amis |
 | **Nutrition** | `lib/features/nutrition/nutrition_screen.dart` | Planificateur diète |
 | **Santé** | `lib/features/health/health_screen.dart` | Énergie, Sommeil, Cœur |
 | **Profil** | `lib/features/profile/profile_screen.dart` | Réglages, préférences |
@@ -94,5 +108,7 @@ features/{name}/
 ## Documentation détaillée
 
 Pour les détails de chaque écran (composants, bottom sheets, mock data) :
-- `fitgame/docs/SCREENS.md` - Documentation complète des écrans
+- `docs/ARCHITECTURE.md` - **Architecture unifiée pour backend** (modèles, endpoints, relations)
+- `fitgame/docs/SCREENS.md` - Documentation complète des écrans mobile
 - `fitgame/docs/CHANGELOG.md` - Historique des modifications
+- `coach-web/CLAUDE.md` - Architecture du portail coach

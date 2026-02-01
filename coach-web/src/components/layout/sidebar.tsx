@@ -4,11 +4,11 @@ import {
   Users,
   Dumbbell,
   Apple,
-  Calendar,
   MessageSquare,
   Settings,
   LogOut,
   ChevronRight,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
@@ -19,16 +19,26 @@ const navItems = [
   { path: '/students', icon: Users, label: 'Élèves' },
   { path: '/programs', icon: Dumbbell, label: 'Programmes' },
   { path: '/nutrition', icon: Apple, label: 'Nutrition' },
-  { path: '/calendar', icon: Calendar, label: 'Calendrier' },
   { path: '/messages', icon: MessageSquare, label: 'Messages', badge: 3 },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean
+  onClose: () => void
+}
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation()
   const { coach, logout } = useAuthStore()
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-72 flex flex-col z-50">
+    <aside
+      className={cn(
+        'fixed left-0 top-0 h-screen w-72 flex flex-col z-50',
+        'transition-transform duration-300 ease-out',
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      )}
+    >
       {/* Background with subtle gradient */}
       <div className="absolute inset-0 bg-surface border-r border-border">
         {/* Subtle accent glow at top */}
@@ -38,7 +48,7 @@ export function Sidebar() {
       {/* Content */}
       <div className="relative flex flex-col h-full">
         {/* Logo Section */}
-        <div className="h-20 px-6 flex items-center">
+        <div className="h-20 px-6 flex items-center justify-between">
           <div className="flex items-center gap-3 group cursor-pointer">
             {/* Animated logo container */}
             <div className="relative">
@@ -56,6 +66,18 @@ export function Sidebar() {
               </span>
             </div>
           </div>
+
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className={cn(
+              'p-2 rounded-lg',
+              'text-text-muted hover:text-text-primary',
+              'hover:bg-surface-elevated transition-all'
+            )}
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Navigation */}
@@ -200,7 +222,7 @@ export function Sidebar() {
               </div>
 
               {/* User info */}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 overflow-hidden">
                 <p className="text-sm font-semibold text-text-primary truncate">
                   {coach?.name}
                 </p>
