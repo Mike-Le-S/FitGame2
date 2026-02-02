@@ -659,4 +659,150 @@ class SupabaseService {
   static void unsubscribeFromAssignments() {
     _cleanupRealtimeChannel();
   }
+
+  // ============================================
+  // SOCIAL - Friends, Activity, Notifications
+  // ============================================
+
+  /// Get friends list (accepted friendships)
+  static Future<List<Map<String, dynamic>>> getFriends() async {
+    if (currentUser == null) return [];
+
+    final response = await client
+        .from('friendships')
+        .select('*, friend:profiles!friendships_friend_id_fkey(*)')
+        .eq('user_id', currentUser!.id)
+        .eq('status', 'accepted');
+
+    final reverseResponse = await client
+        .from('friendships')
+        .select('*, friend:profiles!friendships_user_id_fkey(*)')
+        .eq('friend_id', currentUser!.id)
+        .eq('status', 'accepted');
+
+    return [
+      ...List<Map<String, dynamic>>.from(response),
+      ...List<Map<String, dynamic>>.from(reverseResponse),
+    ];
+  }
+
+  /// Get pending friend requests received
+  static Future<List<Map<String, dynamic>>> getPendingFriendRequests() async {
+    if (currentUser == null) return [];
+
+    final response = await client
+        .from('friendships')
+        .select('*, sender:profiles!friendships_user_id_fkey(*)')
+        .eq('friend_id', currentUser!.id)
+        .eq('status', 'pending');
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Send a friend request
+  static Future<void> sendFriendRequest(String friendId) async {
+    if (currentUser == null) throw Exception('Non authentifié');
+
+    await client.from('friendships').insert({
+      'user_id': currentUser!.id,
+      'friend_id': friendId,
+      'status': 'pending',
+    });
+  }
+
+  /// Accept a friend request
+  static Future<void> acceptFriendRequest(String friendshipId) async {
+    await client
+        .from('friendships')
+        .update({'status': 'accepted', 'updated_at': DateTime.now().toIso8601String()})
+        .eq('id', friendshipId);
+  }
+
+  /// Get activity feed (own + friends)
+  static Future<List<Map<String, dynamic>>> getActivityFeed({int limit = 20}) async {
+    if (currentUser == null) return [];
+
+    // Get friend IDs
+    final friends = await getFriends();
+    final friendIds = friends
+        .map((f) => f['friend']?['id'] as String?)
+        .where((id) => id != null)
+        .toList();
+
+    // Include own ID
+    final userIds = [currentUser!.id, ...friendIds];
+
+    final response = await client
+        .from('activity_feed')
+        .select('*, user:profiles(*)')
+        .inFilter('user_id', userIds)
+        .order('created_at', ascending: false)
+        .limit(limit);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Create activity (workout completed, PR, etc.)
+  static Future<void> createActivity({
+    required String activityType,
+    required String title,
+    String? description,
+    Map<String, dynamic>? metadata,
+  }) async {
+    if (currentUser == null) return;
+
+    await client.from('activity_feed').insert({
+      'user_id': currentUser!.id,
+      'activity_type': activityType,
+      'title': title,
+      'description': description,
+      'metadata': metadata ?? {},
+    });
+  }
+
+  /// Get notifications
+  static Future<List<Map<String, dynamic>>> getNotifications({bool unreadOnly = false}) async {
+    if (currentUser == null) return [];
+
+    List<dynamic> response;
+    if (unreadOnly) {
+      response = await client
+          .from('notifications')
+          .select()
+          .eq('user_id', currentUser!.id)
+          .isFilter('read_at', null)
+          .order('created_at', ascending: false)
+          .limit(50);
+    } else {
+      response = await client
+          .from('notifications')
+          .select()
+          .eq('user_id', currentUser!.id)
+          .order('created_at', ascending: false)
+          .limit(50);
+    }
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Mark notification as read
+  static Future<void> markNotificationAsRead(String notificationId) async {
+    await client
+        .from('notifications')
+        .update({'read_at': DateTime.now().toIso8601String()})
+        .eq('id', notificationId);
+  }
+
+  /// Get unread notifications count
+  static Future<int> getUnreadNotificationsCount() async {
+    if (currentUser == null) return 0;
+
+    final response = await client
+        .from('notifications')
+        .select()
+        .eq('user_id', currentUser!.id)
+        .isFilter('read_at', null);
+
+    return (response as List).length;
+  }
 }

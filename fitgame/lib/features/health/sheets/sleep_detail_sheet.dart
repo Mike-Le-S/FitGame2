@@ -153,8 +153,10 @@ class SleepDetailSheetState extends State<SleepDetailSheet>
   @override
   Widget build(BuildContext context) {
     final totalHours = widget.totalSleepMinutes / 60;
-    final efficiency =
-        (widget.totalSleepMinutes / widget.timeInBedMinutes * 100).round();
+    // Avoid division by zero
+    final efficiency = widget.timeInBedMinutes > 0
+        ? (widget.totalSleepMinutes / widget.timeInBedMinutes * 100).round()
+        : 0;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
@@ -394,7 +396,8 @@ class SleepDetailSheetState extends State<SleepDetailSheet>
     required Color color,
     bool invertGauge = false,
   }) {
-    final actualPercent = minutes / totalMinutes;
+    // Avoid division by zero
+    final actualPercent = totalMinutes > 0 ? minutes / totalMinutes : 0.0;
     final hours = minutes ~/ 60;
     final mins = minutes % 60;
     final timeStr =

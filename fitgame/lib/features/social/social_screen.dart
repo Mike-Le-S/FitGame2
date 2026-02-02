@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../core/theme/fg_colors.dart';
 import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/services/supabase_service.dart';
 import 'models/activity.dart';
 import 'models/challenge.dart';
 import 'models/friend.dart';
@@ -27,12 +28,12 @@ class _SocialScreenState extends State<SocialScreen>
 
   int _selectedTab = 0; // 0 = Feed, 1 = Défis
 
-  // Real data - fetched from backend
-  final List<Activity> _activities = [];
-
-  final List<Challenge> _challenges = [];
-
-  final List<Friend> _friends = const [];
+  // Data from Supabase
+  List<Activity> _activities = [];
+  List<Challenge> _challenges = [];
+  List<Friend> _friends = [];
+  int _unreadNotifications = 0;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -45,6 +46,64 @@ class _SocialScreenState extends State<SocialScreen>
     _pulseAnimation = Tween<double>(begin: 0.05, end: 0.15).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _loadSocialData();
+  }
+
+  Future<void> _loadSocialData() async {
+    try {
+      // Load activity feed from Supabase
+      final activityData = await SupabaseService.getActivityFeed();
+      final friendsData = await SupabaseService.getFriends();
+      final unreadCount = await SupabaseService.getUnreadNotificationsCount();
+
+      if (mounted) {
+        setState(() {
+          // Convert Supabase data to Activity models
+          _activities = activityData.map((data) {
+            final user = data['user'] as Map<String, dynamic>?;
+            final metadata = data['metadata'] as Map<String, dynamic>? ?? {};
+
+            return Activity(
+              id: data['id'] ?? '',
+              userName: user?['full_name'] ?? 'Utilisateur',
+              userAvatarUrl: user?['avatar_url'] ?? '',
+              workoutName: data['title'] ?? '',
+              muscles: metadata['muscles'] ?? '',
+              durationMinutes: metadata['duration_minutes'] ?? 0,
+              volumeKg: (metadata['volume_kg'] ?? 0).toDouble(),
+              exerciseCount: metadata['exercise_count'] ?? 0,
+              timestamp: DateTime.tryParse(data['created_at'] ?? '') ?? DateTime.now(),
+              topExercises: [],
+              respectCount: 0,
+              hasGivenRespect: false,
+              respectGivers: [],
+            );
+          }).toList();
+
+          // Convert friends data
+          _friends = friendsData.map((data) {
+            final friend = data['friend'] as Map<String, dynamic>?;
+            return Friend(
+              id: friend?['id'] ?? '',
+              name: friend?['full_name'] ?? 'Ami',
+              avatarUrl: friend?['avatar_url'] ?? '',
+              isOnline: false,
+              streak: friend?['current_streak'] ?? 0,
+              totalWorkouts: friend?['total_sessions'] ?? 0,
+              lastActive: DateTime.now(),
+            );
+          }).toList();
+
+          _unreadNotifications = unreadCount;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override

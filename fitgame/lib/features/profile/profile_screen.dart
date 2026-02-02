@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../core/theme/fg_colors.dart';
 import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/services/supabase_service.dart';
 import '../../shared/widgets/fg_glass_card.dart';
 import '../../shared/sheets/placeholder_sheet.dart';
 import 'sheets/edit_profile_sheet.dart';
@@ -31,12 +32,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _weightUnit = 'kg';
   String _language = 'Français';
 
-  // Mock user data
-  final String _userName = 'Mike';
-  final String _userEmail = 'mike@fitgame.pro';
-  final int _totalWorkouts = 147;
-  final int _currentStreak = 12;
-  final String _memberSince = 'Jan 25';
+  // User data from Supabase
+  bool _isLoading = true;
+  String _userName = '';
+  String _userEmail = '';
+  int _totalWorkouts = 0;
+  int _currentStreak = 0;
+  String _memberSince = '';
 
   // Achievements
   final List<Map<String, dynamic>> _achievements = [
@@ -89,6 +91,40 @@ class _ProfileScreenState extends State<ProfileScreen>
     _pulseAnimation = Tween<double>(begin: 0.08, end: 0.22).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final profile = await SupabaseService.getCurrentProfile();
+      final user = SupabaseService.currentUser;
+
+      if (mounted && profile != null) {
+        setState(() {
+          _userName = profile['full_name'] ?? user?.email?.split('@')[0] ?? 'Utilisateur';
+          _userEmail = user?.email ?? '';
+          _totalWorkouts = profile['total_sessions'] ?? 0;
+          _currentStreak = profile['current_streak'] ?? 0;
+          _weightUnit = profile['weight_unit'] ?? 'kg';
+          _language = profile['language'] == 'en' ? 'English' : 'Français';
+          _notificationsEnabled = profile['notifications_enabled'] ?? true;
+
+          // Format member since date
+          final createdAt = DateTime.tryParse(profile['created_at'] ?? '');
+          if (createdAt != null) {
+            final months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
+            _memberSince = '${months[createdAt.month - 1]} ${createdAt.year.toString().substring(2)}';
+          }
+
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -783,7 +819,112 @@ class _ProfileScreenState extends State<ProfileScreen>
               LegalSheet.show(context, type: LegalDocumentType.privacy);
             },
           ),
+          _buildDivider(),
+          _buildLogoutTile(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLogoutTile() {
+    return GestureDetector(
+      onTap: () async {
+        HapticFeedback.lightImpact();
+
+        // Show confirmation dialog
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: FGColors.glassSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(Spacing.lg),
+            ),
+            title: Text(
+              'Déconnexion',
+              style: FGTypography.h3.copyWith(
+                color: FGColors.textPrimary,
+              ),
+            ),
+            content: Text(
+              'Êtes-vous sûr de vouloir vous déconnecter ?',
+              style: FGTypography.body.copyWith(
+                color: FGColors.textSecondary,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Annuler',
+                  style: FGTypography.body.copyWith(
+                    color: FGColors.textSecondary,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  'Déconnexion',
+                  style: FGTypography.body.copyWith(
+                    color: FGColors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed == true && mounted) {
+          await SupabaseService.signOut();
+          // Navigation will be handled by auth state listener in main.dart
+        }
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.md,
+          vertical: Spacing.md,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    FGColors.error.withValues(alpha: 0.25),
+                    FGColors.error.withValues(alpha: 0.15),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.logout_rounded,
+                color: FGColors.error,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: Spacing.md),
+            Expanded(
+              child: Text(
+                'Déconnexion',
+                style: FGTypography.body.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: FGColors.error,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: FGColors.error.withValues(alpha: 0.5),
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }

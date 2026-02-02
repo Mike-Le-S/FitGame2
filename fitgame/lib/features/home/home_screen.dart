@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/fg_colors.dart';
 import '../../core/constants/spacing.dart';
+import '../../core/services/supabase_service.dart';
 import '../../shared/widgets/fg_neon_button.dart';
 import '../workout/tracking/active_workout_screen.dart';
 import 'widgets/home_header.dart';
@@ -26,8 +27,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
-  // Real data - fetched from backend
-  final int currentStreak = 0;
+  // User data from Supabase
+  String _userName = '';
+  int _currentStreak = 0;
 
   @override
   void initState() {
@@ -40,6 +42,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _pulseAnimation = Tween<double>(begin: 0.15, end: 0.35).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    try {
+      final profile = await SupabaseService.getCurrentProfile();
+      if (mounted && profile != null) {
+        setState(() {
+          _userName = profile['full_name'] ?? '';
+          _currentStreak = profile['current_streak'] ?? 0;
+        });
+      }
+    } catch (e) {
+      // Silently fail - will show default values
+    }
   }
 
   @override
@@ -100,7 +118,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           const SizedBox(height: Spacing.md),
 
                           // === [1] HEADER avec streak badge ===
-                          HomeHeader(currentStreak: currentStreak),
+                          HomeHeader(
+                            currentStreak: _currentStreak,
+                            userName: _userName,
+                          ),
                           const SizedBox(height: Spacing.md),
 
                           // === [2] TODAY'S WORKOUT ===

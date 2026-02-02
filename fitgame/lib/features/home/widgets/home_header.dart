@@ -5,14 +5,19 @@ import '../../../core/constants/spacing.dart';
 
 class HomeHeader extends StatelessWidget {
   final int currentStreak;
+  final String userName;
 
   const HomeHeader({
     super.key,
     required this.currentStreak,
+    required this.userName,
   });
 
   @override
   Widget build(BuildContext context) {
+    final displayName = userName.isNotEmpty ? userName : 'Utilisateur';
+    final avatarLetter = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U';
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -20,7 +25,7 @@ class HomeHeader extends StatelessWidget {
           child: Row(
             children: [
               Text(
-                'Salut Mike',
+                'Salut $displayName',
                 style: FGTypography.h2.copyWith(
                   fontWeight: FontWeight.w900,
                   fontStyle: FontStyle.italic,
@@ -50,10 +55,10 @@ class HomeHeader extends StatelessWidget {
               ],
             ),
           ),
-          child: const Center(
+          child: Center(
             child: Text(
-              'M',
-              style: TextStyle(
+              avatarLetter,
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
                 fontStyle: FontStyle.italic,

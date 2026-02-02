@@ -8,7 +8,7 @@ void main() {
     testWidgets('renders without errors', (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 7),
+          const HomeHeader(userName: 'Test', currentStreak: 7),
         ),
       );
 
@@ -18,7 +18,7 @@ void main() {
     testWidgets('displays greeting with username', (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 5),
+          const HomeHeader(userName: 'Test', currentStreak: 5),
         ),
       );
 
@@ -29,7 +29,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 12),
+          const HomeHeader(userName: 'Test', currentStreak: 12),
         ),
       );
 
@@ -39,7 +39,7 @@ void main() {
     testWidgets('displays fire emoji for streak', (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 3),
+          const HomeHeader(userName: 'Test', currentStreak: 3),
         ),
       );
 
@@ -50,7 +50,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 1),
+          const HomeHeader(userName: 'Test', currentStreak: 1),
         ),
       );
 
@@ -60,7 +60,7 @@ void main() {
     testWidgets('displays streak for zero days', (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 0),
+          const HomeHeader(userName: 'Test', currentStreak: 0),
         ),
       );
 
@@ -71,7 +71,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 365),
+          const HomeHeader(userName: 'Test', currentStreak: 365),
         ),
       );
 
@@ -81,7 +81,7 @@ void main() {
     testWidgets('contains Row as main layout', (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 5),
+          const HomeHeader(userName: 'Test', currentStreak: 5),
         ),
       );
 
@@ -91,7 +91,7 @@ void main() {
     testWidgets('streak badge is displayed', (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 7),
+          const HomeHeader(userName: 'Test', currentStreak: 7),
         ),
       );
 
@@ -103,7 +103,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 5),
+          const HomeHeader(userName: 'Test', currentStreak: 5),
         ),
       );
 
@@ -128,7 +128,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 5),
+          const HomeHeader(userName: 'Test', currentStreak: 5),
         ),
       );
 
@@ -141,8 +141,8 @@ void main() {
         wrapWithMaterialApp(
           Column(
             children: const [
-              HomeHeader(currentStreak: 5),
-              HomeHeader(currentStreak: 10),
+              HomeHeader(userName: 'Test', currentStreak: 5),
+              HomeHeader(userName: 'Test', currentStreak: 10),
             ],
           ),
         ),
@@ -157,7 +157,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 3),
+          const HomeHeader(userName: 'Test', currentStreak: 3),
         ),
       );
 
@@ -170,7 +170,7 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(
         wrapWithMaterialApp(
-          const HomeHeader(currentStreak: 5),
+          const HomeHeader(userName: 'Test', currentStreak: 5),
         ),
       );
 

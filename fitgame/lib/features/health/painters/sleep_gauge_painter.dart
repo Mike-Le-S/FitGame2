@@ -29,29 +29,39 @@ class SleepGaugePainter extends CustomPainter {
       return Color.lerp(const Color(0xFFFF5252), const Color(0xFFD32F2F), (position - 0.75) / 0.25)!;
     } else {
       // Red → Green (ideal) → Red
-      final idealCenter = (idealMinPercent + idealMaxPercent) / 2;
-      if (position < idealMinPercent * 0.5) {
-        return Color.lerp(const Color(0xFFD32F2F), const Color(0xFFFF5252), position / (idealMinPercent * 0.5))!;
+      // Avoid division by zero with safe defaults
+      final safeIdealMin = idealMinPercent > 0 ? idealMinPercent : 0.1;
+      final safeIdealMax = idealMaxPercent > safeIdealMin ? idealMaxPercent : safeIdealMin + 0.1;
+      final idealCenter = (safeIdealMin + safeIdealMax) / 2;
+
+      if (position < safeIdealMin * 0.5) {
+        final denom = safeIdealMin * 0.5;
+        return Color.lerp(const Color(0xFFD32F2F), const Color(0xFFFF5252), position / denom)!;
       }
-      if (position < idealMinPercent) {
-        final t = (position - idealMinPercent * 0.5) / (idealMinPercent * 0.5);
-        return Color.lerp(const Color(0xFFFF5252), const Color(0xFFFFCA28), t)!;
+      if (position < safeIdealMin) {
+        final denom = safeIdealMin * 0.5;
+        final t = (position - safeIdealMin * 0.5) / denom;
+        return Color.lerp(const Color(0xFFFF5252), const Color(0xFFFFCA28), t.clamp(0.0, 1.0))!;
       }
       if (position < idealCenter) {
-        final t = (position - idealMinPercent) / (idealCenter - idealMinPercent);
-        return Color.lerp(const Color(0xFFFFCA28), const Color(0xFF00C853), t)!;
+        final denom = idealCenter - safeIdealMin;
+        final t = denom > 0 ? (position - safeIdealMin) / denom : 0.5;
+        return Color.lerp(const Color(0xFFFFCA28), const Color(0xFF00C853), t.clamp(0.0, 1.0))!;
       }
-      if (position < idealMaxPercent) {
-        final t = (position - idealCenter) / (idealMaxPercent - idealCenter);
-        return Color.lerp(const Color(0xFF00C853), const Color(0xFFFFCA28), t)!;
+      if (position < safeIdealMax) {
+        final denom = safeIdealMax - idealCenter;
+        final t = denom > 0 ? (position - idealCenter) / denom : 0.5;
+        return Color.lerp(const Color(0xFF00C853), const Color(0xFFFFCA28), t.clamp(0.0, 1.0))!;
       }
-      final postIdeal = idealMaxPercent + (1 - idealMaxPercent) * 0.5;
+      final postIdeal = safeIdealMax + (1 - safeIdealMax) * 0.5;
       if (position < postIdeal) {
-        final t = (position - idealMaxPercent) / (postIdeal - idealMaxPercent);
-        return Color.lerp(const Color(0xFFFFCA28), const Color(0xFFFF5252), t)!;
+        final denom = postIdeal - safeIdealMax;
+        final t = denom > 0 ? (position - safeIdealMax) / denom : 0.5;
+        return Color.lerp(const Color(0xFFFFCA28), const Color(0xFFFF5252), t.clamp(0.0, 1.0))!;
       }
-      final t = (position - postIdeal) / (1 - postIdeal);
-      return Color.lerp(const Color(0xFFFF5252), const Color(0xFFD32F2F), t)!;
+      final denom = 1 - postIdeal;
+      final t = denom > 0 ? (position - postIdeal) / denom : 0.5;
+      return Color.lerp(const Color(0xFFFF5252), const Color(0xFFD32F2F), t.clamp(0.0, 1.0))!;
     }
   }
 

@@ -135,30 +135,38 @@ class _HealthScreenState extends State<HealthScreen>
   }
 
   int _calculateHeartScore() {
+    // Return 0 if no heart data
+    if (restingHeartRate == 0) return 0;
+
     int score = 50;
-    // Resting HR
-    if (restingHeartRate < 60) {
+    // Resting HR (only count if we have data)
+    if (restingHeartRate > 0 && restingHeartRate < 60) {
       score += 25;
     } else if (restingHeartRate <= 70) {
       score += 15;
     } else if (restingHeartRate <= 80) {
       score += 5;
     }
-    // HRV
-    if (hrvMs >= 50) {
+    // HRV (only count if we have data)
+    if (hrvMs > 0 && hrvMs >= 50) {
       score += 25;
     } else if (hrvMs >= 40) {
       score += 15;
-    } else {
+    } else if (hrvMs > 0) {
       score += 5;
     }
     return score.clamp(0, 100);
   }
 
   int _calculateActivityScore() {
-    final stepsPercent = (steps / stepsGoal * 100).clamp(0, 100);
-    final caloriePercent =
-        ((caloriesBurned - bmr) / (calorieGoal - bmr) * 100).clamp(0, 100);
+    // Avoid division by zero
+    final stepsPercent = stepsGoal > 0
+        ? (steps / stepsGoal * 100).clamp(0.0, 100.0)
+        : 0.0;
+    final calorieDenom = calorieGoal - bmr;
+    final caloriePercent = calorieDenom > 0
+        ? ((caloriesBurned - bmr) / calorieDenom * 100).clamp(0.0, 100.0)
+        : 0.0;
     return ((stepsPercent + caloriePercent) / 2).round();
   }
 
@@ -500,6 +508,13 @@ class _HealthScreenState extends State<HealthScreen>
   }
 
   Widget _buildQuickStats() {
+    // Avoid division by zero
+    final stepsProgress = stepsGoal > 0 ? steps / stepsGoal : 0.0;
+    final calorieDenom = calorieGoal - bmr;
+    final calorieProgress = calorieDenom > 0
+        ? (caloriesBurned - bmr) / calorieDenom
+        : 0.0;
+
     return Row(
       children: [
         Expanded(
@@ -507,7 +522,7 @@ class _HealthScreenState extends State<HealthScreen>
             icon: Icons.directions_walk,
             value: _formatSteps(steps),
             label: 'pas',
-            progress: steps / stepsGoal,
+            progress: stepsProgress,
             color: const Color(0xFF00D9FF),
           ),
         ),
@@ -517,7 +532,7 @@ class _HealthScreenState extends State<HealthScreen>
             icon: Icons.local_fire_department,
             value: '$caloriesBurned',
             label: 'kcal',
-            progress: (caloriesBurned - bmr) / (calorieGoal - bmr),
+            progress: calorieProgress,
             color: FGColors.accent,
           ),
         ),
@@ -720,9 +735,10 @@ class _HealthScreenState extends State<HealthScreen>
 
   Widget _buildSleepPhasesBar() {
     final total = deepSleepMinutes + coreSleepMinutes + remSleepMinutes;
-    final deepPct = deepSleepMinutes / total;
-    final corePct = coreSleepMinutes / total;
-    final remPct = remSleepMinutes / total;
+    // Avoid division by zero when no sleep data
+    final deepPct = total > 0 ? deepSleepMinutes / total : 0.33;
+    final corePct = total > 0 ? coreSleepMinutes / total : 0.34;
+    final remPct = total > 0 ? remSleepMinutes / total : 0.33;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -1105,6 +1121,9 @@ class _HealthScreenState extends State<HealthScreen>
     required int max,
     required Color color,
   }) {
+    // Avoid division by zero
+    final progress = max > 0 ? value / max : 0.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1134,7 +1153,7 @@ class _HealthScreenState extends State<HealthScreen>
           child: SizedBox(
             height: 8,
             child: LinearProgressIndicator(
-              value: value / max,
+              value: progress,
               backgroundColor: FGColors.glassBorder,
               valueColor: AlwaysStoppedAnimation(color),
             ),
@@ -1271,6 +1290,9 @@ class _HealthScreenState extends State<HealthScreen>
   // ============================================
 
   int _calculateSleepScore() {
+    // Return 0 if no sleep data
+    if (totalSleepMinutes == 0) return 0;
+
     int score = 0;
     final totalHours = totalSleepMinutes / 60;
 
@@ -1317,6 +1339,7 @@ class _HealthScreenState extends State<HealthScreen>
   }
 
   ({Color color, String text}) _getHeartRateStatus(int bpm) {
+    if (bpm == 0) return (color: FGColors.glassBorder, text: '—');
     if (bpm < 50) return (color: const Color(0xFF00D9FF), text: 'ATHLÈTE');
     if (bpm <= 60) return (color: FGColors.success, text: 'EXCELLENT');
     if (bpm <= 70) return (color: FGColors.success, text: 'BON');
@@ -1325,6 +1348,7 @@ class _HealthScreenState extends State<HealthScreen>
   }
 
   ({Color color, String text}) _getHrvStatus(int ms) {
+    if (ms == 0) return (color: FGColors.glassBorder, text: '—');
     if (ms >= 60) return (color: FGColors.success, text: 'EXCELLENT');
     if (ms >= 50) return (color: FGColors.success, text: 'BON');
     if (ms >= 40) return (color: FGColors.warning, text: 'MOYEN');
