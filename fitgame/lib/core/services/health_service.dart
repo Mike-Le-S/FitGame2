@@ -59,10 +59,18 @@ class HealthService {
       // Configure health
       await _health.configure();
 
+      // Build permissions list matching _readTypes length
+      // READ_WRITE for types we can write, READ for others
+      final permissions = _readTypes.map((type) {
+        return _writeTypes.contains(type)
+            ? HealthDataAccess.READ_WRITE
+            : HealthDataAccess.READ;
+      }).toList();
+
       // Request authorization
       final authorized = await _health.requestAuthorization(
         _readTypes,
-        permissions: _writeTypes.map((t) => HealthDataAccess.READ_WRITE).toList(),
+        permissions: permissions,
       );
 
       _isAuthorized = authorized;
