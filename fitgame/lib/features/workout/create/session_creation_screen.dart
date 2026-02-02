@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/constants/spacing.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/fg_glass_card.dart';
 import '../../../shared/widgets/fg_neon_button.dart';
+import '../tracking/active_workout_screen.dart';
 
 /// Quick single session creation screen
 class SessionCreationScreen extends StatefulWidget {
@@ -585,16 +587,67 @@ class _SessionCreationScreenState extends State<SessionCreationScreen>
       child: FGNeonButton(
         label: 'Créer la séance',
         isExpanded: true,
-        onPressed: canCreate
-            ? () {
-                HapticFeedback.heavyImpact();
-                // TODO: Save session
-                Navigator.pop(context);
-                Navigator.pop(context);
-              }
-            : null,
+        onPressed: canCreate ? _createAndStartSession : null,
       ),
     );
+  }
+
+  Future<void> _createAndStartSession() async {
+    HapticFeedback.heavyImpact();
+
+    // Format exercises for Supabase
+    final exercisesData = _exercises.map((e) => {
+      'name': e['name'],
+      'muscleGroup': e['muscle'],
+      'sets': e['sets'],
+      'reps': e['reps'],
+    }).toList();
+
+    try {
+      // Create session in Supabase
+      await SupabaseService.startWorkoutSession(
+        dayName: _sessionName.trim(),
+        exercises: exercisesData,
+      );
+
+      if (mounted) {
+        // Navigate to active workout
+        Navigator.pop(context);
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const ActiveWorkoutScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.0, 1.0),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                )),
+                child: child,
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Erreur lors de la création de la séance'),
+            backgroundColor: FGColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   void _showAddCustomExercise() {

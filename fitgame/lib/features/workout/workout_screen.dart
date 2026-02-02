@@ -30,6 +30,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   bool _isLoading = true;
   bool hasActiveProgram = false;
   String programName = '';
+  String? programId;
   int currentWeek = 1;
   int totalWeeks = 8;
   int activeProgramIndex = 0;
@@ -42,6 +43,9 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   List<Map<String, dynamic>> _myPrograms = [];
   List<Map<String, dynamic>> _assignedPrograms = [];
   Map<String, dynamic>? _coachInfo;
+
+  // Track calculated current week per program (programId -> week number)
+  Map<String, int> _programWeeks = {};
 
   // Realtime listener reference
   void Function(Map<String, dynamic>)? _assignmentListener;
@@ -59,11 +63,12 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     final List<Map<String, dynamic>> all = [];
 
     for (final p in _myPrograms) {
+      final pId = p['id']?.toString() ?? '';
       all.add({
         'id': p['id'],
         'name': p['name'] ?? 'Sans nom',
         'weeks': p['duration_weeks'] ?? 8,
-        'currentWeek': 1, // TODO: track per-user progress
+        'currentWeek': _programWeeks[pId] ?? 1,
         'isActive': false,
         'isFromCoach': false,
         'days': p['days'] ?? [],
@@ -71,11 +76,12 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     }
 
     for (final p in _assignedPrograms) {
+      final pId = p['id']?.toString() ?? '';
       all.add({
         'id': p['id'],
         'name': p['name'] ?? 'Sans nom',
         'weeks': p['duration_weeks'] ?? 8,
-        'currentWeek': 1,
+        'currentWeek': _programWeeks[pId] ?? 1,
         'isActive': false,
         'isFromCoach': true,
         'coachName': _coachInfo?['full_name'] ?? 'Coach',
@@ -164,10 +170,28 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
       if (!mounted) return;
 
+      // Calculate current week for each program based on first session date
+      final programWeeks = <String, int>{};
+      for (final session in sessions) {
+        final pId = session['program_id']?.toString();
+        if (pId == null) continue;
+        final startedAt = session['started_at'] != null
+            ? DateTime.tryParse(session['started_at'].toString())
+            : null;
+        if (startedAt == null) continue;
+
+        // Track the oldest session per program
+        if (!programWeeks.containsKey(pId)) {
+          final weeksPassed = DateTime.now().difference(startedAt).inDays ~/ 7;
+          programWeeks[pId] = (weeksPassed + 1).clamp(1, 52);
+        }
+      }
+
       setState(() {
         _myPrograms = myPrograms;
         _assignedPrograms = assignedPrograms;
         _coachInfo = coachInfo;
+        _programWeeks = programWeeks;
         _isLoading = false;
 
         // Set active program
@@ -192,6 +216,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 
     final program = savedPrograms[index];
     activeProgramIndex = index;
+    programId = program['id']?.toString();
     programName = program['name'] as String;
     currentWeek = program['currentWeek'] as int;
     totalWeeks = program['weeks'] as int;
@@ -1221,12 +1246,13 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   }
 
   void _openProgramEdit() {
+    if (programId == null) return;
     HapticFeedback.lightImpact();
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            ProgramEditScreen(programName: programName),
+            ProgramEditScreen(programId: programId!),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: Tween<Offset>(

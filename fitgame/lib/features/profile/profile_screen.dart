@@ -147,7 +147,14 @@ class _ProfileScreenState extends State<ProfileScreen>
 
           // === MAIN CONTENT ===
           SafeArea(
-            child: SingleChildScrollView(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: FGColors.accent,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),

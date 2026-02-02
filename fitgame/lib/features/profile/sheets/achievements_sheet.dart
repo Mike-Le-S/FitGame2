@@ -48,126 +48,8 @@ class AchievementsSheet extends StatelessWidget {
     );
   }
 
-  // Mock achievements data
-  static const List<Achievement> _achievements = [
-    // Débloqués
-    Achievement(
-      id: 'first_pr',
-      name: 'Premier PR',
-      description: 'Établir ton premier record personnel',
-      icon: Icons.emoji_events_rounded,
-      unlocked: true,
-      rarity: AchievementRarity.common,
-    ),
-    Achievement(
-      id: 'streak_7',
-      name: '7 Jours de Feu',
-      description: 'Maintenir une série de 7 jours consécutifs',
-      icon: Icons.local_fire_department_rounded,
-      unlocked: true,
-      rarity: AchievementRarity.common,
-    ),
-    Achievement(
-      id: '100_workouts',
-      name: 'Centurion',
-      description: 'Compléter 100 séances d\'entraînement',
-      icon: Icons.fitness_center_rounded,
-      unlocked: true,
-      rarity: AchievementRarity.rare,
-    ),
-    // En progression
-    Achievement(
-      id: 'streak_30',
-      name: 'Marathon',
-      description: 'Maintenir une série de 30 jours',
-      icon: Icons.directions_run_rounded,
-      unlocked: false,
-      progress: 0.4,
-      progressLabel: '12/30 jours',
-      rarity: AchievementRarity.rare,
-    ),
-    Achievement(
-      id: 'volume_50t',
-      name: 'Volume Master',
-      description: 'Soulever 50 tonnes en une semaine',
-      icon: Icons.trending_up_rounded,
-      unlocked: false,
-      progress: 0.65,
-      progressLabel: '32.5/50 tonnes',
-      rarity: AchievementRarity.epic,
-    ),
-    Achievement(
-      id: 'iron_will',
-      name: 'Volonté de Fer',
-      description: 'Ne jamais sauter une séance prévue pendant 2 mois',
-      icon: Icons.psychology_rounded,
-      unlocked: false,
-      progress: 0.25,
-      progressLabel: '2/8 semaines',
-      rarity: AchievementRarity.epic,
-    ),
-    // Verrouillés
-    Achievement(
-      id: '500_workouts',
-      name: 'Légende',
-      description: 'Compléter 500 séances d\'entraînement',
-      icon: Icons.military_tech_rounded,
-      unlocked: false,
-      progress: 0.29,
-      progressLabel: '147/500',
-      rarity: AchievementRarity.legendary,
-    ),
-    Achievement(
-      id: 'streak_365',
-      name: 'Une Année de Fer',
-      description: 'Maintenir une série de 365 jours',
-      icon: Icons.calendar_today_rounded,
-      unlocked: false,
-      progress: 0.03,
-      progressLabel: '12/365 jours',
-      rarity: AchievementRarity.legendary,
-    ),
-    Achievement(
-      id: 'perfect_week',
-      name: 'Semaine Parfaite',
-      description: 'Compléter toutes les séances prévues 4 semaines de suite',
-      icon: Icons.star_rounded,
-      unlocked: false,
-      progress: 0.5,
-      progressLabel: '2/4 semaines',
-      rarity: AchievementRarity.rare,
-    ),
-    Achievement(
-      id: 'early_bird',
-      name: 'Lève-Tôt',
-      description: 'Terminer 20 séances avant 8h du matin',
-      icon: Icons.wb_sunny_rounded,
-      unlocked: false,
-      progress: 0.15,
-      progressLabel: '3/20 séances',
-      rarity: AchievementRarity.common,
-    ),
-    Achievement(
-      id: 'night_owl',
-      name: 'Oiseau de Nuit',
-      description: 'Terminer 20 séances après 22h',
-      icon: Icons.nightlight_rounded,
-      unlocked: false,
-      progress: 0.35,
-      progressLabel: '7/20 séances',
-      rarity: AchievementRarity.common,
-    ),
-    Achievement(
-      id: 'social_butterfly',
-      name: 'Papillon Social',
-      description: 'Donner 100 respect à tes amis',
-      icon: Icons.favorite_rounded,
-      unlocked: false,
-      progress: 0.72,
-      progressLabel: '72/100',
-      rarity: AchievementRarity.rare,
-    ),
-  ];
+  // Empty list - achievements will be loaded from backend when implemented
+  static const List<Achievement> _achievements = [];
 
   Color _getRarityColor(AchievementRarity rarity) {
     switch (rarity) {
@@ -245,7 +127,9 @@ class AchievementsSheet extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '$unlockedCount/${_achievements.length} débloqués',
+                          _achievements.isEmpty
+                              ? 'Bientôt disponible'
+                              : '$unlockedCount/${_achievements.length} débloqués',
                           style: FGTypography.caption.copyWith(
                             color: FGColors.textSecondary,
                           ),
@@ -253,52 +137,94 @@ class AchievementsSheet extends StatelessWidget {
                       ],
                     ),
                     const Spacer(),
-                    // Progress ring
-                    SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Stack(
-                        children: [
-                          CircularProgressIndicator(
-                            value: unlockedCount / _achievements.length,
-                            backgroundColor: FGColors.glassBorder,
-                            valueColor: const AlwaysStoppedAnimation(FGColors.accent),
-                            strokeWidth: 4,
-                          ),
-                          Center(
-                            child: Text(
-                              '${((unlockedCount / _achievements.length) * 100).round()}%',
-                              style: FGTypography.caption.copyWith(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 10,
+                    if (_achievements.isNotEmpty)
+                      // Progress ring
+                      SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Stack(
+                          children: [
+                            CircularProgressIndicator(
+                              value: unlockedCount / _achievements.length,
+                              backgroundColor: FGColors.glassBorder,
+                              valueColor: const AlwaysStoppedAnimation(FGColors.accent),
+                              strokeWidth: 4,
+                            ),
+                            Center(
+                              child: Text(
+                                '${((unlockedCount / _achievements.length) * 100).round()}%',
+                                style: FGTypography.caption.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 10,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
               const SizedBox(height: Spacing.lg),
 
-              // List
+              // List or empty state
               Expanded(
-                child: ListView.builder(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                  itemCount: _achievements.length,
-                  itemBuilder: (context, index) {
-                    final achievement = _achievements[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: Spacing.sm),
-                      child: _buildAchievementCard(achievement),
-                    );
-                  },
-                ),
+                child: _achievements.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                        itemCount: _achievements.length,
+                        itemBuilder: (context, index) {
+                          final achievement = _achievements[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: Spacing.sm),
+                            child: _buildAchievementCard(achievement),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Spacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: FGColors.accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(
+                Icons.emoji_events_outlined,
+                color: FGColors.accent,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: Spacing.lg),
+            Text(
+              'Accomplissements',
+              style: FGTypography.h3,
+            ),
+            const SizedBox(height: Spacing.sm),
+            Text(
+              'Les accomplissements seront bientôt disponibles.\nContinue à t\'entraîner pour débloquer des récompenses !',
+              textAlign: TextAlign.center,
+              style: FGTypography.body.copyWith(
+                color: FGColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -6,6 +6,7 @@ import '../../../core/theme/fg_typography.dart';
 import '../../../core/theme/fg_effects.dart';
 import '../../../core/constants/spacing.dart';
 import '../../../core/models/exercise.dart';
+import '../../../core/models/workout_set.dart';
 import '../../../core/services/supabase_service.dart';
 import 'sheets/number_picker_sheet.dart';
 import 'sheets/workout_complete_sheet.dart';
@@ -56,6 +57,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   // Workout data
   late List<Exercise> _exercises;
   String? _sessionId; // Supabase session ID
+  String _dayName = 'Séance libre'; // Day name from program or default
 
   @override
   void initState() {
@@ -66,10 +68,66 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   }
 
   void _initializeWorkout() {
-    // Real data - exercises loaded from selected program/session
+    // Initialize with empty exercises - will be loaded from Supabase
+    // For free sessions, users can add exercises manually
     _exercises = [];
+    _loadWorkoutFromProgram();
 
     _exercisePageController = PageController(initialPage: 0);
+  }
+
+  Future<void> _loadWorkoutFromProgram() async {
+    try {
+      // Try to load from active program
+      final results = await Future.wait([
+        SupabaseService.getPrograms(),
+        SupabaseService.getAssignedPrograms(),
+      ]);
+
+      final myPrograms = results[0];
+      final assignedPrograms = results[1];
+      final allPrograms = [...assignedPrograms, ...myPrograms];
+
+      if (allPrograms.isNotEmpty && mounted) {
+        final program = allPrograms.first;
+        final days = program['days'] as List? ?? [];
+
+        if (days.isNotEmpty) {
+          final firstDay = days[0] as Map<String, dynamic>;
+          final exercisesData = firstDay['exercises'] as List? ?? [];
+          final dayName = firstDay['name']?.toString() ?? 'Jour 1';
+
+          setState(() {
+            _dayName = dayName;
+            _exercises = exercisesData.map((ex) {
+              final setsData = ex['sets'] as List? ?? [];
+              return Exercise(
+                name: ex['name'] ?? 'Exercice',
+                muscle: ex['muscleGroup'] ?? ex['muscle_group'] ?? '',
+                restSeconds: ex['rest_seconds'] ?? 90,
+                previousBest: (ex['previous_best'] as num?)?.toDouble() ?? 0,
+                sets: setsData.isEmpty
+                    ? [
+                        WorkoutSet(targetWeight: 0, targetReps: 10),
+                        WorkoutSet(targetWeight: 0, targetReps: 10),
+                        WorkoutSet(targetWeight: 0, targetReps: 10),
+                      ]
+                    : setsData.map((s) {
+                        return WorkoutSet(
+                          targetWeight: (s['weight'] as num?)?.toDouble() ?? 0,
+                          targetReps: s['reps'] ?? 10,
+                          isWarmup: s['is_warmup'] ?? false,
+                        );
+                      }).toList(),
+              );
+            }).toList();
+          });
+        }
+      }
+    } catch (e) {
+      // Silently fail - user can add exercises manually
+      debugPrint('Error loading workout: $e');
+    }
   }
 
   void _initializeAnimations() {
@@ -282,7 +340,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         // Start session if not already started
         if (_sessionId == null) {
           final session = await SupabaseService.startWorkoutSession(
-            dayName: 'Legs A', // TODO: Get from program data
+            dayName: _dayName,
             exercises: exercisesData,
           );
           _sessionId = session['id'];
@@ -354,24 +412,12 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                           restSecondsRemaining: _restSecondsRemaining,
                           totalRestSeconds:
                               _exercises[_currentExerciseIndex].restSeconds,
-                          nextSetWeight: _currentSetIndex <
-                                  _exercises[_currentExerciseIndex]
-                                          .sets
-                                          .length -
-                                      1
-                              ? _exercises[_currentExerciseIndex]
-                                  .sets[_currentSetIndex + 1]
-                                  .targetWeight
-                              : null,
-                          nextSetReps: _currentSetIndex <
-                                  _exercises[_currentExerciseIndex]
-                                          .sets
-                                          .length -
-                                      1
-                              ? _exercises[_currentExerciseIndex]
-                                  .sets[_currentSetIndex + 1]
-                                  .targetReps
-                              : null,
+                          nextSetWeight: _exercises[_currentExerciseIndex]
+                              .sets[_currentSetIndex]
+                              .targetWeight,
+                          nextSetReps: _exercises[_currentExerciseIndex]
+                              .sets[_currentSetIndex]
+                              .targetReps,
                           nextExerciseName: _currentExerciseIndex <
                                       _exercises.length - 1 &&
                                   _currentSetIndex >=

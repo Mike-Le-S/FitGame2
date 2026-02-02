@@ -31,6 +31,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _userName = '';
   int _currentStreak = 0;
 
+  // Today's workout data from Supabase
+  String? _sessionName;
+  String? _sessionMuscles;
+  int? _exerciseCount;
+  int? _estimatedMinutes;
+
   @override
   void initState() {
     super.initState();
@@ -48,11 +54,45 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _loadUserData() async {
     try {
-      final profile = await SupabaseService.getCurrentProfile();
-      if (mounted && profile != null) {
+      // Load profile and programs in parallel
+      final results = await Future.wait([
+        SupabaseService.getCurrentProfile(),
+        SupabaseService.getPrograms(),
+        SupabaseService.getAssignedPrograms(),
+      ]);
+
+      final profile = results[0] as Map<String, dynamic>?;
+      final myPrograms = results[1] as List<Map<String, dynamic>>;
+      final assignedPrograms = results[2] as List<Map<String, dynamic>>;
+
+      if (mounted) {
         setState(() {
-          _userName = profile['full_name'] ?? '';
-          _currentStreak = profile['current_streak'] ?? 0;
+          // User info
+          _userName = profile?['full_name'] ?? '';
+          _currentStreak = profile?['current_streak'] ?? 0;
+
+          // Get first available program (prioritize assigned from coach)
+          final allPrograms = [...assignedPrograms, ...myPrograms];
+          if (allPrograms.isNotEmpty) {
+            final program = allPrograms.first;
+            final days = program['days'] as List? ?? [];
+
+            if (days.isNotEmpty) {
+              final firstDay = days[0] as Map<String, dynamic>;
+              _sessionName = firstDay['name'] ?? 'Jour 1';
+
+              // Extract muscles from exercises
+              final exercises = firstDay['exercises'] as List? ?? [];
+              final muscles = <String>{};
+              for (final ex in exercises) {
+                final muscle = ex['muscleGroup'] ?? ex['muscle_group'];
+                if (muscle != null) muscles.add(muscle.toString());
+              }
+              _sessionMuscles = muscles.take(2).join(' • ');
+              _exerciseCount = exercises.length;
+              _estimatedMinutes = exercises.length * 8 + 10;
+            }
+          }
         });
       }
     } catch (e) {
@@ -125,7 +165,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           const SizedBox(height: Spacing.md),
 
                           // === [2] TODAY'S WORKOUT ===
-                          const TodayWorkoutCard(),
+                          TodayWorkoutCard(
+                            sessionName: _sessionName,
+                            sessionMuscles: _sessionMuscles,
+                            exerciseCount: _exerciseCount,
+                            estimatedMinutes: _estimatedMinutes,
+                          ),
                           const SizedBox(height: Spacing.md),
 
                           // === [3] SLEEP SUMMARY → Santé (index 4) ===

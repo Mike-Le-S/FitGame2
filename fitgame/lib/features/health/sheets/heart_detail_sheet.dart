@@ -93,27 +93,8 @@ class HeartDetailSheetState extends State<HeartDetailSheet>
     ),
   };
 
-  // Mock historical data (would come from HealthKit)
-  // Mock historical data - 14 days (would come from HealthKit)
-  // Ordered from most recent to oldest
-  final List<HeartHistoryData> _historyData = [
-    // This week (good recovery week - higher HRV)
-    HeartHistoryData(day: 'Dim', restingHR: 54, hrv: 62, trend: 1),
-    HeartHistoryData(day: 'Sam', restingHR: 52, hrv: 68, trend: 1),
-    HeartHistoryData(day: 'Ven', restingHR: 55, hrv: 58, trend: 1),
-    HeartHistoryData(day: 'Jeu', restingHR: 56, hrv: 55, trend: 0),
-    HeartHistoryData(day: 'Mer', restingHR: 54, hrv: 60, trend: 1),
-    HeartHistoryData(day: 'Mar', restingHR: 57, hrv: 52, trend: -1),
-    HeartHistoryData(day: 'Lun', restingHR: 55, hrv: 56, trend: 1),
-    // Last week (stressful week - lower HRV)
-    HeartHistoryData(day: 'Dim', restingHR: 62, hrv: 38, trend: -1),
-    HeartHistoryData(day: 'Sam', restingHR: 60, hrv: 42, trend: -1),
-    HeartHistoryData(day: 'Ven', restingHR: 63, hrv: 35, trend: -1),
-    HeartHistoryData(day: 'Jeu', restingHR: 58, hrv: 45, trend: 0),
-    HeartHistoryData(day: 'Mer', restingHR: 61, hrv: 40, trend: -1),
-    HeartHistoryData(day: 'Mar', restingHR: 59, hrv: 44, trend: 0),
-    HeartHistoryData(day: 'Lun', restingHR: 60, hrv: 41, trend: -1),
-  ];
+  // Historical data - empty until loaded from HealthKit
+  final List<HeartHistoryData> _historyData = [];
 
   @override
   void initState() {

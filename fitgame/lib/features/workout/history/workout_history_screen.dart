@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/spacing.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/fg_glass_card.dart';
 
 /// Écran d'historique des séances d'entraînement
@@ -26,86 +27,14 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
   late Animation<double> _pulseAnimation;
 
   String? _selectedFilter;
+  bool _isLoading = true;
 
-  // Mock history data
-  final List<Map<String, dynamic>> _workoutHistory = [
-    {
-      'id': '1',
-      'name': 'Push Day',
-      'date': DateTime.now(),
-      'duration': 68,
-      'volume': 4200,
-      'exercises': 6,
-      'prs': 1,
-    },
-    {
-      'id': '2',
-      'name': 'Leg Day',
-      'date': DateTime.now().subtract(const Duration(days: 1)),
-      'duration': 75,
-      'volume': 6800,
-      'exercises': 5,
-      'prs': 2,
-    },
-    {
-      'id': '3',
-      'name': 'Pull Day',
-      'date': DateTime.now().subtract(const Duration(days: 3)),
-      'duration': 62,
-      'volume': 3600,
-      'exercises': 6,
-      'prs': 0,
-    },
-    {
-      'id': '4',
-      'name': 'Push Day',
-      'date': DateTime.now().subtract(const Duration(days: 4)),
-      'duration': 65,
-      'volume': 4000,
-      'exercises': 6,
-      'prs': 0,
-    },
-    {
-      'id': '5',
-      'name': 'Leg Day',
-      'date': DateTime.now().subtract(const Duration(days: 6)),
-      'duration': 72,
-      'volume': 6500,
-      'exercises': 5,
-      'prs': 1,
-    },
-    {
-      'id': '6',
-      'name': 'Pull Day',
-      'date': DateTime.now().subtract(const Duration(days: 7)),
-      'duration': 58,
-      'volume': 3400,
-      'exercises': 6,
-      'prs': 0,
-    },
-    {
-      'id': '7',
-      'name': 'Push Day',
-      'date': DateTime.now().subtract(const Duration(days: 8)),
-      'duration': 70,
-      'volume': 4100,
-      'exercises': 6,
-      'prs': 1,
-    },
-    {
-      'id': '8',
-      'name': 'Leg Day',
-      'date': DateTime.now().subtract(const Duration(days: 10)),
-      'duration': 78,
-      'volume': 6200,
-      'exercises': 5,
-      'prs': 0,
-    },
-  ];
+  // Workout history from Supabase
+  List<Map<String, dynamic>> _workoutHistory = [];
 
   List<String> get _sessionTypes {
     return _workoutHistory
-        .map((w) => w['name'] as String)
+        .map((w) => w['day_name'] as String? ?? 'Séance')
         .toSet()
         .toList()
       ..sort();
@@ -114,7 +43,7 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
   List<Map<String, dynamic>> get _filteredHistory {
     if (_selectedFilter == null) return _workoutHistory;
     return _workoutHistory
-        .where((w) => w['name'] == _selectedFilter)
+        .where((w) => w['day_name'] == _selectedFilter)
         .toList();
   }
 
@@ -131,6 +60,40 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
     _pulseAnimation = Tween<double>(begin: 0.05, end: 0.15).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      final sessions = await SupabaseService.getWorkoutSessions(limit: 50);
+      if (mounted) {
+        setState(() {
+          _workoutHistory = sessions
+              .where((s) => s['completed_at'] != null)
+              .map((s) {
+                final exercises = s['exercises'] as List? ?? [];
+                final prs = s['personal_records'] as List? ?? [];
+                return {
+                  'id': s['id'],
+                  'day_name': s['day_name'] ?? 'Séance',
+                  'date': DateTime.tryParse(s['completed_at'] ?? '') ?? DateTime.now(),
+                  'duration': s['duration_minutes'] ?? 0,
+                  'volume': ((s['total_volume_kg'] as num?) ?? 0).toInt(),
+                  'exercises': exercises.length,
+                  'prs': prs.length,
+                  'exercises_data': exercises,
+                };
+              })
+              .toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -150,14 +113,23 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
             child: Column(
               children: [
                 _buildHeader(),
-                _buildFilters(),
+                if (!_isLoading && _workoutHistory.isNotEmpty) _buildFilters(),
                 Expanded(
-                  child: _buildHistoryList(),
+                  child: _isLoading ? _buildLoading() : _buildHistoryList(),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: FGColors.accent,
+        strokeWidth: 2,
       ),
     );
   }
@@ -236,11 +208,12 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
             ),
           ),
           // Stats summary
-          _buildStatBadge(
-            icon: Icons.local_fire_department_rounded,
-            value: '${_calculateTotalVolume()}',
-            label: 'kg total',
-          ),
+          if (_filteredHistory.isNotEmpty)
+            _buildStatBadge(
+              icon: Icons.local_fire_department_rounded,
+              value: '${_calculateTotalVolume()}',
+              label: 'kg total',
+            ),
         ],
       ),
     );
@@ -339,25 +312,7 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
     final history = _filteredHistory;
 
     if (history.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.fitness_center_rounded,
-              size: 64,
-              color: FGColors.textSecondary.withValues(alpha: 0.3),
-            ),
-            const SizedBox(height: Spacing.md),
-            Text(
-              'Aucune séance',
-              style: FGTypography.body.copyWith(
-                color: FGColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      );
+      return _buildEmptyState();
     }
 
     return ListView.builder(
@@ -370,6 +325,44 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
           child: _buildWorkoutCard(workout),
         );
       },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: FGColors.glassBorder,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Icon(
+              Icons.history_rounded,
+              size: 40,
+              color: FGColors.textSecondary.withValues(alpha: 0.5),
+            ),
+          ),
+          const SizedBox(height: Spacing.lg),
+          Text(
+            'Aucune séance',
+            style: FGTypography.h3.copyWith(
+              color: FGColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'Tes séances terminées\napparaîtront ici',
+            textAlign: TextAlign.center,
+            style: FGTypography.body.copyWith(
+              color: FGColors.textSecondary.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -401,7 +394,7 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
                   borderRadius: BorderRadius.circular(Spacing.sm),
                 ),
                 child: Icon(
-                  _getSessionIcon(workout['name'] as String),
+                  _getSessionIcon(workout['day_name'] as String),
                   color: isToday ? FGColors.success : FGColors.textSecondary,
                   size: 22,
                 ),
@@ -416,7 +409,7 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
                     Row(
                       children: [
                         Text(
-                          workout['name'] as String,
+                          workout['day_name'] as String,
                           style: FGTypography.body.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
@@ -547,12 +540,15 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
   }
 
   IconData _getSessionIcon(String name) {
-    if (name.toLowerCase().contains('push')) {
+    final lower = name.toLowerCase();
+    if (lower.contains('push') || lower.contains('pec') || lower.contains('chest')) {
       return Icons.fitness_center_rounded;
-    } else if (name.toLowerCase().contains('pull')) {
+    } else if (lower.contains('pull') || lower.contains('dos') || lower.contains('back')) {
       return Icons.rowing_rounded;
-    } else if (name.toLowerCase().contains('leg')) {
+    } else if (lower.contains('leg') || lower.contains('jambe')) {
       return Icons.directions_run_rounded;
+    } else if (lower.contains('upper') || lower.contains('haut')) {
+      return Icons.accessibility_new_rounded;
     }
     return Icons.fitness_center_rounded;
   }
@@ -588,6 +584,8 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
   }
 
   void _showWorkoutDetail(Map<String, dynamic> workout) {
+    final exercises = workout['exercises_data'] as List? ?? [];
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -627,7 +625,7 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            workout['name'] as String,
+                            workout['day_name'] as String,
                             style: FGTypography.h2,
                           ),
                           const SizedBox(height: Spacing.xs),
@@ -680,26 +678,59 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
               ),
               const SizedBox(height: Spacing.lg),
 
-              // Mock exercise list
+              // Exercise list from real data
               Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                  children: [
-                    _buildExerciseItem('Développé couché', '4x8 @ 80kg'),
-                    _buildExerciseItem('Développé incliné', '3x10 @ 60kg'),
-                    _buildExerciseItem('Écartés poulie', '3x12 @ 15kg'),
-                    _buildExerciseItem('Dips', '3x10 PDC'),
-                    _buildExerciseItem('Extension triceps', '3x12 @ 25kg'),
-                    _buildExerciseItem('Élévations latérales', '3x15 @ 10kg'),
-                  ],
-                ),
+                child: exercises.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Aucun détail disponible',
+                          style: FGTypography.body.copyWith(
+                            color: FGColors.textSecondary,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                        itemCount: exercises.length,
+                        itemBuilder: (context, index) {
+                          final ex = exercises[index] as Map<String, dynamic>;
+                          final sets = ex['sets'] as List? ?? [];
+                          final bestSet = _getBestSet(sets);
+                          return _buildExerciseItem(
+                            ex['exerciseName'] ?? ex['name'] ?? 'Exercice',
+                            bestSet,
+                          );
+                        },
+                      ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  String _getBestSet(List sets) {
+    if (sets.isEmpty) return '-';
+
+    double maxWeight = 0;
+    int completedSets = 0;
+
+    for (final set in sets) {
+      final s = set as Map<String, dynamic>;
+      if (s['completed'] == true) {
+        completedSets++;
+        final weight = (s['weightKg'] as num?)?.toDouble() ?? 0;
+        if (weight > maxWeight) {
+          maxWeight = weight;
+        }
+      }
+    }
+
+    if (completedSets == 0) return '-';
+    if (maxWeight == 0) return '${completedSets}x PDC';
+    return '${completedSets}x @ ${maxWeight.toStringAsFixed(0)}kg';
   }
 
   Widget _buildDetailStat(String value, String label, {bool isHighlight = false}) {

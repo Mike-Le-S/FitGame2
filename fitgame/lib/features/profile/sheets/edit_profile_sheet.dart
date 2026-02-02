@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/spacing.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 
@@ -47,6 +48,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _emailController;
   late int _selectedAvatarIndex;
+  bool _isSaving = false;
 
   // Avatars prédéfinis (emojis fitness)
   static const List<String> _avatars = [
@@ -222,36 +224,32 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                         const SizedBox(width: Spacing.md),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: () {
-                              HapticFeedback.mediumImpact();
-                              // TODO: Sauvegarder les modifications
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text('Profil mis à jour'),
-                                  backgroundColor: FGColors.success,
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              );
-                            },
+                            onPressed: _isSaving ? null : _saveProfile,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: FGColors.accent,
                               foregroundColor: FGColors.textOnAccent,
+                              disabledBackgroundColor: FGColors.accent.withValues(alpha: 0.5),
                               padding: const EdgeInsets.symmetric(vertical: Spacing.md),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
                             ),
-                            child: Text(
-                              'Sauvegarder',
-                              style: FGTypography.body.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: FGColors.textOnAccent,
-                              ),
-                            ),
+                            child: _isSaving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: FGColors.textOnAccent,
+                                    ),
+                                  )
+                                : Text(
+                                    'Sauvegarder',
+                                    style: FGTypography.body.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: FGColors.textOnAccent,
+                                    ),
+                                  ),
                           ),
                         ),
                       ],
@@ -265,6 +263,48 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
         ),
       ),
     );
+  }
+
+  Future<void> _saveProfile() async {
+    if (_isSaving) return;
+
+    HapticFeedback.mediumImpact();
+    setState(() => _isSaving = true);
+
+    try {
+      await SupabaseService.updateProfile({
+        'full_name': _nameController.text.trim(),
+        'avatar_index': _selectedAvatarIndex,
+      });
+
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profil mis à jour'),
+            backgroundColor: FGColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Erreur lors de la sauvegarde'),
+            backgroundColor: FGColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildTextField(TextEditingController controller, String hint) {

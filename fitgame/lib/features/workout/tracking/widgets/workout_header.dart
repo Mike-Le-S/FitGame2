@@ -31,6 +31,7 @@ class WorkoutHeader extends StatelessWidget {
           // Close button
           GestureDetector(
             onTap: onExitTap,
+            behavior: HitTestBehavior.opaque,
             child: Container(
               width: 40,
               height: 40,

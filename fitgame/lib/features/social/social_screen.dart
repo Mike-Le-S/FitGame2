@@ -35,6 +35,10 @@ class _SocialScreenState extends State<SocialScreen>
   int _unreadNotifications = 0;
   bool _isLoading = true;
 
+  // Current user info
+  String _currentUserId = '';
+  String _currentUserName = 'Toi';
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +56,11 @@ class _SocialScreenState extends State<SocialScreen>
 
   Future<void> _loadSocialData() async {
     try {
+      // Load current user info
+      final userId = SupabaseService.currentUser?.id ?? '';
+      final profile = await SupabaseService.getCurrentProfile();
+      final userName = profile?['full_name'] ?? 'Toi';
+
       // Load activity feed from Supabase
       final activityData = await SupabaseService.getActivityFeed();
       final friendsData = await SupabaseService.getFriends();
@@ -59,6 +68,10 @@ class _SocialScreenState extends State<SocialScreen>
 
       if (mounted) {
         setState(() {
+          // Set current user info
+          _currentUserId = userId;
+          _currentUserName = userName;
+
           // Convert Supabase data to Activity models
           _activities = activityData.map((data) {
             final user = data['user'] as Map<String, dynamic>?;
@@ -169,7 +182,7 @@ class _SocialScreenState extends State<SocialScreen>
   void _participateInChallenge(Challenge challenge) {
     HapticFeedback.mediumImpact();
     // Check if already participating
-    final isParticipating = challenge.participants.any((p) => p.name == 'Mike');
+    final isParticipating = challenge.participants.any((p) => p.id == _currentUserId);
     if (isParticipating) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -189,9 +202,9 @@ class _SocialScreenState extends State<SocialScreen>
       if (index != -1) {
         final updatedParticipants = [
           ...challenge.participants,
-          const ChallengeParticipant(
-            id: 'mike',
-            name: 'Mike',
+          ChallengeParticipant(
+            id: _currentUserId,
+            name: _currentUserName,
             avatarUrl: '',
             currentValue: 0,
             hasCompleted: false,
@@ -236,9 +249,9 @@ class _SocialScreenState extends State<SocialScreen>
 
     // Create participants from invited friends
     final participants = <ChallengeParticipant>[
-      const ChallengeParticipant(
-        id: 'mike',
-        name: 'Mike',
+      ChallengeParticipant(
+        id: _currentUserId,
+        name: _currentUserName,
         avatarUrl: '',
         currentValue: 0,
         hasCompleted: false,
@@ -264,8 +277,8 @@ class _SocialScreenState extends State<SocialScreen>
       unit: unit,
       deadline: DateTime.now().add(const Duration(days: 30)),
       status: ChallengeStatus.active,
-      creatorId: 'mike',
-      creatorName: 'Mike',
+      creatorId: _currentUserId,
+      creatorName: _currentUserName,
       participants: participants,
       createdAt: DateTime.now(),
     );
@@ -316,7 +329,14 @@ class _SocialScreenState extends State<SocialScreen>
         children: [
           _buildMeshGradient(),
           SafeArea(
-            child: Column(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: FGColors.accent,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : Column(
               children: [
                 // Header
                 Padding(
@@ -441,18 +461,19 @@ class _SocialScreenState extends State<SocialScreen>
                   color: FGColors.textPrimary,
                   size: 24,
                 ),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: FGColors.accent,
-                      shape: BoxShape.circle,
+                if (_unreadNotifications > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: FGColors.accent,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

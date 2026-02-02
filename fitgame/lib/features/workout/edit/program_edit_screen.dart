@@ -4,16 +4,17 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/spacing.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/fg_glass_card.dart';
 
 /// Écran d'édition d'un programme d'entraînement
 class ProgramEditScreen extends StatefulWidget {
   const ProgramEditScreen({
     super.key,
-    this.programName = 'Push Pull Legs',
+    required this.programId,
   });
 
-  final String programName;
+  final String programId;
 
   @override
   State<ProgramEditScreen> createState() => _ProgramEditScreenState();
@@ -26,56 +27,20 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
   late TextEditingController _nameController;
 
   bool _hasChanges = false;
+  bool _isLoading = true;
+  bool _isSaving = false;
 
-  // Mock program data
-  late List<Map<String, dynamic>> _sessions;
+  // Program data from Supabase
+  Map<String, dynamic>? _program;
+  List<Map<String, dynamic>> _sessions = [];
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.programName);
+    _nameController = TextEditingController();
     _nameController.addListener(() {
       setState(() => _hasChanges = true);
     });
-
-    // Initialize mock sessions
-    _sessions = [
-      {
-        'name': 'Push Day',
-        'muscles': 'Pectoraux, Épaules, Triceps',
-        'exercises': [
-          {'name': 'Développé couché', 'sets': '4x8'},
-          {'name': 'Développé incliné', 'sets': '3x10'},
-          {'name': 'Écartés poulie', 'sets': '3x12'},
-          {'name': 'Élévations latérales', 'sets': '3x15'},
-          {'name': 'Extension triceps', 'sets': '3x12'},
-          {'name': 'Dips', 'sets': '3x10'},
-        ],
-      },
-      {
-        'name': 'Pull Day',
-        'muscles': 'Dos, Biceps',
-        'exercises': [
-          {'name': 'Tractions', 'sets': '4x8'},
-          {'name': 'Rowing barre', 'sets': '4x8'},
-          {'name': 'Tirage vertical', 'sets': '3x10'},
-          {'name': 'Face pull', 'sets': '3x15'},
-          {'name': 'Curl biceps', 'sets': '3x12'},
-          {'name': 'Curl marteau', 'sets': '3x12'},
-        ],
-      },
-      {
-        'name': 'Leg Day',
-        'muscles': 'Quadriceps, Ischio, Fessiers',
-        'exercises': [
-          {'name': 'Squat', 'sets': '4x6'},
-          {'name': 'Presse à cuisses', 'sets': '3x10'},
-          {'name': 'Leg curl', 'sets': '3x12'},
-          {'name': 'Leg extension', 'sets': '3x12'},
-          {'name': 'Mollets debout', 'sets': '4x15'},
-        ],
-      },
-    ];
 
     _pulseController = AnimationController(
       duration: const Duration(seconds: 4),
@@ -85,6 +50,53 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
     _pulseAnimation = Tween<double>(begin: 0.05, end: 0.15).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _loadProgram();
+  }
+
+  Future<void> _loadProgram() async {
+    try {
+      final program = await SupabaseService.getProgram(widget.programId);
+      if (program != null && mounted) {
+        final days = program['days'] as List? ?? [];
+        setState(() {
+          _program = program;
+          _nameController.text = program['name'] ?? '';
+          _sessions = days.map((d) {
+            final day = d as Map<String, dynamic>;
+            final exercises = day['exercises'] as List? ?? [];
+            return {
+              'name': day['name'] ?? 'Séance',
+              'muscles': _extractMuscles(exercises),
+              'exercises': exercises.map((e) {
+                final ex = e as Map<String, dynamic>;
+                return {
+                  'name': ex['name'] ?? '',
+                  'sets': '${ex['sets'] ?? 3}x${ex['reps'] ?? 10}',
+                };
+              }).toList(),
+            };
+          }).toList();
+          _isLoading = false;
+          _hasChanges = false;
+        });
+      } else if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String _extractMuscles(List exercises) {
+    final muscles = <String>{};
+    for (final ex in exercises) {
+      final muscle = ex['muscleGroup'] ?? ex['muscle_group'];
+      if (muscle != null) muscles.add(muscle.toString());
+    }
+    return muscles.take(3).join(', ');
   }
 
   @override
@@ -106,13 +118,22 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
               children: [
                 _buildHeader(),
                 Expanded(
-                  child: _buildContent(),
+                  child: _isLoading ? _buildLoading() : _buildContent(),
                 ),
-                _buildSaveButton(),
+                if (!_isLoading) _buildSaveButton(),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: FGColors.accent,
+        strokeWidth: 2,
       ),
     );
   }
@@ -189,6 +210,10 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
   }
 
   Widget _buildContent() {
+    if (_program == null) {
+      return _buildEmptyState();
+    }
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
@@ -204,33 +229,90 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
           // Sessions
           _buildSectionTitle('SÉANCES'),
           const SizedBox(height: Spacing.md),
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            itemCount: _sessions.length,
-            onReorder: (oldIndex, newIndex) {
-              HapticFeedback.mediumImpact();
-              setState(() {
-                _hasChanges = true;
-                if (newIndex > oldIndex) newIndex--;
-                final item = _sessions.removeAt(oldIndex);
-                _sessions.insert(newIndex, item);
-              });
-            },
-            itemBuilder: (context, index) {
-              return Padding(
-                key: ValueKey(_sessions[index]['name']),
-                padding: const EdgeInsets.only(bottom: Spacing.md),
-                child: _buildSessionCard(index),
-              );
-            },
-          ),
+          if (_sessions.isEmpty)
+            _buildNoSessionsState()
+          else
+            ReorderableListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              itemCount: _sessions.length,
+              onReorder: (oldIndex, newIndex) {
+                HapticFeedback.mediumImpact();
+                setState(() {
+                  _hasChanges = true;
+                  if (newIndex > oldIndex) newIndex--;
+                  final item = _sessions.removeAt(oldIndex);
+                  _sessions.insert(newIndex, item);
+                });
+              },
+              itemBuilder: (context, index) {
+                return Padding(
+                  key: ValueKey('session_$index'),
+                  padding: const EdgeInsets.only(bottom: Spacing.md),
+                  child: _buildSessionCard(index),
+                );
+              },
+            ),
 
           // Add session button
           _buildAddSessionButton(),
           const SizedBox(height: Spacing.xxl),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline_rounded,
+            size: 48,
+            color: FGColors.textSecondary,
+          ),
+          const SizedBox(height: Spacing.md),
+          Text(
+            'Programme introuvable',
+            style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoSessionsState() {
+    return Container(
+      padding: const EdgeInsets.all(Spacing.xl),
+      decoration: BoxDecoration(
+        color: FGColors.glassSurface,
+        borderRadius: BorderRadius.circular(Spacing.md),
+        border: Border.all(color: FGColors.glassBorder),
+      ),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(
+              Icons.fitness_center_outlined,
+              size: 32,
+              color: FGColors.textSecondary,
+            ),
+            const SizedBox(height: Spacing.sm),
+            Text(
+              'Aucune séance',
+              style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+            ),
+            const SizedBox(height: Spacing.xs),
+            Text(
+              'Ajoute ta première séance',
+              style: FGTypography.caption.copyWith(
+                color: FGColors.textSecondary.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -318,7 +400,9 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        session['muscles'] as String,
+                        (session['muscles'] as String).isEmpty
+                            ? 'Aucun exercice'
+                            : session['muscles'] as String,
                         style: FGTypography.caption.copyWith(
                           color: FGColors.textSecondary,
                         ),
@@ -362,52 +446,63 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
           ),
 
           // Exercises preview
-          Padding(
-            padding: const EdgeInsets.all(Spacing.md),
-            child: Column(
-              children: [
-                ...exercises.take(3).map((ex) => Padding(
-                      padding: const EdgeInsets.only(bottom: Spacing.xs),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.fiber_manual_record,
-                            size: 6,
-                            color: FGColors.textSecondary,
-                          ),
-                          const SizedBox(width: Spacing.sm),
-                          Expanded(
-                            child: Text(
-                              ex['name'] as String,
-                              style: FGTypography.caption.copyWith(
-                                color: FGColors.textSecondary,
+          if (exercises.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.all(Spacing.md),
+              child: Column(
+                children: [
+                  ...exercises.take(3).map((ex) => Padding(
+                        padding: const EdgeInsets.only(bottom: Spacing.xs),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.fiber_manual_record,
+                              size: 6,
+                              color: FGColors.textSecondary,
+                            ),
+                            const SizedBox(width: Spacing.sm),
+                            Expanded(
+                              child: Text(
+                                ex['name'] as String,
+                                style: FGTypography.caption.copyWith(
+                                  color: FGColors.textSecondary,
+                                ),
                               ),
                             ),
-                          ),
-                          Text(
-                            ex['sets'] as String,
-                            style: FGTypography.caption.copyWith(
-                              color: FGColors.textSecondary,
-                              fontWeight: FontWeight.w500,
+                            Text(
+                              ex['sets'] as String,
+                              style: FGTypography.caption.copyWith(
+                                color: FGColors.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    )),
-                if (exercises.length > 3)
-                  Padding(
-                    padding: const EdgeInsets.only(top: Spacing.xs),
-                    child: Text(
-                      '+${exercises.length - 3} exercices',
-                      style: FGTypography.caption.copyWith(
-                        color: FGColors.accent,
-                        fontWeight: FontWeight.w600,
+                          ],
+                        ),
+                      )),
+                  if (exercises.length > 3)
+                    Padding(
+                      padding: const EdgeInsets.only(top: Spacing.xs),
+                      child: Text(
+                        '+${exercises.length - 3} exercices',
+                        style: FGTypography.caption.copyWith(
+                          color: FGColors.accent,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.all(Spacing.md),
+              child: Text(
+                'Aucun exercice',
+                style: FGTypography.caption.copyWith(
+                  color: FGColors.textSecondary,
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -452,7 +547,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
     return Padding(
       padding: const EdgeInsets.all(Spacing.lg),
       child: GestureDetector(
-        onTap: _hasChanges ? _saveProgram : null,
+        onTap: (_hasChanges && !_isSaving) ? _saveProgram : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: double.infinity,
@@ -481,15 +576,24 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
                 : null,
           ),
           child: Center(
-            child: Text(
-              'Sauvegarder',
-              style: FGTypography.body.copyWith(
-                fontWeight: FontWeight.w700,
-                color: _hasChanges
-                    ? FGColors.textOnAccent
-                    : FGColors.textSecondary,
-              ),
-            ),
+            child: _isSaving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: FGColors.textOnAccent,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : Text(
+                    'Sauvegarder',
+                    style: FGTypography.body.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: _hasChanges
+                          ? FGColors.textOnAccent
+                          : FGColors.textSecondary,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -498,7 +602,6 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
 
   void _editSession(int index) {
     HapticFeedback.lightImpact();
-    // Mock edit - in real app would open session editor
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Édition de ${_sessions[index]['name']}'),
@@ -556,26 +659,69 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
     setState(() {
       _sessions.add({
         'name': 'Nouvelle séance',
-        'muscles': 'À définir',
+        'muscles': '',
         'exercises': <Map<String, String>>[],
       });
       _hasChanges = true;
     });
   }
 
-  void _saveProgram() {
+  Future<void> _saveProgram() async {
+    if (_isSaving) return;
+
+    setState(() => _isSaving = true);
     HapticFeedback.heavyImpact();
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Programme sauvegardé'),
-        backgroundColor: FGColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
+
+    try {
+      // Convert sessions back to days format
+      final days = _sessions.map((session) {
+        return {
+          'name': session['name'],
+          'exercises': (session['exercises'] as List).map((ex) {
+            final parts = (ex['sets'] as String).split('x');
+            return {
+              'name': ex['name'],
+              'sets': int.tryParse(parts[0]) ?? 3,
+              'reps': int.tryParse(parts.length > 1 ? parts[1] : '10') ?? 10,
+            };
+          }).toList(),
+        };
+      }).toList();
+
+      await SupabaseService.updateProgram(widget.programId, {
+        'name': _nameController.text,
+        'days': days,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+
+      if (mounted) {
+        Navigator.of(context).pop(true); // Return true to indicate changes
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Programme sauvegardé'),
+            backgroundColor: FGColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: FGColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   void _showDiscardDialog() {
