@@ -49,6 +49,15 @@ dependencies:
   # Google Sign-In
   google_sign_in: ^6.2.2
 
+  # Image picker for camera/gallery
+  image_picker: ^1.1.2
+
+  # ML Kit for OCR text recognition
+  google_mlkit_text_recognition: ^0.14.0
+
+  # Barcode scanner
+  mobile_scanner: ^5.1.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
