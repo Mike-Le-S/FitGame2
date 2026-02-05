@@ -1,5 +1,55 @@
 # Changelog FitGame
 
+## 2026-02-05 - Redesign du workflow Nutrition (Phase 2)
+
+### Nouveau système de Plans avec Types de Jour
+
+#### Nouvelles tables Supabase
+- **day_types** : Types de jour réutilisables (Jour muscu, Jour repos, etc.)
+  - `name`, `emoji`, `meals` (JSONB), `sort_order`
+  - Chaque type contient ses repas configurés
+- **weekly_schedule** : Planning semaine
+  - Assigne un type de jour à chaque jour de la semaine
+- **diet_plans** : Colonnes ajoutées
+  - `is_active` : Un seul plan actif par utilisateur
+  - `active_from` : Date de début d'activation
+
+#### PlanCreationFlow (create/plan_creation_flow.dart)
+- **Nouveau wizard 3 étapes** remplace l'ancien flow 8 étapes
+- Étape 1 : Infos du plan (nom, objectif, calories training/repos)
+- Étape 2 : Types de jour (créer, éditer, supprimer des types)
+- Étape 3 : Planning semaine (assigner types aux jours)
+- Éditeur intégré pour configurer les repas de chaque type
+
+#### PlansModalSheet (sheets/plans_modal_sheet.dart)
+- **Nouveau modal** : Gestion des plans
+- Affiche le plan actif et les autres plans
+- Actions : Modifier, Activer, Désactiver
+- Dialog d'activation avec choix de date (Maintenant, Demain, Date personnalisée)
+
+#### NutritionScreen Header
+- **Nouveau bouton "Mon plan"** remplace le sélecteur d'objectif
+- Affiche si un plan est actif ou non
+- Ouvre le PlansModalSheet au tap
+- Bouton "+" ouvre directement le PlanCreationFlow
+
+#### SupabaseService - Nouvelles méthodes
+- `getActiveDietPlan()` : Récupère le plan actif
+- `activateDietPlan(planId, activeFrom)` : Active un plan
+- `deactivateAllDietPlans()` : Désactive tous les plans
+- `getDayTypes(planId)` : Liste des types de jour
+- `createDayType()`, `updateDayType()`, `deleteDayType()`
+- `getWeeklySchedule(planId)` : Planning semaine
+- `getDayTypeForWeekday(planId, dayOfWeek)` : Type du jour
+- `setWeeklySchedule(planId, schedule)` : Définir le planning
+
+#### Concept clé : Plan = Template, Tracking = Quotidien
+- Le Plan est un template qui dure des semaines/mois
+- Modifications dans la vue quotidienne = temporaires (daily_nutrition_logs)
+- Modifications du plan = permanentes pour tous les jours futurs
+
+---
+
 ## 2026-02-05 - Upgrade majeure de l'écran Nutrition
 
 ### A) Bilan Calories (consommé vs brûlé)

@@ -6,7 +6,6 @@ import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/services/health_service.dart';
-import 'sheets/goal_selector_sheet.dart';
 import 'sheets/edit_food_sheet.dart';
 import 'sheets/duplicate_day_sheet.dart';
 import 'sheets/edit_plan_sheet.dart';
@@ -15,12 +14,13 @@ import 'sheets/barcode_scanner_sheet.dart';
 import 'sheets/contribute_food_sheet.dart';
 import 'sheets/favorite_foods_sheet.dart';
 import 'sheets/meal_templates_sheet.dart';
+import 'sheets/plans_modal_sheet.dart';
 import 'widgets/quick_action_button.dart';
 import 'widgets/meal_card.dart';
 import 'widgets/macro_dashboard.dart';
 import 'widgets/day_selector.dart';
 import 'widgets/calorie_balance_card.dart';
-import 'create/diet_creation_flow.dart';
+import 'create/plan_creation_flow.dart';
 
 class NutritionScreen extends StatefulWidget {
   const NutritionScreen({super.key});
@@ -223,14 +223,24 @@ class _NutritionScreenState extends State<NutritionScreen>
       return;
     }
 
+    await _loadDietPlans();
+    // Load today's tracking log
+    await _loadOrCreateTodayLog();
+  }
+
+  Future<void> _loadDietPlans() async {
+    if (!SupabaseService.isAuthenticated) return;
+
     try {
       final results = await Future.wait([
         SupabaseService.getDietPlans(),
         SupabaseService.getAssignedDietPlans(),
+        SupabaseService.getActiveDietPlan(),
       ]);
 
-      final myPlans = results[0];
-      final assignedPlans = results[1];
+      final myPlans = results[0] as List<Map<String, dynamic>>;
+      final assignedPlans = results[1] as List<Map<String, dynamic>>;
+      final activePlan = results[2] as Map<String, dynamic>?;
 
       if (!mounted) return;
 
@@ -238,17 +248,21 @@ class _NutritionScreenState extends State<NutritionScreen>
         _myDietPlans = myPlans;
         _assignedDietPlans = assignedPlans;
 
-        // If there's an assigned plan from coach, use it as active
-        if (assignedPlans.isNotEmpty) {
+        // Use the active plan if set
+        if (activePlan != null) {
+          _applyDietPlan(activePlan, isFromCoach: false);
+        } else if (assignedPlans.isNotEmpty) {
+          // If there's an assigned plan from coach, use it as active
           _applyDietPlan(assignedPlans.first, isFromCoach: true);
         } else if (myPlans.isNotEmpty) {
           // Otherwise use first own plan
           _applyDietPlan(myPlans.first, isFromCoach: false);
+        } else {
+          // No plan at all
+          _activePlan = null;
+          _activePlanName = null;
         }
       });
-
-      // Load today's tracking log
-      await _loadOrCreateTodayLog();
     } catch (e) {
       debugPrint('Error loading nutrition data: $e');
     }
@@ -380,17 +394,77 @@ class _NutritionScreenState extends State<NutritionScreen>
       };
     }
 
-    // Apply meals from plan if available
-    final planMeals = plan['meals'] as List?;
-    if (planMeals != null && planMeals.isNotEmpty) {
-      _applyMealsFromPlan(planMeals);
+    // Load day types and weekly schedule from Supabase
+    _loadDayTypesAndSchedule(plan['id'] as String);
+  }
+
+  Future<void> _loadDayTypesAndSchedule(String planId) async {
+    try {
+      final schedule = await SupabaseService.getWeeklySchedule(planId);
+
+      if (!mounted) return;
+
+      // Build weekly plan from schedule
+      for (int dayIndex = 0; dayIndex < 7; dayIndex++) {
+        // Find the schedule entry for this day
+        final daySchedule = schedule.firstWhere(
+          (s) => s['day_of_week'] == dayIndex,
+          orElse: () => <String, dynamic>{},
+        );
+
+        final dayType = daySchedule['day_type'] as Map<String, dynamic>?;
+        if (dayType != null) {
+          final meals = (dayType['meals'] as List? ?? []).map((meal) {
+            final foods = (meal['foods'] as List? ?? []).map((food) {
+              return {
+                'name': food['name'] ?? '',
+                'quantity': food['quantity'] ?? '',
+                'cal': food['calories'] ?? food['cal'] ?? 0,
+                'p': food['protein'] ?? food['p'] ?? 0,
+                'c': food['carbs'] ?? food['c'] ?? 0,
+                'f': food['fat'] ?? food['f'] ?? 0,
+              };
+            }).toList();
+
+            return {
+              'name': meal['name'] ?? 'Repas',
+              'icon': _getMealIcon(meal['name'] as String? ?? ''),
+              'foods': foods,
+            };
+          }).toList();
+
+          if (meals.isNotEmpty) {
+            setState(() {
+              _weeklyPlan[dayIndex]['meals'] = meals;
+            });
+          }
+
+          // Check if this is a training day based on day type name
+          final typeName = (dayType['name'] as String? ?? '').toLowerCase();
+          if (typeName.contains('entraînement') ||
+              typeName.contains('training') ||
+              typeName.contains('muscu')) {
+            _trainingDays.add(dayIndex);
+          } else {
+            _trainingDays.remove(dayIndex);
+          }
+        }
+      }
+
+      setState(() {});
+    } catch (e) {
+      debugPrint('Error loading day types: $e');
+      // Fallback to old behavior with plan meals
+      final planMeals = _activePlan?['meals'] as List?;
+      if (planMeals != null && planMeals.isNotEmpty) {
+        _applyMealsFromPlanLegacy(planMeals);
+      }
     }
   }
 
-  void _applyMealsFromPlan(List planMeals) {
-    // Convert plan meals to weekly plan format
-    // Plan meals are templates - apply to all days based on training/rest
-    final trainingDayMeals = planMeals.map((meal) {
+  void _applyMealsFromPlanLegacy(List planMeals) {
+    // Convert plan meals to weekly plan format (legacy support)
+    final dayMeals = planMeals.map((meal) {
       final foods = (meal['foods'] as List? ?? []).map((food) {
         return {
           'name': food['name'] ?? '',
@@ -409,29 +483,16 @@ class _NutritionScreenState extends State<NutritionScreen>
       };
     }).toList();
 
-    // Apply to training days
+    // Apply to all days
     for (int i = 0; i < 7; i++) {
-      if (_trainingDays.contains(i)) {
-        if (trainingDayMeals.isNotEmpty) {
-          _weeklyPlan[i]['meals'] = trainingDayMeals.map((meal) {
-            return {
-              'name': meal['name'],
-              'icon': meal['icon'],
-              'foods': (meal['foods'] as List).map((f) => Map<String, dynamic>.from(f)).toList(),
-            };
-          }).toList();
-        }
-      } else {
-        // Rest days get the same meals for now (could be different in future)
-        if (trainingDayMeals.isNotEmpty) {
-          _weeklyPlan[i]['meals'] = trainingDayMeals.map((meal) {
-            return {
-              'name': meal['name'],
-              'icon': meal['icon'],
-              'foods': (meal['foods'] as List).map((f) => Map<String, dynamic>.from(f)).toList(),
-            };
-          }).toList();
-        }
+      if (dayMeals.isNotEmpty) {
+        _weeklyPlan[i]['meals'] = dayMeals.map((meal) {
+          return {
+            'name': meal['name'],
+            'icon': meal['icon'],
+            'foods': (meal['foods'] as List).map((f) => Map<String, dynamic>.from(f)).toList(),
+          };
+        }).toList();
       }
     }
   }
@@ -998,42 +1059,52 @@ class _NutritionScreenState extends State<NutritionScreen>
         ),
         Row(
           children: [
-            // Goal selector chip
+            // Mon plan button
             GestureDetector(
-              onTap: () => _showGoalSelector(),
+              onTap: () => _showPlansModal(),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: Spacing.md,
                   vertical: Spacing.sm,
                 ),
                 decoration: BoxDecoration(
-                  color: FGColors.glassSurface,
+                  color: _activePlan != null
+                      ? const Color(0xFF2ECC71).withValues(alpha: 0.15)
+                      : FGColors.glassSurface,
                   borderRadius: BorderRadius.circular(Spacing.md),
-                  border: Border.all(color: FGColors.glassBorder),
+                  border: Border.all(
+                    color: _activePlan != null
+                        ? const Color(0xFF2ECC71).withValues(alpha: 0.4)
+                        : FGColors.glassBorder,
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      _goalType == 'bulk'
-                          ? Icons.trending_up_rounded
-                          : _goalType == 'cut'
-                              ? Icons.trending_down_rounded
-                              : Icons.remove_rounded,
-                      color: FGColors.accent,
+                      Icons.restaurant_menu_rounded,
+                      color: _activePlan != null
+                          ? const Color(0xFF2ECC71)
+                          : FGColors.textSecondary,
                       size: 16,
                     ),
                     const SizedBox(width: Spacing.xs),
                     Text(
-                      _goalType == 'bulk'
-                          ? 'Prise'
-                          : _goalType == 'cut'
-                              ? 'Sèche'
-                              : 'Maintien',
+                      _activePlan != null ? 'Mon plan' : 'Aucun plan',
                       style: FGTypography.caption.copyWith(
-                        color: FGColors.textPrimary,
+                        color: _activePlan != null
+                            ? const Color(0xFF2ECC71)
+                            : FGColors.textSecondary,
                         fontWeight: FontWeight.w600,
                       ),
+                    ),
+                    const SizedBox(width: Spacing.xs),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: _activePlan != null
+                          ? const Color(0xFF2ECC71)
+                          : FGColors.textSecondary,
+                      size: 16,
                     ),
                   ],
                 ),
@@ -1042,7 +1113,7 @@ class _NutritionScreenState extends State<NutritionScreen>
             const SizedBox(width: Spacing.sm),
             // Create diet button
             GestureDetector(
-              onTap: () => _openDietCreation(),
+              onTap: () => _openPlanCreation(),
               child: Container(
                 width: 44,
                 height: 44,
@@ -1512,12 +1583,12 @@ class _NutritionScreenState extends State<NutritionScreen>
   // NAVIGATION
   // ============================================
 
-  void _openDietCreation() {
+  void _openPlanCreation({Map<String, dynamic>? existingPlan}) async {
     HapticFeedback.mediumImpact();
-    Navigator.of(context).push(
+    final result = await Navigator.of(context).push<bool>(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const DietCreationFlow(),
+            PlanCreationFlow(existingPlan: existingPlan),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: Tween<Offset>(
@@ -1533,24 +1604,32 @@ class _NutritionScreenState extends State<NutritionScreen>
         transitionDuration: const Duration(milliseconds: 400),
       ),
     );
+    if (result == true && mounted) {
+      _loadDietPlans();
+    }
   }
 
   // ============================================
   // BOTTOM SHEETS
   // ============================================
 
-  void _showGoalSelector() {
+  void _showPlansModal() {
     HapticFeedback.lightImpact();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => GoalSelectorSheet(
-        currentGoal: _goalType,
-        onSelect: (goal) {
-          setState(() => _goalType = goal);
-          _ringController.reset();
-          _ringController.forward();
-          Navigator.pop(context);
+      isScrollControlled: true,
+      builder: (context) => PlansModalSheet(
+        activePlan: _activePlan,
+        allPlans: _myDietPlans,
+        onPlanChanged: () {
+          _loadDietPlans();
+        },
+        onEditPlan: (plan) {
+          _openPlanCreation(existingPlan: plan);
+        },
+        onCreatePlan: () {
+          _openPlanCreation();
         },
       ),
     );

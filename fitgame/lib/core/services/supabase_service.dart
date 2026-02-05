@@ -528,6 +528,179 @@ class SupabaseService {
         .eq('id', id);
   }
 
+  /// Get the active diet plan for current user
+  static Future<Map<String, dynamic>?> getActiveDietPlan() async {
+    if (currentUser == null) return null;
+
+    try {
+      final response = await client
+          .from('diet_plans')
+          .select()
+          .eq('created_by', currentUser!.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+      return response;
+    } catch (e) {
+      debugPrint('Error getting active diet plan: $e');
+      return null;
+    }
+  }
+
+  /// Activate a diet plan (deactivates others)
+  static Future<void> activateDietPlan(String planId, {DateTime? activeFrom}) async {
+    if (currentUser == null) throw Exception('Non authentifié');
+
+    // Deactivate all other plans
+    await client
+        .from('diet_plans')
+        .update({'is_active': false})
+        .eq('created_by', currentUser!.id);
+
+    // Activate the selected plan
+    await client
+        .from('diet_plans')
+        .update({
+          'is_active': true,
+          'active_from': (activeFrom ?? DateTime.now()).toIso8601String().split('T')[0],
+        })
+        .eq('id', planId);
+  }
+
+  /// Deactivate current plan (no plan active)
+  static Future<void> deactivateAllDietPlans() async {
+    if (currentUser == null) return;
+
+    await client
+        .from('diet_plans')
+        .update({'is_active': false})
+        .eq('created_by', currentUser!.id);
+  }
+
+  // ============================================
+  // Day Types (for diet plans)
+  // ============================================
+
+  /// Get all day types for a diet plan
+  static Future<List<Map<String, dynamic>>> getDayTypes(String dietPlanId) async {
+    final response = await client
+        .from('day_types')
+        .select()
+        .eq('diet_plan_id', dietPlanId)
+        .order('sort_order', ascending: true);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Create a new day type
+  static Future<Map<String, dynamic>> createDayType({
+    required String dietPlanId,
+    required String name,
+    String emoji = '📅',
+    List<Map<String, dynamic>> meals = const [],
+    int sortOrder = 0,
+  }) async {
+    final response = await client
+        .from('day_types')
+        .insert({
+          'diet_plan_id': dietPlanId,
+          'name': name,
+          'emoji': emoji,
+          'meals': meals,
+          'sort_order': sortOrder,
+        })
+        .select()
+        .single();
+
+    return response;
+  }
+
+  /// Update a day type
+  static Future<void> updateDayType(String id, Map<String, dynamic> data) async {
+    await client
+        .from('day_types')
+        .update({...data, 'updated_at': DateTime.now().toIso8601String()})
+        .eq('id', id);
+  }
+
+  /// Delete a day type
+  static Future<void> deleteDayType(String id) async {
+    await client
+        .from('day_types')
+        .delete()
+        .eq('id', id);
+  }
+
+  // ============================================
+  // Weekly Schedule (for diet plans)
+  // ============================================
+
+  /// Get weekly schedule for a diet plan
+  static Future<List<Map<String, dynamic>>> getWeeklySchedule(String dietPlanId) async {
+    final response = await client
+        .from('weekly_schedule')
+        .select('*, day_type:day_types(*)')
+        .eq('diet_plan_id', dietPlanId)
+        .order('day_of_week', ascending: true);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get day type for a specific day of the week
+  static Future<Map<String, dynamic>?> getDayTypeForWeekday(String dietPlanId, int dayOfWeek) async {
+    try {
+      final response = await client
+          .from('weekly_schedule')
+          .select('*, day_type:day_types(*)')
+          .eq('diet_plan_id', dietPlanId)
+          .eq('day_of_week', dayOfWeek)
+          .maybeSingle();
+
+      return response?['day_type'] as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint('Error getting day type for weekday: $e');
+      return null;
+    }
+  }
+
+  /// Set day type for a specific day of the week (upsert)
+  static Future<void> setWeeklyScheduleDay({
+    required String dietPlanId,
+    required int dayOfWeek,
+    required String dayTypeId,
+  }) async {
+    await client
+        .from('weekly_schedule')
+        .upsert({
+          'diet_plan_id': dietPlanId,
+          'day_of_week': dayOfWeek,
+          'day_type_id': dayTypeId,
+        }, onConflict: 'diet_plan_id,day_of_week');
+  }
+
+  /// Set entire weekly schedule at once
+  static Future<void> setWeeklySchedule({
+    required String dietPlanId,
+    required Map<int, String> schedule, // dayOfWeek -> dayTypeId
+  }) async {
+    // Delete existing schedule
+    await client
+        .from('weekly_schedule')
+        .delete()
+        .eq('diet_plan_id', dietPlanId);
+
+    // Insert new schedule
+    final rows = schedule.entries.map((e) => {
+      'diet_plan_id': dietPlanId,
+      'day_of_week': e.key,
+      'day_type_id': e.value,
+    }).toList();
+
+    if (rows.isNotEmpty) {
+      await client.from('weekly_schedule').insert(rows);
+    }
+  }
+
   // ============================================
   // Daily Nutrition Logs (Tracking)
   // ============================================
