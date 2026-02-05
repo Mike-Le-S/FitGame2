@@ -7,11 +7,14 @@ import '../../core/constants/spacing.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/services/health_service.dart';
 import 'sheets/goal_selector_sheet.dart';
-import 'sheets/food_library_sheet.dart';
 import 'sheets/edit_food_sheet.dart';
 import 'sheets/duplicate_day_sheet.dart';
-import 'sheets/nutrition_scanner_sheet.dart';
 import 'sheets/edit_plan_sheet.dart';
+import 'sheets/food_add_sheet.dart';
+import 'sheets/barcode_scanner_sheet.dart';
+import 'sheets/contribute_food_sheet.dart';
+import 'sheets/favorite_foods_sheet.dart';
+import 'sheets/meal_templates_sheet.dart';
 import 'widgets/quick_action_button.dart';
 import 'widgets/meal_card.dart';
 import 'widgets/macro_dashboard.dart';
@@ -1607,27 +1610,97 @@ class _NutritionScreenState extends State<NutritionScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (sheetContext) => FoodLibrarySheet(
+      builder: (sheetContext) => FoodAddSheet(
         onSelectFood: (food) {
           _addFoodToMeal(dayIndex, mealName, food);
           Navigator.pop(sheetContext);
         },
         onScanRequested: () {
-          // Sheet already popped itself, now show scanner
-          Future.delayed(const Duration(milliseconds: 100), () {
-            _showNutritionScanner(dayIndex, mealName);
-          });
+          Navigator.pop(sheetContext);
+          _showBarcodeScanner(dayIndex, mealName);
+        },
+        onFavoritesRequested: () {
+          Navigator.pop(sheetContext);
+          _showFavoriteFoods(dayIndex, mealName);
+        },
+        onTemplatesRequested: () {
+          Navigator.pop(sheetContext);
+          _showMealTemplates(dayIndex, mealName);
         },
       ),
     );
   }
 
-  void _showNutritionScanner(int dayIndex, String mealName) {
-    showNutritionScannerSheet(
-      context,
-      onFoodScanned: (food) {
-        _addFoodToMeal(dayIndex, mealName, food);
-      },
+  void _showBarcodeScanner(int dayIndex, String mealName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => BarcodeScannerSheet(
+        onFoodFound: (food) {
+          Navigator.pop(sheetContext);
+          _addFoodToMeal(dayIndex, mealName, food);
+        },
+        onFoodNotFound: (barcode) {
+          Navigator.pop(sheetContext);
+          _showContributeFoodSheet(barcode, dayIndex, mealName);
+        },
+      ),
+    );
+  }
+
+  void _showContributeFoodSheet(String barcode, int dayIndex, String mealName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => ContributeFoodSheet(
+        barcode: barcode,
+        onContributed: (food) {
+          Navigator.pop(sheetContext);
+          _addFoodToMeal(dayIndex, mealName, food);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Merci pour votre contribution !'),
+              backgroundColor: FGColors.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showFavoriteFoods(int dayIndex, String mealName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => FavoriteFoodsSheet(
+        onSelectFood: (food) {
+          _addFoodToMeal(dayIndex, mealName, food);
+          Navigator.pop(sheetContext);
+        },
+      ),
+    );
+  }
+
+  void _showMealTemplates(int dayIndex, String mealName) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => MealTemplatesSheet(
+        onSelectTemplate: (foods) {
+          for (final food in foods) {
+            _addFoodToMeal(dayIndex, mealName, food);
+          }
+          Navigator.pop(sheetContext);
+        },
+      ),
     );
   }
 
