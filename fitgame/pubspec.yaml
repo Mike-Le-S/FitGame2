@@ -56,7 +56,7 @@ dependencies:
   google_mlkit_text_recognition: ^0.14.0
 
   # Barcode scanner
-  mobile_scanner: ^5.1.1
+  mobile_scanner: ^6.0.2
 
   # HTTP requests
   http: ^1.2.2
