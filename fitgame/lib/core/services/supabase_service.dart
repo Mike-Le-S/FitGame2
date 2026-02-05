@@ -529,6 +529,267 @@ class SupabaseService {
   }
 
   // ============================================
+  // Daily Nutrition Logs (Tracking)
+  // ============================================
+
+  /// Get nutrition log for a specific date
+  static Future<Map<String, dynamic>?> getNutritionLog(DateTime date) async {
+    if (currentUser == null) return null;
+
+    final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+    try {
+      final response = await client
+          .from('daily_nutrition_logs')
+          .select()
+          .eq('user_id', currentUser!.id)
+          .eq('date', dateStr)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      debugPrint('Error fetching nutrition log: $e');
+      return null;
+    }
+  }
+
+  /// Create or update nutrition log for a date
+  static Future<Map<String, dynamic>> upsertNutritionLog({
+    required DateTime date,
+    String? dietPlanId,
+    required List<Map<String, dynamic>> meals,
+    required int caloriesConsumed,
+    int? caloriesBurned,
+    int? caloriesBurnedPredicted,
+  }) async {
+    if (currentUser == null) throw Exception('Non authentifié');
+
+    final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+    final response = await client
+        .from('daily_nutrition_logs')
+        .upsert({
+          'user_id': currentUser!.id,
+          'date': dateStr,
+          'diet_plan_id': dietPlanId,
+          'meals': meals,
+          'calories_consumed': caloriesConsumed,
+          'calories_burned': caloriesBurned,
+          'calories_burned_predicted': caloriesBurnedPredicted,
+          'updated_at': DateTime.now().toIso8601String(),
+        }, onConflict: 'user_id,date')
+        .select()
+        .single();
+
+    return response;
+  }
+
+  /// Get nutrition logs for date range (for predictions)
+  static Future<List<Map<String, dynamic>>> getNutritionLogsRange({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    if (currentUser == null) return [];
+
+    final startStr = '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
+    final endStr = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+
+    final response = await client
+        .from('daily_nutrition_logs')
+        .select()
+        .eq('user_id', currentUser!.id)
+        .gte('date', startStr)
+        .lte('date', endStr)
+        .order('date', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // ============================================
+  // User Favorite Foods
+  // ============================================
+
+  /// Get all favorite foods for current user
+  static Future<List<Map<String, dynamic>>> getFavoriteFoods() async {
+    if (currentUser == null) return [];
+
+    final response = await client
+        .from('user_favorite_foods')
+        .select()
+        .eq('user_id', currentUser!.id)
+        .order('use_count', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Add a food to favorites
+  static Future<Map<String, dynamic>> addFavoriteFood(Map<String, dynamic> foodData) async {
+    if (currentUser == null) throw Exception('Non authentifié');
+
+    final response = await client
+        .from('user_favorite_foods')
+        .insert({
+          'user_id': currentUser!.id,
+          'food_data': foodData,
+          'use_count': 1,
+          'last_used_at': DateTime.now().toIso8601String(),
+        })
+        .select()
+        .single();
+
+    return response;
+  }
+
+  /// Update favorite food use count
+  static Future<void> updateFavoriteFoodUsage(String id) async {
+    try {
+      // Fetch current count
+      final current = await client
+          .from('user_favorite_foods')
+          .select('use_count')
+          .eq('id', id)
+          .single();
+
+      await client
+          .from('user_favorite_foods')
+          .update({
+            'use_count': (current['use_count'] as int) + 1,
+            'last_used_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', id);
+    } catch (e) {
+      debugPrint('Error updating favorite food usage: $e');
+    }
+  }
+
+  /// Remove a food from favorites
+  static Future<void> removeFavoriteFood(String id) async {
+    await client
+        .from('user_favorite_foods')
+        .delete()
+        .eq('id', id);
+  }
+
+  // ============================================
+  // Meal Templates
+  // ============================================
+
+  /// Get all meal templates for current user
+  static Future<List<Map<String, dynamic>>> getMealTemplates() async {
+    if (currentUser == null) return [];
+
+    final response = await client
+        .from('meal_templates')
+        .select()
+        .eq('user_id', currentUser!.id)
+        .order('created_at', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Create a meal template
+  static Future<Map<String, dynamic>> createMealTemplate({
+    required String name,
+    required List<Map<String, dynamic>> foods,
+  }) async {
+    if (currentUser == null) throw Exception('Non authentifié');
+
+    final response = await client
+        .from('meal_templates')
+        .insert({
+          'user_id': currentUser!.id,
+          'name': name,
+          'foods': foods,
+        })
+        .select()
+        .single();
+
+    return response;
+  }
+
+  /// Delete a meal template
+  static Future<void> deleteMealTemplate(String id) async {
+    await client
+        .from('meal_templates')
+        .delete()
+        .eq('id', id);
+  }
+
+  // ============================================
+  // Community Foods
+  // ============================================
+
+  /// Search community foods by barcode
+  static Future<Map<String, dynamic>?> getCommunityFoodByBarcode(String barcode) async {
+    try {
+      final response = await client
+          .from('community_foods')
+          .select()
+          .eq('barcode', barcode)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Search community foods by name
+  static Future<List<Map<String, dynamic>>> searchCommunityFoods(String query) async {
+    final response = await client
+        .from('community_foods')
+        .select()
+        .ilike('name', '%$query%')
+        .order('use_count', ascending: false)
+        .limit(20);
+
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Contribute a new community food
+  static Future<Map<String, dynamic>> contributeCommunityFood({
+    required String barcode,
+    required String name,
+    String? brand,
+    required Map<String, dynamic> nutritionPer100g,
+    String? imageUrl,
+  }) async {
+    if (currentUser == null) throw Exception('Non authentifié');
+
+    final response = await client
+        .from('community_foods')
+        .insert({
+          'barcode': barcode,
+          'name': name,
+          'brand': brand,
+          'nutrition_per_100g': nutritionPer100g,
+          'image_url': imageUrl,
+          'contributed_by': currentUser!.id,
+        })
+        .select()
+        .single();
+
+    return response;
+  }
+
+  /// Increment community food use count
+  static Future<void> incrementCommunityFoodUseCount(String id) async {
+    try {
+      // Simple approach: fetch current, increment, update
+      final current = await client
+          .from('community_foods')
+          .select('use_count')
+          .eq('id', id)
+          .single();
+
+      await client
+          .from('community_foods')
+          .update({'use_count': (current['use_count'] as int) + 1})
+          .eq('id', id);
+    } catch (e) {
+      debugPrint('Error incrementing community food use count: $e');
+    }
+  }
+
+  // ============================================
   // Assignments (Coach-Student)
   // ============================================
 
@@ -804,5 +1065,162 @@ class SupabaseService {
         .isFilter('read_at', null);
 
     return (response as List).length;
+  }
+
+  // ============================================
+  // Challenges
+  // ============================================
+
+  /// Get all challenges for the current user (created by or participating in)
+  static Future<List<Map<String, dynamic>>> getChallenges() async {
+    if (currentUser == null) return [];
+
+    try {
+      // Get challenges where user is creator or participant
+      final response = await client
+          .from('challenges')
+          .select()
+          .or('creator_id.eq.${currentUser!.id},participants.cs.["${currentUser!.id}"]')
+          .order('created_at', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching challenges: $e');
+      return [];
+    }
+  }
+
+  /// Create a new challenge
+  static Future<Map<String, dynamic>> createChallenge({
+    required String title,
+    required String exerciseName,
+    required String type, // 'weight', 'reps', 'time', 'custom'
+    required double targetValue,
+    required String unit,
+    DateTime? deadline,
+    required List<String> participantIds,
+  }) async {
+    if (currentUser == null) throw Exception('Non authentifié');
+
+    final profile = await getCurrentProfile();
+    final creatorName = profile?['full_name'] ?? 'Utilisateur';
+
+    // Build initial participants list including creator
+    final participants = [
+      {
+        'id': currentUser!.id,
+        'name': creatorName,
+        'avatar_url': profile?['avatar_url'] ?? '',
+        'current_value': 0.0,
+        'has_completed': false,
+      },
+      ...participantIds.map((id) => {
+        'id': id,
+        'current_value': 0.0,
+        'has_completed': false,
+      }),
+    ];
+
+    final response = await client
+        .from('challenges')
+        .insert({
+          'creator_id': currentUser!.id,
+          'creator_name': creatorName,
+          'title': title,
+          'exercise_name': exerciseName,
+          'type': type,
+          'target_value': targetValue,
+          'unit': unit,
+          'deadline': deadline?.toIso8601String(),
+          'status': 'active',
+          'participants': participants,
+        })
+        .select()
+        .single();
+
+    // Create notifications for invited participants
+    for (final participantId in participantIds) {
+      await client.from('notifications').insert({
+        'user_id': participantId,
+        'type': 'challenge_invite',
+        'title': 'Nouveau défi !',
+        'body': '$creatorName t\'a invité au défi "$title"',
+        'metadata': {'challenge_id': response['id']},
+      });
+    }
+
+    return response;
+  }
+
+  /// Join an existing challenge
+  static Future<void> joinChallenge(String challengeId) async {
+    if (currentUser == null) throw Exception('Non authentifié');
+
+    final profile = await getCurrentProfile();
+
+    // Get current challenge
+    final challenge = await client
+        .from('challenges')
+        .select()
+        .eq('id', challengeId)
+        .single();
+
+    final participants = List<Map<String, dynamic>>.from(
+      challenge['participants'] ?? [],
+    );
+
+    // Check if already participating
+    final alreadyIn = participants.any((p) => p['id'] == currentUser!.id);
+    if (alreadyIn) return;
+
+    // Add user to participants
+    participants.add({
+      'id': currentUser!.id,
+      'name': profile?['full_name'] ?? 'Utilisateur',
+      'avatar_url': profile?['avatar_url'] ?? '',
+      'current_value': 0.0,
+      'has_completed': false,
+    });
+
+    await client
+        .from('challenges')
+        .update({'participants': participants})
+        .eq('id', challengeId);
+  }
+
+  /// Update challenge progress for current user
+  static Future<void> updateChallengeProgress(
+    String challengeId,
+    double newValue,
+  ) async {
+    if (currentUser == null) return;
+
+    final challenge = await client
+        .from('challenges')
+        .select()
+        .eq('id', challengeId)
+        .single();
+
+    final participants = List<Map<String, dynamic>>.from(
+      challenge['participants'] ?? [],
+    );
+    final targetValue = (challenge['target_value'] as num?)?.toDouble() ?? 0;
+
+    // Update user's progress
+    for (int i = 0; i < participants.length; i++) {
+      if (participants[i]['id'] == currentUser!.id) {
+        participants[i]['current_value'] = newValue;
+        if (newValue >= targetValue) {
+          participants[i]['has_completed'] = true;
+          participants[i]['completed_at'] = DateTime.now().toIso8601String();
+        }
+        break;
+      }
+    }
+
+    await client
+        .from('challenges')
+        .update({'participants': participants})
+        .eq('id', challengeId);
   }
 }
