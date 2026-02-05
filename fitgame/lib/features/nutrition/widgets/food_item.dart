@@ -15,6 +15,48 @@ class FoodItem extends StatelessWidget {
     required this.onTap,
   });
 
+  /// Builds the quantity text, showing plan vs actual if different
+  Widget _buildQuantityText() {
+    final quantity = food['quantity'] as String;
+    final planQuantity = food['plan_quantity'] as String?;
+
+    // If no plan quantity or they're the same, just show quantity
+    if (planQuantity == null || planQuantity == quantity) {
+      return Text(
+        quantity,
+        style: FGTypography.caption.copyWith(
+          color: FGColors.textSecondary,
+          fontSize: 11,
+        ),
+      );
+    }
+
+    // Show actual / plan prévu format
+    return RichText(
+      text: TextSpan(
+        style: FGTypography.caption.copyWith(
+          color: FGColors.textSecondary,
+          fontSize: 11,
+        ),
+        children: [
+          TextSpan(
+            text: quantity,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          TextSpan(
+            text: ' / $planQuantity prévu',
+            style: TextStyle(
+              color: FGColors.textSecondary.withValues(alpha: 0.6),
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -32,13 +74,7 @@ class FoodItem extends StatelessWidget {
                     food['name'] as String,
                     style: FGTypography.body.copyWith(fontSize: 14),
                   ),
-                  Text(
-                    food['quantity'] as String,
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary,
-                      fontSize: 11,
-                    ),
-                  ),
+                  _buildQuantityText(),
                 ],
               ),
             ),
