@@ -5,14 +5,18 @@ import '../../core/theme/fg_colors.dart';
 import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/services/supabase_service.dart';
+import '../../core/services/health_service.dart';
 import 'sheets/goal_selector_sheet.dart';
 import 'sheets/food_library_sheet.dart';
 import 'sheets/edit_food_sheet.dart';
 import 'sheets/duplicate_day_sheet.dart';
+import 'sheets/nutrition_scanner_sheet.dart';
+import 'sheets/edit_plan_sheet.dart';
 import 'widgets/quick_action_button.dart';
 import 'widgets/meal_card.dart';
 import 'widgets/macro_dashboard.dart';
 import 'widgets/day_selector.dart';
+import 'widgets/calorie_balance_card.dart';
 import 'create/diet_creation_flow.dart';
 
 class NutritionScreen extends StatefulWidget {
@@ -45,6 +49,11 @@ class _NutritionScreenState extends State<NutritionScreen>
 
   // Realtime listener reference
   void Function(Map<String, dynamic>)? _assignmentListener;
+
+  // Health data for calorie balance
+  int _caloriesBurned = 0;
+  int? _caloriesPredicted;
+  bool _isLoadingHealth = true;
 
   // === MACRO TARGETS ===
   // Macro targets based on goal and training/rest day (mutable for coach plans)
@@ -172,6 +181,7 @@ class _NutritionScreenState extends State<NutritionScreen>
     _dayPageController = PageController(initialPage: _selectedDayIndex);
 
     _loadData();
+    _loadHealthData();
     _subscribeToAssignments();
   }
 
@@ -230,6 +240,39 @@ class _NutritionScreenState extends State<NutritionScreen>
       });
     } catch (e) {
       debugPrint('Error loading nutrition data: $e');
+    }
+  }
+
+  Future<void> _loadHealthData() async {
+    setState(() => _isLoadingHealth = true);
+
+    try {
+      final healthService = HealthService();
+
+      // Check/request authorization
+      if (!healthService.isAuthorized) {
+        await healthService.requestAuthorization();
+      }
+
+      // Get today's activity data
+      final today = DateTime.now();
+      final activity = await healthService.getActivityData(today);
+
+      // Get prediction
+      final predicted = await healthService.predictDailyCalories();
+
+      if (mounted) {
+        setState(() {
+          _caloriesBurned = activity?.totalCaloriesBurned ?? 0;
+          _caloriesPredicted = predicted;
+          _isLoadingHealth = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading health data: $e');
+      if (mounted) {
+        setState(() => _isLoadingHealth = false);
+      }
     }
   }
 
@@ -571,15 +614,80 @@ class _NutritionScreenState extends State<NutritionScreen>
                 ],
               ),
             ),
-            if (!isActive)
+            // Edit button
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.pop(context); // Close selector first
+                _showEditPlanSheet(plan, isFromCoach: isFromCoach);
+              },
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: FGColors.glassBorder,
+                  borderRadius: BorderRadius.circular(Spacing.sm),
+                ),
+                child: const Icon(
+                  Icons.edit_outlined,
+                  color: FGColors.textSecondary,
+                  size: 18,
+                ),
+              ),
+            ),
+            if (!isActive) ...[
+              const SizedBox(width: Spacing.sm),
               const Icon(
                 Icons.chevron_right_rounded,
                 color: FGColors.textSecondary,
               ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  void _showEditPlanSheet(Map<String, dynamic> plan, {required bool isFromCoach}) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => EditPlanSheet(
+        plan: plan,
+        isFromCoach: isFromCoach,
+        onSave: () {
+          Navigator.pop(context);
+          _loadData(); // Reload to get updated data
+        },
+        onDelete: () {
+          Navigator.pop(context);
+          _handlePlanDeleted(plan);
+        },
+      ),
+    );
+  }
+
+  void _handlePlanDeleted(Map<String, dynamic> deletedPlan) {
+    // If deleted plan was active, need to select another
+    final wasActive = _activePlan == deletedPlan;
+
+    // Reload data
+    _loadData();
+
+    if (wasActive) {
+      // Will auto-select first available plan in _loadData
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Plan supprimé - nouveau plan activé'),
+          backgroundColor: FGColors.warning,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -895,7 +1003,7 @@ class _NutritionScreenState extends State<NutritionScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Day title + training badge
+          // Day title + training/rest toggle
           Row(
             children: [
               Text(
@@ -903,48 +1011,86 @@ class _NutritionScreenState extends State<NutritionScreen>
                 style: FGTypography.h2,
               ),
               const SizedBox(width: Spacing.sm),
-              if (isTraining)
-                Container(
+              // Tappable training/rest badge
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    if (_trainingDays.contains(dayIndex)) {
+                      _trainingDays.remove(dayIndex);
+                    } else {
+                      _trainingDays.add(dayIndex);
+                    }
+                  });
+                },
+                child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: Spacing.sm,
                     vertical: Spacing.xs,
                   ),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        FGColors.accent,
-                        FGColors.accent.withValues(alpha: 0.7),
-                      ],
-                    ),
+                    gradient: isTraining
+                        ? LinearGradient(
+                            colors: [
+                              FGColors.accent,
+                              FGColors.accent.withValues(alpha: 0.7),
+                            ],
+                          )
+                        : null,
+                    color: isTraining ? null : FGColors.glassSurface,
                     borderRadius: BorderRadius.circular(Spacing.xs),
+                    border: isTraining
+                        ? null
+                        : Border.all(color: FGColors.glassBorder),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.fitness_center_rounded,
-                        color: FGColors.textOnAccent,
+                      Icon(
+                        isTraining
+                            ? Icons.fitness_center_rounded
+                            : Icons.bedtime_rounded,
+                        color: isTraining
+                            ? FGColors.textOnAccent
+                            : FGColors.textSecondary,
                         size: 12,
                       ),
                       const SizedBox(width: 4),
-                      Flexible(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            'ENTRAÎNEMENT',
-                            style: FGTypography.caption.copyWith(
-                              color: FGColors.textOnAccent,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 9,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
+                      Text(
+                        isTraining ? 'TRAINING' : 'REPOS',
+                        style: FGTypography.caption.copyWith(
+                          color: isTraining
+                              ? FGColors.textOnAccent
+                              : FGColors.textSecondary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 9,
+                          letterSpacing: 0.5,
                         ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.swap_horiz_rounded,
+                        color: isTraining
+                            ? FGColors.textOnAccent.withValues(alpha: 0.7)
+                            : FGColors.textSecondary.withValues(alpha: 0.7),
+                        size: 10,
                       ),
                     ],
                   ),
                 ),
+              ),
             ],
+          ),
+          const SizedBox(height: Spacing.lg),
+
+          // Calorie Balance Card
+          CalorieBalanceCard(
+            caloriesConsumed: dayTotals['cal'] ?? 0,
+            caloriesBurned: _caloriesBurned,
+            caloriesPredicted: _caloriesPredicted,
+            calorieTarget: target,
+            goalType: _goalType,
+            isLoading: _isLoadingHealth,
           ),
           const SizedBox(height: Spacing.lg),
 
@@ -975,16 +1121,265 @@ class _NutritionScreenState extends State<NutritionScreen>
     final dayPlan = _weeklyPlan[dayIndex];
     final meals = dayPlan['meals'] as List;
 
-    return meals.map<Widget>((meal) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: Spacing.md),
-        child: MealCard(
-          meal: meal,
-          onAddFood: () => _showFoodLibrary(dayIndex, meal['name'] as String),
-          onEditFood: (food) => _showEditFood(dayIndex, meal['name'] as String, food),
+    final widgets = <Widget>[];
+
+    for (int i = 0; i < meals.length; i++) {
+      final meal = meals[i];
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: Spacing.md),
+          child: MealCard(
+            meal: meal,
+            onAddFood: () => _showFoodLibrary(dayIndex, meal['name'] as String),
+            onEditFood: (food) => _showEditFood(dayIndex, meal['name'] as String, food),
+            canDelete: meals.length > 1, // Can delete if more than 1 meal
+            onDelete: meals.length > 1
+                ? () => _confirmDeleteMeal(dayIndex, i)
+                : null,
+          ),
         ),
       );
-    }).toList();
+    }
+
+    // Add meal button
+    widgets.add(
+      Padding(
+        padding: const EdgeInsets.only(bottom: Spacing.md),
+        child: GestureDetector(
+          onTap: () => _showAddMealDialog(dayIndex),
+          child: Container(
+            padding: const EdgeInsets.all(Spacing.lg),
+            decoration: BoxDecoration(
+              color: FGColors.glassSurface.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(Spacing.lg),
+              border: Border.all(
+                color: FGColors.glassBorder,
+                style: BorderStyle.solid,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_rounded,
+                  color: FGColors.textSecondary,
+                  size: 20,
+                ),
+                const SizedBox(width: Spacing.sm),
+                Text(
+                  'Ajouter un repas',
+                  style: FGTypography.body.copyWith(
+                    color: FGColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    return widgets;
+  }
+
+  void _showAddMealDialog(int dayIndex) {
+    final controller = TextEditingController();
+    HapticFeedback.lightImpact();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FGColors.glassSurface,
+        title: Text('Nouveau repas', style: FGTypography.h3),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Nom du repas',
+              style: FGTypography.caption.copyWith(color: FGColors.textSecondary),
+            ),
+            const SizedBox(height: Spacing.sm),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: FGTypography.body,
+              decoration: InputDecoration(
+                hintText: 'Ex: Collation, Pré-workout...',
+                hintStyle: FGTypography.body.copyWith(
+                  color: FGColors.textSecondary.withValues(alpha: 0.5),
+                ),
+                filled: true,
+                fillColor: FGColors.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(Spacing.sm),
+                  borderSide: BorderSide(color: FGColors.glassBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(Spacing.sm),
+                  borderSide: BorderSide(color: FGColors.glassBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(Spacing.sm),
+                  borderSide: BorderSide(color: FGColors.accent),
+                ),
+              ),
+            ),
+            const SizedBox(height: Spacing.md),
+            // Quick preset buttons
+            Wrap(
+              spacing: Spacing.sm,
+              runSpacing: Spacing.sm,
+              children: [
+                _buildMealPresetChip(controller, 'Petit-déjeuner', Icons.wb_sunny_rounded),
+                _buildMealPresetChip(controller, 'Brunch', Icons.brunch_dining),
+                _buildMealPresetChip(controller, 'Déjeuner', Icons.restaurant_rounded),
+                _buildMealPresetChip(controller, 'Collation', Icons.apple),
+                _buildMealPresetChip(controller, 'Goûter', Icons.cookie),
+                _buildMealPresetChip(controller, 'Pré-workout', Icons.fitness_center),
+                _buildMealPresetChip(controller, 'Post-workout', Icons.sports_score),
+                _buildMealPresetChip(controller, 'Dîner', Icons.nights_stay_rounded),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Annuler',
+              style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isNotEmpty) {
+                _addMealToDay(dayIndex, name);
+                Navigator.pop(context);
+              }
+            },
+            child: Text(
+              'Ajouter',
+              style: FGTypography.body.copyWith(color: FGColors.accent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMealPresetChip(TextEditingController controller, String name, IconData icon) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        controller.text = name;
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.sm,
+          vertical: Spacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: FGColors.glassBorder,
+          borderRadius: BorderRadius.circular(Spacing.sm),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: FGColors.textSecondary),
+            const SizedBox(width: 4),
+            Text(
+              name,
+              style: FGTypography.caption.copyWith(
+                color: FGColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _addMealToDay(int dayIndex, String mealName) {
+    setState(() {
+      final meals = _weeklyPlan[dayIndex]['meals'] as List;
+      meals.add({
+        'name': mealName,
+        'icon': _getMealIcon(mealName),
+        'foods': <Map<String, dynamic>>[],
+      });
+    });
+    _saveDietPlanChanges();
+    HapticFeedback.mediumImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Repas "$mealName" ajouté'),
+        backgroundColor: FGColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteMeal(int dayIndex, int mealIndex) {
+    final meals = _weeklyPlan[dayIndex]['meals'] as List;
+    final mealName = meals[mealIndex]['name'] as String;
+
+    HapticFeedback.lightImpact();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FGColors.glassSurface,
+        title: Text('Supprimer "$mealName" ?', style: FGTypography.h3),
+        content: Text(
+          'Ce repas et tous ses aliments seront supprimés.',
+          style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Annuler',
+              style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              _deleteMeal(dayIndex, mealIndex);
+              Navigator.pop(context);
+            },
+            child: Text(
+              'Supprimer',
+              style: FGTypography.body.copyWith(color: FGColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteMeal(int dayIndex, int mealIndex) {
+    final meals = _weeklyPlan[dayIndex]['meals'] as List;
+    final mealName = meals[mealIndex]['name'] as String;
+
+    setState(() {
+      meals.removeAt(mealIndex);
+    });
+    _saveDietPlanChanges();
+    HapticFeedback.heavyImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Repas "$mealName" supprimé'),
+        backgroundColor: FGColors.warning,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
   }
 
   Widget _buildQuickActions(int dayIndex) {
@@ -1119,12 +1514,27 @@ class _NutritionScreenState extends State<NutritionScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => FoodLibrarySheet(
+      builder: (sheetContext) => FoodLibrarySheet(
         onSelectFood: (food) {
           _addFoodToMeal(dayIndex, mealName, food);
-          Navigator.pop(context);
+          Navigator.pop(sheetContext);
+        },
+        onScanRequested: () {
+          // Sheet already popped itself, now show scanner
+          Future.delayed(const Duration(milliseconds: 100), () {
+            _showNutritionScanner(dayIndex, mealName);
+          });
         },
       ),
+    );
+  }
+
+  void _showNutritionScanner(int dayIndex, String mealName) {
+    showNutritionScannerSheet(
+      context,
+      onFoodScanned: (food) {
+        _addFoodToMeal(dayIndex, mealName, food);
+      },
     );
   }
 
@@ -1138,6 +1548,7 @@ class _NutritionScreenState extends State<NutritionScreen>
         }
       }
     });
+    _saveDietPlanChanges(); // Persist to Supabase
     HapticFeedback.mediumImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1184,6 +1595,7 @@ class _NutritionScreenState extends State<NutritionScreen>
         }
       }
     });
+    _saveDietPlanChanges(); // Persist to Supabase
     HapticFeedback.mediumImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1207,6 +1619,7 @@ class _NutritionScreenState extends State<NutritionScreen>
         }
       }
     });
+    _saveDietPlanChanges(); // Persist to Supabase
     HapticFeedback.mediumImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1254,6 +1667,7 @@ class _NutritionScreenState extends State<NutritionScreen>
         }
       }
     });
+    _saveDietPlanChanges(); // Persist to Supabase
     HapticFeedback.heavyImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1311,6 +1725,7 @@ class _NutritionScreenState extends State<NutritionScreen>
         (meal['foods'] as List).clear();
       }
     });
+    _saveDietPlanChanges(); // Persist to Supabase
     HapticFeedback.heavyImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1322,6 +1737,53 @@ class _NutritionScreenState extends State<NutritionScreen>
         ),
       ),
     );
+  }
+
+  /// Save current diet plan changes to Supabase
+  Future<void> _saveDietPlanChanges() async {
+    if (_activePlan == null || _activePlan!['id'] == null) {
+      // No active plan to update - create one if needed
+      return;
+    }
+
+    try {
+      // Convert _weeklyPlan to meals format for Supabase
+      // We'll save the meals from Monday as the template (since meals repeat)
+      final mealsForSave = (_weeklyPlan[0]['meals'] as List).map((meal) {
+        return {
+          'name': meal['name'],
+          'foods': (meal['foods'] as List).map((food) {
+            return {
+              'name': food['name'],
+              'quantity': food['quantity'] ?? '',
+              'calories': food['cal'] ?? 0,
+              'protein': food['p'] ?? 0,
+              'carbs': food['c'] ?? 0,
+              'fat': food['f'] ?? 0,
+            };
+          }).toList(),
+        };
+      }).toList();
+
+      await SupabaseService.updateDietPlan(
+        _activePlan!['id'] as String,
+        {'meals': mealsForSave},
+      );
+    } catch (e) {
+      debugPrint('Error saving diet plan: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Erreur lors de la sauvegarde'),
+            backgroundColor: FGColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 }
 
