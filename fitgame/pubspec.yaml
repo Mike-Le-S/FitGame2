@@ -58,6 +58,9 @@ dependencies:
   # Barcode scanner
   mobile_scanner: ^5.1.1
 
+  # HTTP requests
+  http: ^1.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
