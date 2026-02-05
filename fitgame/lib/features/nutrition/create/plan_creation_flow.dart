@@ -4,6 +4,7 @@ import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/constants/spacing.dart';
 import '../../../core/services/supabase_service.dart';
+import '../sheets/food_add_sheet.dart';
 
 class PlanCreationFlow extends StatefulWidget {
   final Map<String, dynamic>? existingPlan; // null = create, not null = edit
@@ -42,6 +43,9 @@ class _PlanCreationFlowState extends State<PlanCreationFlow> {
   }
 
   void _initializeData() {
+    // Always initialize schedule with defaults first
+    _weeklySchedule = {0: 0, 1: 1, 2: 0, 3: 1, 4: 0, 5: 1, 6: 1};
+
     if (widget.existingPlan != null) {
       // Edit mode - load existing data
       final plan = widget.existingPlan!;
@@ -51,22 +55,91 @@ class _PlanCreationFlowState extends State<PlanCreationFlow> {
       _restCalories = plan['rest_calories'] as int? ?? 2500;
       _loadExistingDayTypes();
     } else {
-      // Create mode - initialize with defaults
+      // Create mode - initialize with example day types
       _dayTypes = [
         {
           'name': 'Jour entraînement',
           'emoji': '🏋️',
-          'meals': _getDefaultMeals(),
+          'meals': _getTrainingDayMeals(),
         },
         {
           'name': 'Jour repos',
           'emoji': '😴',
-          'meals': _getDefaultMeals(),
+          'meals': _getRestDayMeals(),
         },
       ];
-      // Default schedule: Mon/Wed/Fri = training, rest otherwise
-      _weeklySchedule = {0: 0, 1: 1, 2: 0, 3: 1, 4: 0, 5: 1, 6: 1};
     }
+  }
+
+  List<Map<String, dynamic>> _getTrainingDayMeals() {
+    return [
+      {
+        'name': 'Petit-déjeuner',
+        'foods': [
+          {'name': 'Flocons d\'avoine', 'quantity': '80g', 'cal': 300, 'p': 10, 'c': 54, 'f': 6},
+          {'name': 'Banane', 'quantity': '1 moyenne', 'cal': 105, 'p': 1, 'c': 27, 'f': 0},
+          {'name': 'Whey protéine', 'quantity': '30g', 'cal': 120, 'p': 24, 'c': 3, 'f': 1},
+        ],
+      },
+      {
+        'name': 'Déjeuner',
+        'foods': [
+          {'name': 'Poulet grillé', 'quantity': '150g', 'cal': 248, 'p': 46, 'c': 0, 'f': 5},
+          {'name': 'Riz basmati', 'quantity': '200g cuit', 'cal': 260, 'p': 5, 'c': 57, 'f': 0},
+          {'name': 'Légumes verts', 'quantity': '150g', 'cal': 50, 'p': 3, 'c': 8, 'f': 0},
+        ],
+      },
+      {
+        'name': 'Collation post-training',
+        'foods': [
+          {'name': 'Whey protéine', 'quantity': '30g', 'cal': 120, 'p': 24, 'c': 3, 'f': 1},
+          {'name': 'Banane', 'quantity': '1 moyenne', 'cal': 105, 'p': 1, 'c': 27, 'f': 0},
+        ],
+      },
+      {
+        'name': 'Dîner',
+        'foods': [
+          {'name': 'Saumon', 'quantity': '150g', 'cal': 280, 'p': 34, 'c': 0, 'f': 15},
+          {'name': 'Patate douce', 'quantity': '200g', 'cal': 180, 'p': 4, 'c': 41, 'f': 0},
+          {'name': 'Brocoli', 'quantity': '150g', 'cal': 50, 'p': 4, 'c': 10, 'f': 0},
+        ],
+      },
+    ];
+  }
+
+  List<Map<String, dynamic>> _getRestDayMeals() {
+    return [
+      {
+        'name': 'Petit-déjeuner',
+        'foods': [
+          {'name': 'Œufs brouillés', 'quantity': '3 œufs', 'cal': 210, 'p': 18, 'c': 2, 'f': 15},
+          {'name': 'Pain complet', 'quantity': '2 tranches', 'cal': 160, 'p': 6, 'c': 30, 'f': 2},
+        ],
+      },
+      {
+        'name': 'Déjeuner',
+        'foods': [
+          {'name': 'Poulet grillé', 'quantity': '120g', 'cal': 198, 'p': 37, 'c': 0, 'f': 4},
+          {'name': 'Quinoa', 'quantity': '150g cuit', 'cal': 180, 'p': 6, 'c': 32, 'f': 3},
+          {'name': 'Salade composée', 'quantity': '200g', 'cal': 80, 'p': 3, 'c': 10, 'f': 3},
+        ],
+      },
+      {
+        'name': 'Collation',
+        'foods': [
+          {'name': 'Fromage blanc 0%', 'quantity': '150g', 'cal': 75, 'p': 12, 'c': 6, 'f': 0},
+          {'name': 'Amandes', 'quantity': '20g', 'cal': 116, 'p': 4, 'c': 4, 'f': 10},
+        ],
+      },
+      {
+        'name': 'Dîner',
+        'foods': [
+          {'name': 'Cabillaud', 'quantity': '150g', 'cal': 120, 'p': 27, 'c': 0, 'f': 1},
+          {'name': 'Haricots verts', 'quantity': '200g', 'cal': 62, 'p': 4, 'c': 10, 'f': 0},
+          {'name': 'Riz complet', 'quantity': '150g cuit', 'cal': 165, 'p': 4, 'c': 35, 'f': 1},
+        ],
+      },
+    ];
   }
 
   List<Map<String, dynamic>> _getDefaultMeals() {
@@ -1058,53 +1131,202 @@ class _DayTypeEditorSheetState extends State<_DayTypeEditorSheet> {
             ],
           ),
           const SizedBox(height: Spacing.md),
-          ...List.generate(_meals.length, (index) {
-            final meal = _meals[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: Spacing.sm),
-              child: Container(
-                padding: const EdgeInsets.all(Spacing.md),
-                decoration: BoxDecoration(
-                  color: FGColors.glassSurface.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(Spacing.md),
-                  border: Border.all(color: FGColors.glassBorder),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.drag_handle, color: FGColors.textSecondary, size: 20),
-                    const SizedBox(width: Spacing.sm),
-                    Expanded(
-                      child: TextField(
-                        controller: TextEditingController(text: meal['name'] as String? ?? ''),
-                        style: FGTypography.body,
-                        onChanged: (value) {
-                          _meals[index]['name'] = value;
-                        },
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
+          ...List.generate(_meals.length, (index) => _buildMealCard(index)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMealCard(int index) {
+    final meal = _meals[index];
+    final foods = (meal['foods'] as List?) ?? [];
+    final mealName = meal['name'] as String? ?? 'Repas';
+    final totalCal = foods.fold<int>(0, (sum, f) => sum + ((f['cal'] as int?) ?? 0));
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Spacing.md),
+      child: Container(
+        decoration: BoxDecoration(
+          color: FGColors.glassSurface.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(Spacing.md),
+          border: Border.all(color: FGColors.glassBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Meal header
+            Padding(
+              padding: const EdgeInsets.all(Spacing.md),
+              child: Row(
+                children: [
+                  Icon(Icons.restaurant_rounded, color: FGColors.textSecondary, size: 20),
+                  const SizedBox(width: Spacing.sm),
+                  Expanded(
+                    child: TextField(
+                      controller: TextEditingController(text: mealName),
+                      style: FGTypography.body.copyWith(fontWeight: FontWeight.w600),
+                      onChanged: (value) {
+                        _meals[index]['name'] = value;
+                      },
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                  if (totalCal > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Spacing.sm,
+                        vertical: Spacing.xs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2ECC71).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(Spacing.xs),
+                      ),
+                      child: Text(
+                        '$totalCal kcal',
+                        style: FGTypography.caption.copyWith(
+                          color: const Color(0xFF2ECC71),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    if (_meals.length > 1)
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.mediumImpact();
-                          setState(() => _meals.removeAt(index));
-                        },
-                        child: Icon(
-                          Icons.remove_circle_outline,
-                          color: FGColors.error,
-                          size: 20,
-                        ),
+                  if (_meals.length > 1) ...[
+                    const SizedBox(width: Spacing.sm),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.mediumImpact();
+                        setState(() => _meals.removeAt(index));
+                      },
+                      child: Icon(
+                        Icons.remove_circle_outline,
+                        color: FGColors.error,
+                        size: 20,
                       ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Foods list
+            if (foods.isNotEmpty) ...[
+              Divider(height: 1, color: FGColors.glassBorder),
+              ...foods.asMap().entries.map((entry) {
+                final foodIndex = entry.key;
+                final food = entry.value as Map<String, dynamic>;
+                return _buildFoodItem(index, foodIndex, food);
+              }),
+            ],
+
+            // Add food button
+            Divider(height: 1, color: FGColors.glassBorder),
+            GestureDetector(
+              onTap: () => _addFoodToMeal(index),
+              child: Padding(
+                padding: const EdgeInsets.all(Spacing.md),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_rounded, color: FGColors.textSecondary, size: 18),
+                    const SizedBox(width: Spacing.xs),
+                    Text(
+                      'Ajouter un aliment',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ],
                 ),
               ),
-            );
-          }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFoodItem(int mealIndex, int foodIndex, Map<String, dynamic> food) {
+    final name = food['name'] as String? ?? 'Aliment';
+    final cal = food['cal'] as int? ?? 0;
+    final quantity = food['quantity'] as String? ?? '';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.md,
+        vertical: Spacing.sm,
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: Spacing.lg), // Indent
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: FGTypography.bodySmall.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (quantity.isNotEmpty)
+                  Text(
+                    quantity,
+                    style: FGTypography.caption.copyWith(
+                      color: FGColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Text(
+            '$cal kcal',
+            style: FGTypography.caption.copyWith(
+              color: FGColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: Spacing.sm),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              setState(() {
+                (_meals[mealIndex]['foods'] as List).removeAt(foodIndex);
+              });
+            },
+            child: Icon(
+              Icons.close_rounded,
+              color: FGColors.textSecondary,
+              size: 16,
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  void _addFoodToMeal(int mealIndex) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FoodAddSheet(
+        onSelectFood: (food) {
+          Navigator.pop(context);
+          setState(() {
+            if (_meals[mealIndex]['foods'] == null) {
+              _meals[mealIndex]['foods'] = [];
+            }
+            (_meals[mealIndex]['foods'] as List).add(food);
+          });
+        },
       ),
     );
   }

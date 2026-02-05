@@ -19,7 +19,13 @@
 - Étape 1 : Infos du plan (nom, objectif, calories training/repos)
 - Étape 2 : Types de jour (créer, éditer, supprimer des types)
 - Étape 3 : Planning semaine (assigner types aux jours)
-- Éditeur intégré pour configurer les repas de chaque type
+- Types de jour pré-remplis avec exemples (Jour entraînement, Jour repos)
+  - Aliments d'exemple pour aider à comprendre le concept
+- Éditeur de type de jour amélioré :
+  - Affiche les aliments de chaque repas avec calories
+  - Bouton "Ajouter un aliment" ouvre FoodAddSheet
+  - Suppression d'aliments individuelle
+  - Total kcal par repas affiché
 
 #### PlansModalSheet (sheets/plans_modal_sheet.dart)
 - **Nouveau modal** : Gestion des plans
@@ -47,6 +53,38 @@
 - Le Plan est un template qui dure des semaines/mois
 - Modifications dans la vue quotidienne = temporaires (daily_nutrition_logs)
 - Modifications du plan = permanentes pour tous les jours futurs
+
+#### Base de données bilingue FR/EN intégrée
+- **10,187 aliments** avec données nutritionnelles complètes
+- Sources combinées :
+  - **CIQUAL 2020 (ANSES)** : 2,297 aliments français
+  - **USDA FoodData Central** : 7,890 aliments anglais
+- Fichier local `assets/data/food_database.json` (7.5 MB)
+- Recherche en **français ET anglais** ("poulet" ou "chicken")
+- **30 nutriments** par aliment :
+  - Macros : calories, protéines, glucides, lipides, fibres, sucres
+  - Lipides détaillés : saturés, mono, poly, trans, cholestérol
+  - Minéraux : sodium, potassium, calcium, fer, magnésium, zinc, phosphore, sélénium
+  - Vitamines : A, C, D, E, K, B1, B2, B3, B6, B12, folate
+
+#### FoodDatabaseService (core/services/food_database_service.dart)
+- Chargement lazy depuis les assets
+- Recherche bilingue avec scoring (FR prioritaire, puis EN)
+- Conversion → format app (`toAppFormat()`)
+- Index par catégorie pour navigation
+
+#### FoodAddSheet amélioré
+- Recherche temps réel dans 10,187 aliments
+- Affiche "X aliments (FR + EN)" dans le header
+- Résultats avec nom, catégorie, calories, protéines
+- Suggestions bilingues si aucun résultat
+
+#### FoodQuantitySheet (sheets/food_quantity_sheet.dart)
+- **Nouveau sheet** : Ajustement de la quantité avant ajout
+- Saisie manuelle ou boutons +/- (par 10g, long press = 50g)
+- Presets rapides : 50g, 100g, 150g, 200g, 250g, 300g
+- Calcul automatique des macros en temps réel
+- Affichage calories, protéines, glucides, lipides, fibres
 
 ---
 
