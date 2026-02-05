@@ -109,29 +109,69 @@ class FoodDatabaseService {
   int _scoreMatch(String name, String query, List<String> words, {int bonus = 0}) {
     if (name.isEmpty) return 0;
 
-    // Exact match = highest score
-    if (name == query) {
-      return 1000 + bonus;
+    // Normalize: remove accents for comparison
+    final nameNorm = _normalize(name);
+    final queryNorm = _normalize(query);
+    final wordsNorm = words.map(_normalize).toList();
+
+    // 1. Exact match = highest score
+    if (nameNorm == queryNorm) {
+      return 10000 + bonus;
     }
-    // Starts with query = high score
-    if (name.startsWith(query)) {
-      return 500 + bonus;
+
+    // 2. Name starts with exact query (e.g., "huile d'olive" matches "Huile d'olive vierge")
+    if (nameNorm.startsWith(queryNorm)) {
+      // Shorter names score higher (more specific)
+      return 5000 + (200 - name.length).clamp(0, 100) + bonus;
     }
-    // Contains all words = medium score
-    if (words.every((w) => name.contains(w))) {
-      return 100 + (100 - name.length).clamp(0, 50) + bonus;
+
+    // 3. Query is contained as a whole phrase
+    if (nameNorm.contains(queryNorm)) {
+      // Position matters: earlier = better
+      final pos = nameNorm.indexOf(queryNorm);
+      final posBonus = (100 - pos).clamp(0, 100);
+      // Shorter names score higher
+      final lengthBonus = (100 - name.length).clamp(0, 50);
+      return 2000 + posBonus + lengthBonus + bonus;
     }
-    // Contains query = lower score
-    if (name.contains(query)) {
-      return 50 + bonus;
+
+    // 4. All words present (in any order)
+    if (wordsNorm.every((w) => nameNorm.contains(w))) {
+      // Check if words appear in order
+      bool inOrder = true;
+      int lastIndex = -1;
+      for (final w in wordsNorm) {
+        final idx = nameNorm.indexOf(w, lastIndex + 1);
+        if (idx <= lastIndex) {
+          inOrder = false;
+          break;
+        }
+        lastIndex = idx;
+      }
+      final orderBonus = inOrder ? 200 : 0;
+      final lengthBonus = (100 - name.length).clamp(0, 50);
+      return 500 + orderBonus + lengthBonus + bonus;
     }
-    // Contains any word
-    final matchCount = words.where((w) => name.contains(w)).length;
+
+    // 5. Most words present
+    final matchCount = wordsNorm.where((w) => nameNorm.contains(w)).length;
     if (matchCount > 0) {
-      return matchCount * 10 + bonus;
+      final ratio = matchCount / wordsNorm.length;
+      return (ratio * 200).round() + bonus;
     }
 
     return 0;
+  }
+
+  /// Normalize string: lowercase and remove accents
+  String _normalize(String s) {
+    const accents = 'àáâãäåèéêëìíîïòóôõöùúûüýÿñç';
+    const normal = 'aaaaaaeeeeiiiiooooouuuuyync';
+    var result = s.toLowerCase();
+    for (int i = 0; i < accents.length; i++) {
+      result = result.replaceAll(accents[i], normal[i]);
+    }
+    return result;
   }
 
   /// Get foods by category
