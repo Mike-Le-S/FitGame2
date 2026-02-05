@@ -55,6 +55,11 @@ class _NutritionScreenState extends State<NutritionScreen>
   int? _caloriesPredicted;
   bool _isLoadingHealth = true;
 
+  // Daily tracking (separate from plan)
+  Map<String, dynamic>? _todayLog;
+  List<Map<String, dynamic>> _trackingWeeklyPlan = [];
+  bool _isTrackingMode = true; // true = editing daily log, false = editing plan
+
   // === MACRO TARGETS ===
   // Macro targets based on goal and training/rest day (mutable for coach plans)
   Map<String, Map<String, int>> _macroTargets = {
@@ -238,10 +243,80 @@ class _NutritionScreenState extends State<NutritionScreen>
           _applyDietPlan(myPlans.first, isFromCoach: false);
         }
       });
+
+      // Load today's tracking log
+      await _loadOrCreateTodayLog();
     } catch (e) {
       debugPrint('Error loading nutrition data: $e');
     }
   }
+
+  Future<void> _loadOrCreateTodayLog() async {
+    if (!SupabaseService.isAuthenticated) return;
+
+    final today = DateTime.now();
+
+    try {
+      // Try to load existing log
+      var log = await SupabaseService.getNutritionLog(today);
+
+      if (log == null && _activePlan != null) {
+        // Create new log from active plan
+        final planMeals = _weeklyPlan[_getTodayIndex()]['meals'] as List;
+        final mealsForLog = planMeals.map((meal) {
+          return {
+            'name': meal['name'],
+            'icon': meal['icon'].toString(),
+            'foods': (meal['foods'] as List).map((f) => Map<String, dynamic>.from(f)).toList(),
+            'plan_foods': (meal['foods'] as List).map((f) => Map<String, dynamic>.from(f)).toList(),
+          };
+        }).toList();
+
+        log = await SupabaseService.upsertNutritionLog(
+          date: today,
+          dietPlanId: _activePlan!['id'] as String?,
+          meals: mealsForLog,
+          caloriesConsumed: _getDayTotals(_getTodayIndex())['cal'] ?? 0,
+        );
+      }
+
+      if (mounted && log != null) {
+        setState(() {
+          _todayLog = log;
+          _applyLogToTrackingPlan(log!);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading daily log: $e');
+    }
+  }
+
+  void _applyLogToTrackingPlan(Map<String, dynamic> log) {
+    final logMeals = log['meals'] as List? ?? [];
+
+    // Create tracking weekly plan from log for today
+    _trackingWeeklyPlan = List.generate(7, (index) {
+      if (index == _getTodayIndex()) {
+        return {
+          'meals': logMeals.map((meal) {
+            return {
+              'name': meal['name'],
+              'icon': _getMealIcon(meal['name'] as String? ?? ''),
+              'foods': (meal['foods'] as List? ?? []).map((f) => Map<String, dynamic>.from(f)).toList(),
+              'plan_foods': (meal['plan_foods'] as List? ?? []).map((f) => Map<String, dynamic>.from(f)).toList(),
+            };
+          }).toList(),
+        };
+      }
+      return _weeklyPlan.isNotEmpty ? _weeklyPlan[index] : {'meals': []};
+    });
+  }
+
+  int _getTodayIndex() {
+    return DateTime.now().weekday - 1; // 0 = Monday
+  }
+
+  bool get _isToday => _selectedDayIndex == _getTodayIndex();
 
   Future<void> _loadHealthData() async {
     setState(() => _isLoadingHealth = true);
@@ -703,15 +778,24 @@ class _NutritionScreenState extends State<NutritionScreen>
 
   // Calculate daily totals
   Map<String, int> _getDayTotals(int dayIndex) {
-    final dayPlan = _weeklyPlan[dayIndex];
+    // Use tracking plan for today, regular plan for other days
+    final targetPlan = (_isTrackingMode && dayIndex == _getTodayIndex())
+        ? _trackingWeeklyPlan
+        : _weeklyPlan;
+
+    if (targetPlan.isEmpty || dayIndex >= targetPlan.length) {
+      return {'cal': 0, 'p': 0, 'c': 0, 'f': 0};
+    }
+
+    final dayPlan = targetPlan[dayIndex];
     int totalCal = 0, totalP = 0, totalC = 0, totalF = 0;
 
     for (final meal in dayPlan['meals'] as List) {
       for (final food in meal['foods'] as List) {
-        totalCal += food['cal'] as int;
-        totalP += food['p'] as int;
-        totalC += food['c'] as int;
-        totalF += food['f'] as int;
+        totalCal += food['cal'] as int? ?? 0;
+        totalP += food['p'] as int? ?? 0;
+        totalC += food['c'] as int? ?? 0;
+        totalF += food['f'] as int? ?? 0;
       }
     }
 
@@ -1118,7 +1202,16 @@ class _NutritionScreenState extends State<NutritionScreen>
 
 
   List<Widget> _buildMealCards(int dayIndex) {
-    final dayPlan = _weeklyPlan[dayIndex];
+    // Use tracking plan for today, regular plan for other days
+    final targetPlan = (_isTrackingMode && dayIndex == _getTodayIndex())
+        ? _trackingWeeklyPlan
+        : _weeklyPlan;
+
+    if (targetPlan.isEmpty || dayIndex >= targetPlan.length) {
+      return [const SizedBox.shrink()];
+    }
+
+    final dayPlan = targetPlan[dayIndex];
     final meals = dayPlan['meals'] as List;
 
     final widgets = <Widget>[];
@@ -1540,7 +1633,9 @@ class _NutritionScreenState extends State<NutritionScreen>
 
   void _addFoodToMeal(int dayIndex, String mealName, Map<String, dynamic> food) {
     setState(() {
-      final meals = _weeklyPlan[dayIndex]['meals'] as List;
+      final targetPlan = _isTrackingMode && _isToday ? _trackingWeeklyPlan : _weeklyPlan;
+      if (targetPlan.isEmpty || dayIndex >= targetPlan.length) return;
+      final meals = targetPlan[dayIndex]['meals'] as List;
       for (final meal in meals) {
         if (meal['name'] == mealName) {
           (meal['foods'] as List).add(Map<String, dynamic>.from(food));
@@ -1548,7 +1643,13 @@ class _NutritionScreenState extends State<NutritionScreen>
         }
       }
     });
-    _saveDietPlanChanges(); // Persist to Supabase
+
+    if (_isTrackingMode && _isToday) {
+      _saveTrackingLog();
+    } else {
+      _saveDietPlanChanges();
+    }
+
     HapticFeedback.mediumImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1583,7 +1684,9 @@ class _NutritionScreenState extends State<NutritionScreen>
 
   void _updateFood(int dayIndex, String mealName, Map<String, dynamic> oldFood, Map<String, dynamic> newFood) {
     setState(() {
-      final meals = _weeklyPlan[dayIndex]['meals'] as List;
+      final targetPlan = _isTrackingMode && _isToday ? _trackingWeeklyPlan : _weeklyPlan;
+      if (targetPlan.isEmpty || dayIndex >= targetPlan.length) return;
+      final meals = targetPlan[dayIndex]['meals'] as List;
       for (final meal in meals) {
         if (meal['name'] == mealName) {
           final foods = meal['foods'] as List;
@@ -1595,7 +1698,13 @@ class _NutritionScreenState extends State<NutritionScreen>
         }
       }
     });
-    _saveDietPlanChanges(); // Persist to Supabase
+
+    if (_isTrackingMode && _isToday) {
+      _saveTrackingLog();
+    } else {
+      _saveDietPlanChanges();
+    }
+
     HapticFeedback.mediumImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1609,9 +1718,39 @@ class _NutritionScreenState extends State<NutritionScreen>
     );
   }
 
+  Future<void> _saveTrackingLog() async {
+    if (_todayLog == null || _trackingWeeklyPlan.isEmpty) return;
+
+    final todayMeals = _trackingWeeklyPlan[_getTodayIndex()]['meals'] as List;
+    final mealsForSave = todayMeals.map((meal) {
+      return {
+        'name': meal['name'],
+        'foods': meal['foods'],
+        'plan_foods': meal['plan_foods'] ?? meal['foods'],
+      };
+    }).toList();
+
+    final totals = _getDayTotals(_getTodayIndex());
+
+    try {
+      await SupabaseService.upsertNutritionLog(
+        date: DateTime.now(),
+        dietPlanId: _activePlan?['id'] as String?,
+        meals: mealsForSave,
+        caloriesConsumed: totals['cal'] ?? 0,
+        caloriesBurned: _caloriesBurned,
+        caloriesBurnedPredicted: _caloriesPredicted,
+      );
+    } catch (e) {
+      debugPrint('Error saving tracking log: $e');
+    }
+  }
+
   void _deleteFood(int dayIndex, String mealName, Map<String, dynamic> food) {
     setState(() {
-      final meals = _weeklyPlan[dayIndex]['meals'] as List;
+      final targetPlan = _isTrackingMode && _isToday ? _trackingWeeklyPlan : _weeklyPlan;
+      if (targetPlan.isEmpty || dayIndex >= targetPlan.length) return;
+      final meals = targetPlan[dayIndex]['meals'] as List;
       for (final meal in meals) {
         if (meal['name'] == mealName) {
           (meal['foods'] as List).remove(food);
@@ -1619,7 +1758,13 @@ class _NutritionScreenState extends State<NutritionScreen>
         }
       }
     });
-    _saveDietPlanChanges(); // Persist to Supabase
+
+    if (_isTrackingMode && _isToday) {
+      _saveTrackingLog();
+    } else {
+      _saveDietPlanChanges();
+    }
+
     HapticFeedback.mediumImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
