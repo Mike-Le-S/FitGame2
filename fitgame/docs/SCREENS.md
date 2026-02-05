@@ -474,16 +474,55 @@ Sur les jours d'entraînement : badge orange "TRAINING" avec icône haltère
 - **Sélecteur** : Nombre de repas par jour (3, 4, 5, 6)
 - **Bouton** : "Générer le plan"
 
-### Bottom Sheet Bibliothèque (FoodLibrarySheet)
-DraggableScrollableSheet avec :
-- **Header** : Titre + bouton scanner + bouton créer aliment
+### Bilan Calories Card (CalorieBalanceCard) 🆕
+Card en haut de chaque jour affichant :
+- **Calories consommées** : Total des repas
+- **Calories brûlées** : Depuis Apple Santé
+- **Balance** : Déficit/Surplus avec couleur selon objectif
+- **Prédiction fin de journée** : Basée sur historique 7 jours
+- **Barre de progression** : Vers objectif calorique
+
+### Plan vs Tracking 🆕
+- **Plan** = Template de ce qu'on doit manger (inchangé sur les autres jours)
+- **Tracking** = Ce qu'on a réellement mangé aujourd'hui
+- Les modifications sur le jour actuel vont dans le tracking
+- Affichage "120g / 150g prévu" si quantité différente du plan
+
+### Bottom Sheet Ajout Aliment (FoodAddSheet) 🆕
+Interface principale d'ajout :
 - **Recherche** : Champ texte avec icône loupe
-- **Filtres** : Chips catégories (Tous, Récents, Favoris, Protéines, Glucides, Légumes, Fruits, Laitiers)
-- **Liste aliments** : Cards avec nom, unité, calories, macros colorés, bouton +
+- **Boutons rapides** : Scanner, Favoris, Templates
+- **Liste aliments récents** : Depuis les favoris
+
+### Bottom Sheet Scanner (BarcodeScannerSheet) 🆕
+Scanner de codes-barres :
+- **Caméra** avec cadre de scan
+- **Recherche OpenFoodFacts** en premier
+- **Fallback base communautaire** si non trouvé
+- **Proposition contribution** si introuvable
+
+### Bottom Sheet Contribution (ContributeFoodSheet) 🆕
+Formulaire quand aliment non trouvé :
+- **Code-barres** affiché
+- **Champs** : Nom, marque, calories, P/C/F pour 100g
+- **Info** : Partage avec la communauté FitGame
+
+### Bottom Sheet Favoris (FavoriteFoodsSheet) 🆕
+Liste des aliments favoris :
+- **Triés par fréquence** d'utilisation
+- **Tap** pour ajouter au repas
+- **Swipe** pour supprimer
+
+### Bottom Sheet Templates (MealTemplatesSheet) 🆕
+Templates de repas sauvegardés :
+- **Nom + nombre d'aliments** + calories
+- **Tap** pour ajouter tous les aliments du template
 
 ### Bottom Sheet Édition Aliment (EditFoodSheet)
 - **Nom et quantité** de l'aliment
-- **Slider quantité** : 0.25x à 3x
+- **Champ saisie directe** des grammes (1-9999g)
+- **Boutons +/-** par pas de 10g
+- **Presets rapides** : 25g, 50g, 100g, 150g, 200g, 250g, 300g
 - **Macros calculés** en temps réel
 - **Bouton supprimer** (icône trash rouge)
 - **Bouton enregistrer**

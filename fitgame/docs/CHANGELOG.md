@@ -1,5 +1,210 @@
 # Changelog FitGame
 
+## 2026-02-05 - Upgrade majeure de l'écran Nutrition
+
+### A) Bilan Calories (consommé vs brûlé)
+
+#### CalorieBalanceCard (widgets/calorie_balance_card.dart)
+- **Nouveau widget** : Affiche le bilan calorique du jour
+- Calories consommées (depuis les repas)
+- Calories brûlées (depuis Apple Santé)
+- Balance avec code couleur selon l'objectif :
+  - Cut : vert si déficit, orange si surplus
+  - Bulk : orange si déficit, vert si surplus
+  - Maintain : vert si dans les ±200 kcal
+- Prédiction fin de journée basée sur l'historique 7 jours
+- Barre de progression vers l'objectif calorique
+
+#### HealthService (core/services/health_service.dart)
+- `getCaloriesHistory(days)` : Historique des calories brûlées
+- `predictDailyCalories()` : Prédiction basée sur le taux de burn actuel
+
+### B) Plan vs Tracking (séparation template/tracking)
+
+#### NutritionScreen (nutrition_screen.dart)
+- **Nouveau concept** : Séparation entre Plan (template) et Tracking (journalier)
+- Le Plan reste intact, les modifications quotidiennes vont dans le tracking
+- Affichage "120g / 150g prévu" quand quantité modifiée
+
+#### daily_nutrition_logs (nouvelle table Supabase)
+- Stocke ce que l'utilisateur a réellement mangé chaque jour
+- Lié au plan actif mais indépendant
+
+### C) Ajout d'aliments rapide
+
+#### FoodAddSheet (sheets/food_add_sheet.dart)
+- **Nouveau sheet** : Interface principale d'ajout d'aliments
+- Barre de recherche
+- Boutons rapides : Scanner, Favoris, Templates
+- Liste des aliments récents
+
+#### BarcodeScannerSheet (sheets/barcode_scanner_sheet.dart)
+- **Nouveau sheet** : Scanner de codes-barres
+- Recherche dans OpenFoodFacts API
+- Si non trouvé, recherche dans la base communautaire
+- Si toujours pas trouvé, propose la contribution
+
+#### ContributeFoodSheet (sheets/contribute_food_sheet.dart)
+- **Nouveau sheet** : Contribution communautaire
+- Formulaire pour ajouter un aliment non trouvé
+- Sauvegarde dans `community_foods` pour tous les utilisateurs
+
+#### FavoriteFoodsSheet (sheets/favorite_foods_sheet.dart)
+- **Nouveau sheet** : Aliments favoris
+- Triés par fréquence d'utilisation
+- Swipe pour supprimer
+
+#### MealTemplatesSheet (sheets/meal_templates_sheet.dart)
+- **Nouveau sheet** : Templates de repas
+- Ajouter un repas complet en un tap
+
+### Nouvelles tables Supabase
+
+| Table | Description |
+|-------|-------------|
+| daily_nutrition_logs | Tracking journalier (séparé du plan) |
+| user_favorite_foods | Aliments favoris de l'utilisateur |
+| meal_templates | Templates de repas sauvegardés |
+| community_foods | Base communautaire crowdsourcée |
+
+### Nouveaux services
+
+#### OpenFoodFactsService (core/services/openfoodfacts_service.dart)
+- `getProductByBarcode(barcode)` : Recherche par code-barres
+- `searchProducts(query)` : Recherche par nom
+- API gratuite, bonne couverture France
+
+#### SupabaseService (ajouts)
+- CRUD pour daily_nutrition_logs
+- CRUD pour user_favorite_foods
+- CRUD pour meal_templates
+- CRUD pour community_foods
+
+### Dépendances ajoutées
+- `mobile_scanner: ^5.1.1` - Scanner de codes-barres
+- `http: ^1.2.2` - Requêtes HTTP pour OpenFoodFacts
+
+---
+
+## 2026-02-05 - Édition des plans nutrition
+
+### Nouvelles fonctionnalités
+
+#### 1. EditPlanSheet (sheets/edit_plan_sheet.dart)
+- **Nouveau fichier** : Bottom sheet pour modifier les plans nutrition
+- Renommage du plan via TextField
+- Modification des objectifs caloriques (training/repos)
+- Ajustement des macros (protéines, glucides, lipides)
+- Bouton de suppression avec confirmation
+- Plans coach en lecture seule (affichage info uniquement)
+- État de chargement pendant les opérations async
+
+#### 2. Bouton d'édition dans le sélecteur de plans (nutrition_screen.dart)
+- Icône d'édition sur chaque plan dans `_buildPlanItem()`
+- Navigation vers `EditPlanSheet` au tap
+- Gestion de la suppression avec rechargement automatique
+- Si le plan actif est supprimé, sélection automatique d'un autre plan
+
+### Intégration backend
+- Utilisation de `SupabaseService.updateDietPlan()` existant
+- Utilisation de `SupabaseService.deleteDietPlan()` existant
+- Rechargement des données via `_loadData()` après modification
+
+---
+
+## 2026-02-03 - Nutrition Screen Enhancements
+
+### Nouvelles fonctionnalités
+
+#### 1. Toggle Training/Repos par jour (nutrition_screen.dart)
+- Badge tappable pour basculer entre jour d'entraînement et jour de repos
+- Permet le carb cycling avec macros différents selon le type de jour
+- Feedback visuel avec couleur orange (training) ou gris (repos)
+
+#### 2. Nombre de repas configurable (nutrition_screen.dart, meal_card.dart)
+- Suppression de la limite fixe de 4 repas par jour
+- Bouton "Ajouter un repas" avec dialog de nomination
+- Presets rapides : Petit-déjeuner, Brunch, Déjeuner, Collation, Goûter, Pré-workout, Post-workout, Dîner
+- Possibilité de supprimer un repas (si plus d'un repas)
+
+#### 3. Saisie manuelle des grammes (edit_food_sheet.dart)
+- Champ de saisie direct pour les grammes (1-9999g)
+- Boutons +/- pour ajuster par pas de 10g
+- Presets rapides : 25g, 50g, 100g, 150g, 200g, 250g, 300g
+- Calcul automatique des macros basé sur la portion de base
+
+#### 4. Scanner d'étiquettes nutritionnelles (nutrition_scanner_sheet.dart)
+- **Nouveau fichier** : OCR pour lire les étiquettes de produits
+- Prise de photo ou import depuis galerie
+- Détection automatique : calories, protéines, glucides, lipides
+- Parsing regex pour formats français et anglais
+- Formulaire de correction si valeurs incorrectes
+- Packages ajoutés : `image_picker`, `google_mlkit_text_recognition`
+
+---
+
+## 2026-02-03 - Health & Workout Bug Fixes
+
+### Corrections critiques
+
+#### 1. Écran blanc au lancement d'un workout (active_workout_screen.dart)
+- **Root cause** : Accès à `_exercises[index]` avant la fin du chargement async
+- **Fix** : Ajout d'un état `_isLoading` avec spinner pendant le chargement
+- Ajout d'un état vide si aucun exercice n'est trouvé dans le programme
+
+#### 2. Durée de sommeil incorrecte (14h+ au lieu de ~8h) (health_service.dart)
+- **Root cause** : Segments de sommeil dupliqués/chevauchants additionnés
+- **Fix** : Déduplication avec `removeDuplicates()` + tracking des intervalles déjà comptés
+- Utilisation du segment IN_BED le plus long comme fenêtre de sommeil principale
+- Filtrage des données en dehors de la session principale
+
+#### 3. Pull-to-refresh sur l'écran Santé (health_screen.dart)
+- Ajout de `RefreshIndicator` pour resynchroniser avec Apple Health
+- Physics `AlwaysScrollableScrollPhysics` pour permettre le pull même en haut
+
+#### 4. Données manquantes grisées au lieu de 0 (health_screen.dart)
+- Les métriques sans données Apple Health affichent "—" au lieu de "0"
+- Couleurs grisées pour indiquer l'indisponibilité
+- Score santé calculé uniquement sur les catégories avec données
+
+#### 5. Balance calorique sans calories consommées (health_screen.dart)
+- **Root cause** : Affichait un déficit de -2000+ kcal si pas de tracking alimentaire
+- **Fix** : N'affiche la balance que si l'utilisateur a logué des calories
+- Sinon affiche uniquement "Calories dépensées" avec le total brûlé
+
+---
+
+## 2026-02-02 - Production Audit Fixes
+
+### Corrections critiques
+
+#### 1. Calories kJ → kcal (health_service.dart)
+- Fix conversion des calories depuis HealthKit (division par 4.184)
+- Avant: 3665 kJ affichés comme kcal | Après: ~876 kcal
+
+#### 2. Programme non affiché après création
+- **workout_screen.dart** : `_openCreateFlow()` attend maintenant le résultat et recharge
+- **create_choice_screen.dart** : `_navigateTo()` retourne le résultat de création
+- **program_creation_flow.dart** : `_showSuccessModal()` retourne `true` après succès
+
+#### 3. Nutrition sauvegardée vers Supabase
+- **nutrition_screen.dart** : Nouvelle méthode `_saveDietPlanChanges()`
+- Appelée après : `_addFoodToMeal`, `_updateFood`, `_deleteFood`, `_duplicateDayToTargets`, `_resetDay`
+
+#### 4. Profile settings persistés
+- **profile_screen.dart** : Nouvelle méthode `_saveSetting(key, value)`
+- Settings sauvegardés : notifications, workout_reminders, rest_day_reminders, progress_alerts, weight_unit, language
+
+#### 5. Challenges sauvegardés vers Supabase
+- **supabase_service.dart** : Nouvelles méthodes `createChallenge()`, `joinChallenge()`, `updateChallengeProgress()`, `getChallenges()`
+- **social_screen.dart** : `_createChallenge()` et `_participateInChallenge()` connectés à Supabase
+
+#### 6. Erreurs silencieuses avec feedback utilisateur
+- **home_screen.dart** : SnackBar d'erreur avec bouton "Réessayer" si chargement échoue
+- **active_workout_screen.dart** : SnackBar d'avertissement si programme non chargé
+
+---
+
 ## 2026-02-01 - Nettoyage des données mock
 
 ### Mobile (Flutter)
