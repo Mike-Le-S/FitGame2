@@ -122,47 +122,99 @@ class HealthService {
 
       if (data.isEmpty) return null;
 
-      // Aggregate sleep phases
-      int totalSleep = 0;
+      // Remove duplicate data points (same source at same time)
+      final uniqueData = _health.removeDuplicates(data);
+
+      // Find the main sleep session by looking for IN_BED segments
+      // Take only the longest continuous sleep session to avoid counting naps twice
+      final inBedSegments = uniqueData
+          .where((p) => p.type == HealthDataType.SLEEP_IN_BED)
+          .toList();
+
+      DateTime? mainSleepStart;
+      DateTime? mainSleepEnd;
+
+      if (inBedSegments.isNotEmpty) {
+        // Find the longest IN_BED segment (main sleep session)
+        int maxDuration = 0;
+        for (final segment in inBedSegments) {
+          final duration = segment.dateTo.difference(segment.dateFrom).inMinutes;
+          if (duration > maxDuration) {
+            maxDuration = duration;
+            mainSleepStart = segment.dateFrom;
+            mainSleepEnd = segment.dateTo;
+          }
+        }
+      } else {
+        // No IN_BED data - use all sleep data
+        mainSleepStart = startOfNight;
+        mainSleepEnd = endOfMorning;
+      }
+
+      // Aggregate sleep phases only within the main sleep window
       int deepSleep = 0;
       int lightSleep = 0;
       int remSleep = 0;
       int awake = 0;
       int inBed = 0;
 
-      for (final point in data) {
-        final minutes = point.dateTo.difference(point.dateFrom).inMinutes;
+      // Track processed intervals to avoid double-counting overlapping segments
+      final processedIntervals = <String, Set<int>>{};
+
+      for (final point in uniqueData) {
+        // Skip data outside main sleep session (if we have bounds)
+        if (mainSleepStart != null && mainSleepEnd != null) {
+          if (point.dateFrom.isBefore(mainSleepStart) ||
+              point.dateTo.isAfter(mainSleepEnd.add(const Duration(minutes: 30)))) {
+            continue;
+          }
+        }
+
+        // Create a key for this segment type
+        final typeKey = point.type.toString();
+        processedIntervals[typeKey] ??= <int>{};
+
+        // Calculate minutes, avoiding double-counting
+        final startMinute = point.dateFrom.millisecondsSinceEpoch ~/ 60000;
+        final endMinute = point.dateTo.millisecondsSinceEpoch ~/ 60000;
+
+        int newMinutes = 0;
+        for (int m = startMinute; m < endMinute; m++) {
+          if (!processedIntervals[typeKey]!.contains(m)) {
+            processedIntervals[typeKey]!.add(m);
+            newMinutes++;
+          }
+        }
 
         switch (point.type) {
           case HealthDataType.SLEEP_DEEP:
-            deepSleep += minutes;
-            totalSleep += minutes;
+            deepSleep += newMinutes;
             break;
           case HealthDataType.SLEEP_LIGHT:
-            lightSleep += minutes;
-            totalSleep += minutes;
+            lightSleep += newMinutes;
             break;
           case HealthDataType.SLEEP_REM:
-            remSleep += minutes;
-            totalSleep += minutes;
+            remSleep += newMinutes;
             break;
           case HealthDataType.SLEEP_AWAKE:
-            awake += minutes;
+            awake += newMinutes;
             break;
           case HealthDataType.SLEEP_IN_BED:
-            inBed += minutes;
+            inBed += newMinutes;
             break;
           case HealthDataType.SLEEP_ASLEEP:
-            // Generic sleep, add to light if not categorized
-            if (deepSleep == 0 && remSleep == 0) {
-              lightSleep += minutes;
-              totalSleep += minutes;
+            // Generic sleep - only count if no detailed phases
+            if (deepSleep == 0 && remSleep == 0 && lightSleep == 0) {
+              lightSleep += newMinutes;
             }
             break;
           default:
             break;
         }
       }
+
+      // Total sleep is sum of actual sleep phases (not IN_BED which includes awake time)
+      final totalSleep = deepSleep + lightSleep + remSleep;
 
       return SleepData(
         date: date,
@@ -212,12 +264,14 @@ class HealthService {
 
       double activeCalories = 0;
       for (final point in activeCaloriesData) {
-        activeCalories += (point.value as NumericHealthValue).numericValue;
+        // HealthKit returns energy in kJ, convert to kcal (1 kcal = 4.184 kJ)
+        activeCalories += (point.value as NumericHealthValue).numericValue / 4.184;
       }
 
       double basalCalories = 0;
       for (final point in basalCaloriesData) {
-        basalCalories += (point.value as NumericHealthValue).numericValue;
+        // HealthKit returns energy in kJ, convert to kcal (1 kcal = 4.184 kJ)
+        basalCalories += (point.value as NumericHealthValue).numericValue / 4.184;
       }
 
       double distance = 0;
@@ -325,6 +379,63 @@ class HealthService {
       activity: results[1] as ActivityData?,
       heart: results[2] as HeartData?,
     );
+  }
+
+  /// Get calories burned for multiple days (for prediction)
+  Future<List<ActivityData>> getCaloriesHistory({int days = 7}) async {
+    if (!_isAuthorized) {
+      final authorized = await checkAuthorization();
+      if (!authorized) return [];
+    }
+
+    final results = <ActivityData>[];
+    final now = DateTime.now();
+
+    for (int i = 1; i <= days; i++) {
+      final date = now.subtract(Duration(days: i));
+      final activity = await getActivityData(date);
+      if (activity != null) {
+        results.add(activity);
+      }
+    }
+
+    return results;
+  }
+
+  /// Predict end-of-day calories based on current burn rate and history
+  Future<int?> predictDailyCalories() async {
+    final history = await getCaloriesHistory(days: 7);
+    if (history.isEmpty) return null;
+
+    final now = DateTime.now();
+    final currentHour = now.hour + (now.minute / 60);
+
+    // Get today's current calories
+    final today = await getActivityData(now);
+    if (today == null) return null;
+
+    // Calculate average ratio at current time from history
+    // (what percentage of daily total was burned by this hour)
+    double totalRatio = 0;
+    int validDays = 0;
+
+    for (final day in history) {
+      if (day.totalCaloriesBurned > 0) {
+        // Assume linear burn throughout day for simplicity
+        // In reality could use hourly data if available
+        totalRatio += currentHour / 24;
+        validDays++;
+      }
+    }
+
+    if (validDays == 0) return null;
+
+    final avgRatio = totalRatio / validDays;
+    if (avgRatio <= 0) return null;
+
+    // Predict: current / ratio = predicted total
+    final predicted = today.totalCaloriesBurned / avgRatio;
+    return predicted.round();
   }
 
   /// Write a workout to HealthKit
