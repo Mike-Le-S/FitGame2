@@ -505,7 +505,7 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
                   physics: const NeverScrollableScrollPhysics(),
                   children: [
                     _buildStep1Identity(),
-                    _buildStep2Placeholder(),
+                    _buildStep2ObjectiveCalories(),
                     _buildStep3Placeholder(),
                     _buildStep4Placeholder(),
                     _buildStep5Placeholder(),
@@ -692,8 +692,254 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
     );
   }
 
-  Widget _buildStep2Placeholder() {
-    return const Center(child: Text('Step 2', style: TextStyle(color: Colors.white)));
+  Widget _buildStep2ObjectiveCalories() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: Spacing.xl),
+          Text(
+            'Ton\nobjectif',
+            style: FGTypography.h1.copyWith(color: _nutritionGreen),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'Choisis ton objectif et ajuste tes calories.',
+            style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+          ),
+          const SizedBox(height: Spacing.xl),
+
+          // Goal cards
+          _buildGoalCards(),
+          const SizedBox(height: Spacing.xl),
+
+          // Calorie section title
+          Text(
+            'CALORIES QUOTIDIENNES',
+            style: FGTypography.caption.copyWith(
+              letterSpacing: 2,
+              fontWeight: FontWeight.w700,
+              color: FGColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: Spacing.md),
+
+          // Training calories
+          _buildCalorieCard(
+            label: 'Jour entraînement',
+            icon: Icons.fitness_center_rounded,
+            calories: _trainingCalories,
+            onChanged: (val) {
+              setState(() {
+                _trainingCalories = val;
+                if (_caloriesLinked) {
+                  _restCalories = (val - 400).clamp(1000, 6000);
+                }
+              });
+            },
+          ),
+          const SizedBox(height: Spacing.sm),
+
+          // Link toggle
+          Center(
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _caloriesLinked = !_caloriesLinked);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.md,
+                  vertical: Spacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: _caloriesLinked
+                      ? _nutritionGreen.withValues(alpha: 0.15)
+                      : FGColors.glassSurface,
+                  borderRadius: BorderRadius.circular(Spacing.xl),
+                  border: Border.all(
+                    color: _caloriesLinked ? _nutritionGreen : FGColors.glassBorder,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _caloriesLinked ? Icons.link_rounded : Icons.link_off_rounded,
+                      color: _caloriesLinked ? _nutritionGreen : FGColors.textSecondary,
+                      size: 16,
+                    ),
+                    const SizedBox(width: Spacing.xs),
+                    Text(
+                      _caloriesLinked ? 'Liés (-400 kcal)' : 'Indépendants',
+                      style: FGTypography.caption.copyWith(
+                        color: _caloriesLinked ? _nutritionGreen : FGColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: Spacing.sm),
+
+          // Rest calories
+          _buildCalorieCard(
+            label: 'Jour repos',
+            icon: Icons.bedtime_rounded,
+            calories: _restCalories,
+            onChanged: (val) {
+              setState(() => _restCalories = val);
+            },
+          ),
+          const SizedBox(height: Spacing.xxl),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalCards() {
+    final goals = [
+      {'key': 'bulk', 'label': 'Prise de masse', 'icon': Icons.trending_up_rounded, 'color': const Color(0xFFE74C3C)},
+      {'key': 'maintain', 'label': 'Maintien', 'icon': Icons.balance_rounded, 'color': const Color(0xFF3498DB)},
+      {'key': 'cut', 'label': 'Sèche', 'icon': Icons.trending_down_rounded, 'color': const Color(0xFFF39C12)},
+    ];
+
+    return Row(
+      children: goals.map((goal) {
+        final isSelected = _goalType == goal['key'];
+        final color = goal['color'] as Color;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              right: goal != goals.last ? Spacing.sm : 0,
+            ),
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _goalType = goal['key'] as String);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(
+                  vertical: Spacing.lg,
+                  horizontal: Spacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? color.withValues(alpha: 0.15)
+                      : FGColors.glassSurface,
+                  borderRadius: BorderRadius.circular(Spacing.md),
+                  border: Border.all(
+                    color: isSelected ? color : FGColors.glassBorder,
+                    width: isSelected ? 2 : 1,
+                  ),
+                  boxShadow: isSelected
+                      ? [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 12)]
+                      : null,
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      goal['icon'] as IconData,
+                      color: isSelected ? color : FGColors.textSecondary,
+                      size: 28,
+                    ),
+                    const SizedBox(height: Spacing.sm),
+                    Text(
+                      goal['label'] as String,
+                      style: FGTypography.caption.copyWith(
+                        color: isSelected ? color : FGColors.textSecondary,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildCalorieCard({
+    required String label,
+    required IconData icon,
+    required int calories,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(Spacing.lg),
+      decoration: BoxDecoration(
+        color: FGColors.glassSurface,
+        borderRadius: BorderRadius.circular(Spacing.md),
+        border: Border.all(color: FGColors.glassBorder),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: _nutritionGreen, size: 24),
+          const SizedBox(width: Spacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: FGTypography.caption.copyWith(
+                    color: FGColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  '$calories kcal',
+                  style: FGTypography.h3.copyWith(
+                    color: FGColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildIncrementButton(
+            icon: Icons.remove_rounded,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onChanged((calories - 100).clamp(1000, 6000));
+            },
+          ),
+          const SizedBox(width: Spacing.sm),
+          _buildIncrementButton(
+            icon: Icons.add_rounded,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onChanged((calories + 100).clamp(1000, 6000));
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIncrementButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: _nutritionGreen.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(Spacing.sm),
+          border: Border.all(color: _nutritionGreen.withValues(alpha: 0.3)),
+        ),
+        child: Icon(icon, color: _nutritionGreen, size: 20),
+      ),
+    );
   }
 
   Widget _buildStep3Placeholder() {
