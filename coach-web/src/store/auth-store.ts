@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase, type Profile } from '@/lib/supabase'
 import type { Coach } from '@/types'
+import { useSettingsStore } from './settings-store'
 
 interface AuthState {
   coach: Coach | null
@@ -53,6 +54,8 @@ export const useAuthStore = create<AuthState>()(
                 isAuthenticated: true,
                 isLoading: false,
               })
+              // Load settings from DB
+              useSettingsStore.getState().loadFromDB()
               return
             }
           }
