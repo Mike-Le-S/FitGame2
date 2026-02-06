@@ -1,6 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
 import { Bell, Search, Command, X, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/store/auth-store'
+import { formatDistanceToNow } from 'date-fns'
+import { fr } from 'date-fns/locale'
+
+interface Notification {
+  id: string
+  title: string
+  message: string
+  type: string
+  read_at: string | null
+  created_at: string
+}
 
 interface HeaderProps {
   title: string
@@ -16,14 +29,40 @@ export function Header({ title, subtitle, action, showSearch = false }: HeaderPr
   const searchRef = useRef<HTMLInputElement>(null)
   const notifRef = useRef<HTMLDivElement>(null)
 
-  // Mock notifications
-  const notifications = [
-    { id: 1, title: 'Nouvelle séance complétée', desc: 'Marie Laurent a terminé Push A', time: 'Il y a 5min', unread: true },
-    { id: 2, title: 'Alerte compliance', desc: 'Emma Dubois - 0 séance cette semaine', time: 'Il y a 1h', unread: true },
-    { id: 3, title: 'Message reçu', desc: 'Thomas Bernard vous a envoyé un message', time: 'Il y a 2h', unread: false },
-  ]
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const coach = useAuthStore(state => state.coach)
 
-  const unreadCount = notifications.filter(n => n.unread).length
+  useEffect(() => {
+    if (!coach) return
+
+    const fetchNotifications = async () => {
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', coach.id)
+        .order('created_at', { ascending: false })
+        .limit(10)
+      setNotifications(data || [])
+    }
+    fetchNotifications()
+
+    // Subscribe to realtime notifications
+    const channel = supabase
+      .channel('coach-notifications')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${coach.id}`
+      }, (payload) => {
+        setNotifications(prev => [payload.new as Notification, ...prev])
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [coach])
+
+  const unreadCount = notifications.filter(n => !n.read_at).length
 
   // Close notifications on outside click
   useEffect(() => {
@@ -181,34 +220,54 @@ export function Header({ title, subtitle, action, showSearch = false }: HeaderPr
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                   <span className="text-sm font-semibold text-text-primary">Notifications</span>
-                  <button className="text-xs text-accent hover:text-accent-hover transition-colors">
+                  <button
+                    onClick={async () => {
+                      if (!coach) return
+                      await supabase
+                        .from('notifications')
+                        .update({ read_at: new Date().toISOString() })
+                        .eq('user_id', coach.id)
+                        .is('read_at', null)
+                      setNotifications(prev => prev.map(n => ({ ...n, read_at: n.read_at || new Date().toISOString() })))
+                    }}
+                    className="text-xs text-accent hover:text-accent-hover transition-colors"
+                  >
                     Tout marquer lu
                   </button>
                 </div>
 
                 {/* Notifications list */}
                 <div className="max-h-80 overflow-y-auto">
-                  {notifications.map((notif, index) => (
-                    <div
-                      key={notif.id}
-                      className={cn(
-                        'relative px-4 py-3 hover:bg-surface-elevated transition-colors cursor-pointer',
-                        index !== notifications.length - 1 && 'border-b border-border/50'
-                      )}
-                    >
-                      {notif.unread && (
-                        <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-accent" />
-                      )}
-                      <p className={cn(
-                        'text-sm mb-0.5',
-                        notif.unread ? 'text-text-primary font-medium' : 'text-text-secondary'
-                      )}>
-                        {notif.title}
-                      </p>
-                      <p className="text-xs text-text-muted mb-1">{notif.desc}</p>
-                      <p className="text-[10px] text-text-muted">{notif.time}</p>
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-8 text-center">
+                      <Bell className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-50" />
+                      <p className="text-sm text-text-muted">Aucune notification</p>
                     </div>
-                  ))}
+                  ) : (
+                    notifications.map((notif, index) => (
+                      <div
+                        key={notif.id}
+                        className={cn(
+                          'relative px-4 py-3 hover:bg-surface-elevated transition-colors cursor-pointer',
+                          index !== notifications.length - 1 && 'border-b border-border/50'
+                        )}
+                      >
+                        {!notif.read_at && (
+                          <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-accent" />
+                        )}
+                        <p className={cn(
+                          'text-sm mb-0.5',
+                          !notif.read_at ? 'text-text-primary font-medium' : 'text-text-secondary'
+                        )}>
+                          {notif.title}
+                        </p>
+                        <p className="text-xs text-text-muted mb-1">{notif.message}</p>
+                        <p className="text-[10px] text-text-muted">
+                          {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: fr })}
+                        </p>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 {/* Footer */}
