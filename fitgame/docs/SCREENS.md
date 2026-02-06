@@ -7,7 +7,8 @@
 | MainNavigation | `lib/main.dart` | ✅ | Shell de navigation avec bottom nav bar (Accueil, Training, Social, Nutrition, Santé, Profil) |
 | SocialScreen | `lib/features/social/social_screen.dart` | ✅ | Écran social avec Feed (séances potes) et Défis (compétitions) |
 | NutritionScreen | `lib/features/nutrition/nutrition_screen.dart` | ✅ | Planificateur diète hebdomadaire avec macros, repas et bouton création |
-| DietCreationFlow | `lib/features/nutrition/create/diet_creation_flow.dart` | ✅ | Flow 9 étapes création diète (nom, objectif, calories, macros, repas, préférences, noms repas, planning, compléments) |
+| NewPlanCreationFlow | `lib/features/nutrition/create/new_plan_creation_flow.dart` | ✅ | Flow 6 étapes création plan nutritionnel (identité, objectif/calories, macros, types de jour, planning semaine, récapitulatif) |
+| DietCreationFlow | `lib/features/nutrition/create/diet_creation_flow.dart` | 🔒 | Legacy - Flow 9 étapes création diète (non utilisé, remplacé par NewPlanCreationFlow) |
 | HealthScreen | `lib/features/health/health_screen.dart` | ✅ | Écran santé avec 3 cartes expandables (Énergie, Sommeil, Cœur) + bottom sheets détaillés |
 | ProfileScreen | `lib/features/profile/profile_screen.dart` | ✅ | Écran profil premium avec accomplissements et réglages |
 | CreateChoiceScreen | `lib/features/workout/create/create_choice_screen.dart` | ✅ | Choix initial : créer programme ou séance unique |

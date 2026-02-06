@@ -1,5 +1,36 @@
 # Changelog FitGame
 
+## 2026-02-06 - Nouveau Flow de Création de Plan Nutritionnel (6 étapes)
+
+### NewPlanCreationFlow (create/new_plan_creation_flow.dart)
+- **Wizard 6 étapes** remplace l'ancien PlanCreationFlow 3 étapes
+- Navigation linéaire avec retour libre via ProgressDots cliquables
+- Sauvegarde brouillon automatique (SharedPreferences) entre sessions
+- Dialog de confirmation à la sortie (3 options : continuer, sauver brouillon, quitter)
+
+#### Étapes du wizard
+1. **Identité** : Nom du plan + 4 suggestions rapides (Prise de masse, Sèche, Maintenance, Recomp)
+   - Les suggestions pré-remplissent automatiquement objectif, calories et macros
+2. **Objectif & Calories** : Choix d'objectif (surplus, déficit, maintenance) + calories training/repos
+   - Lien intelligent entre calories training et repos (-400 kcal)
+3. **Macros** : 4 presets (Équilibré, Hyperprotéiné, Cétogène, Hyperglucidique) + sliders
+   - Pie chart animé en temps réel
+   - Auto-balancing des sliders (total toujours = 100%)
+4. **Types de jour** : Création/édition/duplication de types de jour
+   - DayTypeEditorSheet fullscreen avec gestion des repas et aliments
+5. **Planning semaine** : Attribution d'un type de jour à chaque jour
+   - Résumé des calories min/max de la semaine
+6. **Récapitulatif** : Sections cliquables pour retourner éditer directement
+
+#### Widgets créés
+- **ProgressDots** (`create/widgets/progress_dots.dart`) : Barre de progression 6 points avec navigation
+- **DayTypeEditorSheet** (`create/widgets/day_type_editor_sheet.dart`) : Éditeur fullscreen de type de jour
+
+#### Intégration
+- `nutrition_screen.dart` utilise maintenant `NewPlanCreationFlow` au lieu de `PlanCreationFlow`
+- Intégration Supabase complète (createDietPlan, createDayType, setWeeklySchedule, activateDietPlan)
+- Dépendance `shared_preferences` ajoutée au pubspec.yaml
+
 ## 2026-02-05 - Redesign du workflow Nutrition (Phase 2)
 
 ### Nouveau système de Plans avec Types de Jour
