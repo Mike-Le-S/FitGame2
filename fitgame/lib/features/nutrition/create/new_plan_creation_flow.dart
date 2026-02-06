@@ -22,6 +22,13 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
   static const _nutritionGreen = Color(0xFF2ECC71);
   static const _totalSteps = 6;
 
+  static const _suggestionDefaults = {
+    'Prise de masse': {'goal': 'bulk', 'cal': 3200, 'restCal': 2800, 'protein': 30, 'carbs': 45, 'fat': 25},
+    'Sèche été': {'goal': 'cut', 'cal': 2400, 'restCal': 2000, 'protein': 40, 'carbs': 35, 'fat': 25},
+    'Nutrition équilibrée': {'goal': 'maintain', 'cal': 2800, 'restCal': 2500, 'protein': 30, 'carbs': 45, 'fat': 25},
+    'Plan personnalisé': {'goal': 'maintain', 'cal': 2800, 'restCal': 2400, 'protein': 30, 'carbs': 45, 'fat': 25},
+  };
+
   final PageController _pageController = PageController();
   int _currentStep = 0;
   final Set<int> _visitedSteps = {0};
@@ -497,7 +504,7 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
                   controller: _pageController,
                   physics: const NeverScrollableScrollPhysics(),
                   children: [
-                    _buildStep1Placeholder(),
+                    _buildStep1Identity(),
                     _buildStep2Placeholder(),
                     _buildStep3Placeholder(),
                     _buildStep4Placeholder(),
@@ -572,8 +579,117 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
   // PLACEHOLDER STEP BUILDERS
   // ============================================
 
-  Widget _buildStep1Placeholder() {
-    return const Center(child: Text('Step 1', style: TextStyle(color: Colors.white)));
+  Widget _buildStep1Identity() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: Spacing.xl),
+          Text(
+            'Crée ton\nplan',
+            style: FGTypography.h1.copyWith(
+              color: _nutritionGreen,
+            ),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'Donne un nom à ton plan nutrition ou choisis un modèle.',
+            style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+          ),
+          const SizedBox(height: Spacing.xl),
+
+          // Name TextField
+          Container(
+            decoration: BoxDecoration(
+              color: FGColors.glassSurface,
+              borderRadius: BorderRadius.circular(Spacing.md),
+              border: Border.all(color: FGColors.glassBorder),
+            ),
+            child: TextField(
+              controller: _nameController,
+              style: FGTypography.body,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Nom du plan...',
+                hintStyle: FGTypography.body.copyWith(
+                  color: FGColors.textSecondary.withValues(alpha: 0.5),
+                ),
+                prefixIcon: Icon(
+                  Icons.restaurant_menu_rounded,
+                  color: _nutritionGreen.withValues(alpha: 0.7),
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.md,
+                  vertical: Spacing.md,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: Spacing.xl),
+
+          // Suggestion chips
+          Text(
+            'SUGGESTIONS',
+            style: FGTypography.caption.copyWith(
+              letterSpacing: 2,
+              fontWeight: FontWeight.w700,
+              color: FGColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: Spacing.md),
+          Wrap(
+            spacing: Spacing.sm,
+            runSpacing: Spacing.sm,
+            children: _suggestionDefaults.entries.map((entry) {
+              final isSelected = _selectedSuggestion == entry.key;
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _selectedSuggestion = entry.key;
+                    _nameController.text = entry.key;
+                    _goalType = entry.value['goal'] as String;
+                    _trainingCalories = entry.value['cal'] as int;
+                    _restCalories = entry.value['restCal'] as int;
+                    _proteinPercent = entry.value['protein'] as int;
+                    _carbsPercent = entry.value['carbs'] as int;
+                    _fatPercent = entry.value['fat'] as int;
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.md,
+                    vertical: Spacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? _nutritionGreen.withValues(alpha: 0.15)
+                        : FGColors.glassSurface,
+                    borderRadius: BorderRadius.circular(Spacing.xl),
+                    border: Border.all(
+                      color: isSelected
+                          ? _nutritionGreen
+                          : FGColors.glassBorder,
+                    ),
+                  ),
+                  child: Text(
+                    entry.key,
+                    style: FGTypography.body.copyWith(
+                      color: isSelected ? _nutritionGreen : FGColors.textPrimary,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: Spacing.xxl),
+        ],
+      ),
+    );
   }
 
   Widget _buildStep2Placeholder() {
