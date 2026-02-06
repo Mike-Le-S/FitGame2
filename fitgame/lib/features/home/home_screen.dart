@@ -38,6 +38,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int? _exerciseCount;
   int? _estimatedMinutes;
 
+  // Widget data from Supabase
+  Map<String, dynamic>? _todayHealth;
+  Map<String, dynamic>? _todayNutrition;
+  Map<String, dynamic>? _yesterdayNutrition;
+  List<Map<String, dynamic>> _recentActivities = [];
+
   @override
   void initState() {
     super.initState();
@@ -115,6 +121,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         );
       }
+    }
+
+    // Load widget data (nutrition, health, activity) in parallel
+    try {
+      final today = DateTime.now();
+      final todayStr = today.toIso8601String().substring(0, 10);
+      final yesterday = today.subtract(const Duration(days: 1));
+
+      final widgetResults = await Future.wait([
+        SupabaseService.getNutritionLog(today),
+        SupabaseService.getNutritionLog(yesterday),
+        SupabaseService.getActivityFeed(limit: 3),
+        SupabaseService.getHealthMetrics(startDate: todayStr, endDate: todayStr),
+      ]);
+
+      if (mounted) {
+        final healthList = widgetResults[3] as List<Map<String, dynamic>>;
+        setState(() {
+          _todayNutrition = widgetResults[0] as Map<String, dynamic>?;
+          _yesterdayNutrition = widgetResults[1] as Map<String, dynamic>?;
+          _recentActivities = widgetResults[2] as List<Map<String, dynamic>>;
+          _todayHealth = healthList.isNotEmpty ? healthList.first : null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading widget data: $e');
     }
   }
 
@@ -194,18 +226,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           // === [3] SLEEP SUMMARY → Santé (index 4) ===
                           SleepSummaryWidget(
                             onTap: () => _navigateToTab(4),
+                            totalSleep: _todayHealth?['sleep_hours'] != null
+                                ? '${(_todayHealth!['sleep_hours'] as num).toStringAsFixed(1)}h'
+                                : '--',
+                            sleepScore: (_todayHealth?['sleep_score'] as num?)?.toInt() ?? 0,
+                            deepPercent: (_todayHealth?['deep_sleep_percent'] as num?)?.toDouble() ?? 0.0,
+                            corePercent: (_todayHealth?['core_sleep_percent'] as num?)?.toDouble() ?? 0.0,
+                            remPercent: (_todayHealth?['rem_sleep_percent'] as num?)?.toDouble() ?? 0.0,
                           ),
                           const SizedBox(height: Spacing.md),
 
                           // === [5] MACRO SUMMARY → Nutrition (index 3) ===
                           MacroSummaryWidget(
                             onTap: () => _navigateToTab(3),
+                            currentCalories: (_todayNutrition?['calories_consumed'] as num?)?.toInt() ?? 0,
+                            targetCalories: (_todayNutrition?['target_calories'] as num?)?.toInt() ?? 2000,
+                            proteinPercent: _calculateMacroPercent(_todayNutrition, 'protein'),
+                            carbsPercent: _calculateMacroPercent(_todayNutrition, 'carbs'),
+                            fatPercent: _calculateMacroPercent(_todayNutrition, 'fat'),
+                            yesterdayConsumed: (_yesterdayNutrition?['calories_consumed'] as num?)?.toInt() ?? 0,
+                            yesterdayBurned: (_yesterdayNutrition?['calories_burned'] as num?)?.toInt() ?? 0,
                           ),
                           const SizedBox(height: Spacing.md),
 
                           // === [6] FRIEND ACTIVITY → Social (index 2) ===
                           FriendActivityPeek(
                             onTap: () => _navigateToTab(2),
+                            activities: _recentActivities,
                           ),
                           const SizedBox(height: Spacing.xl),
                         ],
@@ -222,6 +269,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       ),
     );
+  }
+
+  double _calculateMacroPercent(Map<String, dynamic>? nutritionLog, String macro) {
+    if (nutritionLog == null) return 0.0;
+    final meals = nutritionLog['meals'] as List?;
+    if (meals == null || meals.isEmpty) return 0.0;
+
+    double totalMacro = 0;
+    double totalCalories = 0;
+    for (final meal in meals) {
+      final mealMap = meal as Map<String, dynamic>? ?? {};
+      final foods = mealMap['foods'] as List? ?? [];
+      for (final food in foods) {
+        final foodMap = food as Map<String, dynamic>? ?? {};
+        final macros = foodMap['macros'] as Map<String, dynamic>? ?? {};
+        totalMacro += (macros[macro] as num?)?.toDouble() ?? 0.0;
+        totalCalories += (foodMap['calories'] as num?)?.toDouble() ?? 0.0;
+      }
+    }
+    if (totalCalories == 0) return 0.0;
+
+    // Convert macro grams to calories: P=4cal/g, C=4cal/g, F=9cal/g
+    final calPerGram = macro == 'fat' ? 9.0 : 4.0;
+    return ((totalMacro * calPerGram) / totalCalories).clamp(0.0, 1.0);
   }
 
   Widget _buildBottomCTA() {

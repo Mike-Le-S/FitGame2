@@ -7,17 +7,36 @@ import '../../../shared/widgets/fg_glass_card.dart';
 
 class FriendActivityPeek extends StatelessWidget {
   final VoidCallback? onTap;
-
-  // Real data - fetched from backend
-  final List<_FriendActivity> _activities = const [];
+  final List<Map<String, dynamic>> activities;
 
   const FriendActivityPeek({
     super.key,
     this.onTap,
+    this.activities = const [],
   });
+
+  static String _formatTimeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes}min';
+    if (diff.inHours < 24) return 'Il y a ${diff.inHours}h';
+    return 'Il y a ${diff.inDays}j';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final friendActivities = activities.map((a) {
+      final name = (a['user']?['full_name'] ?? 'Ami').toString();
+      return _FriendActivity(
+        name: name,
+        initial: name.isNotEmpty ? name[0].toUpperCase() : '?',
+        workout: (a['title'] ?? '').toString(),
+        timeAgo: _formatTimeAgo(
+          DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime.now(),
+        ),
+        color: FGColors.accent,
+      );
+    }).take(3).toList();
+
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
@@ -64,7 +83,7 @@ class FriendActivityPeek extends StatelessWidget {
             const SizedBox(height: Spacing.md),
 
             // Activity list
-            ..._activities.map((activity) => Padding(
+            ...friendActivities.map((activity) => Padding(
               padding: const EdgeInsets.only(bottom: Spacing.sm),
               child: _buildActivityRow(activity),
             )),

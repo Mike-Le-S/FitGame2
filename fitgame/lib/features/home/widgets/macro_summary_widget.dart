@@ -7,21 +7,24 @@ import '../../../shared/widgets/fg_glass_card.dart';
 
 class MacroSummaryWidget extends StatelessWidget {
   final VoidCallback? onTap;
-
-  // Real data - fetched from backend
-  final int currentCalories = 0;
-  final int targetCalories = 2000;
-  final double proteinPercent = 0.0;
-  final double carbsPercent = 0.0;
-  final double fatPercent = 0.0;
-
-  // Real data - fetched from backend
-  final int yesterdayConsumed = 0;
-  final int yesterdayBurned = 0;
+  final int currentCalories;
+  final int targetCalories;
+  final double proteinPercent;
+  final double carbsPercent;
+  final double fatPercent;
+  final int yesterdayConsumed;
+  final int yesterdayBurned;
 
   const MacroSummaryWidget({
     super.key,
     this.onTap,
+    this.currentCalories = 0,
+    this.targetCalories = 2000,
+    this.proteinPercent = 0.0,
+    this.carbsPercent = 0.0,
+    this.fatPercent = 0.0,
+    this.yesterdayConsumed = 0,
+    this.yesterdayBurned = 0,
   });
 
   @override
