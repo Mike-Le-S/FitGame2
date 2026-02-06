@@ -520,7 +520,7 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
                     _buildStep3Macros(),
                     _buildStep4DayTypes(),
                     _buildStep5WeeklySchedule(),
-                    _buildStep6Placeholder(),
+                    _buildStep6Recap(),
                   ],
                 ),
               ),
@@ -1729,8 +1729,293 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
     );
   }
 
-  Widget _buildStep6Placeholder() {
-    return const Center(child: Text('Step 6', style: TextStyle(color: Colors.white)));
+  // ============================================
+  // STEP 6: RECAP & VALIDATION
+  // ============================================
+
+  String _goalLabel() {
+    switch (_goalType) {
+      case 'bulk':
+        return 'Prise de masse';
+      case 'cut':
+        return 'Sèche';
+      case 'maintain':
+        return 'Maintien';
+      default:
+        return 'Objectif';
+    }
+  }
+
+  Color _goalColor() {
+    switch (_goalType) {
+      case 'bulk':
+        return const Color(0xFFE74C3C);
+      case 'cut':
+        return const Color(0xFFF39C12);
+      case 'maintain':
+        return const Color(0xFF3498DB);
+      default:
+        return _nutritionGreen;
+    }
+  }
+
+  Widget _buildRecapSection({
+    required int stepIndex,
+    required String title,
+    required Widget child,
+  }) {
+    return GestureDetector(
+      onTap: () => _jumpToStep(stepIndex),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: Spacing.md),
+        padding: const EdgeInsets.all(Spacing.md),
+        decoration: BoxDecoration(
+          color: FGColors.glassSurface,
+          borderRadius: BorderRadius.circular(Spacing.md),
+          border: Border.all(color: FGColors.glassBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: FGTypography.caption.copyWith(
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.w700,
+                      color: FGColors.textSecondary,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.edit_rounded,
+                  color: FGColors.textSecondary,
+                  size: 16,
+                ),
+              ],
+            ),
+            const SizedBox(height: Spacing.sm),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecapPill(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.md,
+        vertical: Spacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(Spacing.xl),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: FGTypography.bodySmall.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecapMacroPill(String letter, int percent, int grams, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.md,
+        vertical: Spacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(Spacing.xl),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: Spacing.xs),
+          Text(
+            '$letter $percent% · ${grams}g',
+            style: FGTypography.bodySmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep6Recap() {
+    final proteinGrams = (_trainingCalories * _proteinPercent / 100 / 4).round();
+    final carbsGrams = (_trainingCalories * _carbsPercent / 100 / 4).round();
+    final fatGrams = (_trainingCalories * _fatPercent / 100 / 9).round();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: Spacing.xl),
+          Text(
+            'Ton plan\nest prêt',
+            style: FGTypography.h1.copyWith(color: _nutritionGreen),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'Vérifie les détails avant de valider.',
+            style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+          ),
+          const SizedBox(height: Spacing.lg),
+
+          // Plan name
+          Center(
+            child: Text(
+              '📋 ${_nameController.text.trim().isEmpty ? 'Mon plan' : _nameController.text.trim()}',
+              style: FGTypography.h3.copyWith(
+                color: FGColors.textPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(height: Spacing.lg),
+
+          // Section 1: Objective (step 1)
+          _buildRecapSection(
+            stepIndex: 1,
+            title: 'OBJECTIF',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildRecapPill(_goalLabel(), _goalColor()),
+                const SizedBox(height: Spacing.sm),
+                Row(
+                  children: [
+                    Icon(Icons.fitness_center_rounded, color: _nutritionGreen, size: 16),
+                    const SizedBox(width: Spacing.xs),
+                    Text(
+                      '$_trainingCalories kcal entraînement',
+                      style: FGTypography.bodySmall.copyWith(
+                        color: FGColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: Spacing.xs),
+                Row(
+                  children: [
+                    Icon(Icons.bedtime_rounded, color: const Color(0xFF3498DB), size: 16),
+                    const SizedBox(width: Spacing.xs),
+                    Text(
+                      '$_restCalories kcal repos',
+                      style: FGTypography.bodySmall.copyWith(
+                        color: FGColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Section 2: Macros (step 2)
+          _buildRecapSection(
+            stepIndex: 2,
+            title: 'MACROS',
+            child: Wrap(
+              spacing: Spacing.sm,
+              runSpacing: Spacing.sm,
+              children: [
+                _buildRecapMacroPill('P', _proteinPercent, proteinGrams, const Color(0xFFE74C3C)),
+                _buildRecapMacroPill('G', _carbsPercent, carbsGrams, const Color(0xFF3498DB)),
+                _buildRecapMacroPill('L', _fatPercent, fatGrams, const Color(0xFFF39C12)),
+              ],
+            ),
+          ),
+
+          // Section 3: Day Types (step 3)
+          _buildRecapSection(
+            stepIndex: 3,
+            title: 'TYPES DE JOUR',
+            child: Column(
+              children: _dayTypes.map((dayType) {
+                final emoji = dayType['emoji'] as String? ?? '📅';
+                final name = dayType['name'] as String? ?? 'Type';
+                final meals = dayType['meals'] as List? ?? [];
+                final cal = _calculateDayTypeCalories(meals);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: Spacing.xs),
+                  child: Row(
+                    children: [
+                      Text(emoji, style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: Spacing.sm),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: FGTypography.bodySmall.copyWith(
+                            color: FGColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${meals.length} repas · $cal kcal',
+                        style: FGTypography.caption.copyWith(
+                          color: FGColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          // Section 4: Weekly Schedule (step 4)
+          _buildRecapSection(
+            stepIndex: 4,
+            title: 'SEMAINE',
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(7, (dayIndex) {
+                final typeIndex = _weeklySchedule[dayIndex] ?? 0;
+                final safeIndex = typeIndex < _dayTypes.length ? typeIndex : 0;
+                final dayType = _dayTypes[safeIndex];
+                final emoji = dayType['emoji'] as String? ?? '📅';
+                return Column(
+                  children: [
+                    Text(
+                      _dayNamesShort[dayIndex],
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(emoji, style: const TextStyle(fontSize: 20)),
+                  ],
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: Spacing.xxl),
+        ],
+      ),
+    );
   }
 }
 
