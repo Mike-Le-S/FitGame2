@@ -1,5 +1,13 @@
 # Changelog FitGame
 
+## 2026-02-06 - Home Screen Bugfixes
+
+### Bug Fixes
+- **Sleep widget**: Fixed data key mismatch — now correctly transforms `sleep_duration_minutes` to hours and computes phase percentages from minute values
+- **Nutrition widget**: Target calories now fetched from active diet plan instead of missing `target_calories` column in nutrition logs
+- **Workout card**: Fixed muscle group key (`muscle` instead of `muscleGroup`) so muscle names display correctly
+- **Workout card**: Today's session now matches current weekday instead of always showing first day
+
 ## 2026-02-06 - Real Backend: Replace All Mock Data with Supabase
 
 ### Phase 1: Database Migrations (Supabase)
