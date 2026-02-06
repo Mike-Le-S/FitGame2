@@ -11,12 +11,16 @@ class MealCard extends StatefulWidget {
   final Map<String, dynamic> meal;
   final VoidCallback onAddFood;
   final Function(Map<String, dynamic>) onEditFood;
+  final VoidCallback? onDelete;
+  final bool canDelete;
 
   const MealCard({
     super.key,
     required this.meal,
     required this.onAddFood,
     required this.onEditFood,
+    this.onDelete,
+    this.canDelete = true,
   });
 
   @override
@@ -175,6 +179,46 @@ class _MealCardState extends State<MealCard> {
                     ),
                   ),
                 ),
+                // Delete meal button
+                if (widget.canDelete && widget.onDelete != null) ...[
+                  const SizedBox(height: Spacing.sm),
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      widget.onDelete!();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: Spacing.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: FGColors.error.withValues(alpha: 0.3),
+                          style: BorderStyle.solid,
+                        ),
+                        borderRadius: BorderRadius.circular(Spacing.sm),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.delete_outline_rounded,
+                            color: FGColors.error,
+                            size: 18,
+                          ),
+                          const SizedBox(width: Spacing.xs),
+                          Text(
+                            'Supprimer ce repas',
+                            style: FGTypography.caption.copyWith(
+                              color: FGColors.error,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
             crossFadeState: _isExpanded

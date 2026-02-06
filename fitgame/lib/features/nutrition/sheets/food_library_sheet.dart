@@ -3,12 +3,16 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/constants/spacing.dart';
-import '../../../shared/sheets/placeholder_sheet.dart';
 
 class FoodLibrarySheet extends StatefulWidget {
   final Function(Map<String, dynamic>) onSelectFood;
+  final VoidCallback? onScanRequested;
 
-  const FoodLibrarySheet({required this.onSelectFood});
+  const FoodLibrarySheet({
+    super.key,
+    required this.onSelectFood,
+    this.onScanRequested,
+  });
 
   @override
   State<FoodLibrarySheet> createState() => FoodLibrarySheetState();
@@ -205,23 +209,19 @@ class FoodLibrarySheetState extends State<FoodLibrarySheet> {
                         GestureDetector(
                           onTap: () {
                             HapticFeedback.lightImpact();
-                            PlaceholderSheet.show(
-                              context,
-                              title: 'Scanner de codes-barres',
-                              message: 'Le scanner de codes-barres nécessite la caméra et sera disponible dans une prochaine version.',
-                              icon: Icons.qr_code_scanner_rounded,
-                            );
+                            Navigator.pop(context); // Close food library
+                            widget.onScanRequested?.call();
                           },
                           child: Container(
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: FGColors.glassSurface,
+                              color: FGColors.accent.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(Spacing.sm),
                             ),
                             child: const Icon(
-                              Icons.qr_code_scanner_rounded,
-                              color: FGColors.textSecondary,
+                              Icons.document_scanner_rounded,
+                              color: FGColors.accent,
                               size: 20,
                             ),
                           ),

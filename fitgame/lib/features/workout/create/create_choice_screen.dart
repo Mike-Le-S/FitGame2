@@ -270,8 +270,8 @@ class _CreateChoiceScreenState extends State<CreateChoiceScreen>
     );
   }
 
-  void _navigateTo(Widget screen) {
-    Navigator.push(
+  void _navigateTo(Widget screen) async {
+    final result = await Navigator.push<bool>(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => screen,
@@ -290,5 +290,10 @@ class _CreateChoiceScreenState extends State<CreateChoiceScreen>
         transitionDuration: const Duration(milliseconds: 350),
       ),
     );
+
+    // If creation was successful, pass result back to workout screen
+    if (result == true && mounted) {
+      Navigator.pop(context, true);
+    }
   }
 }

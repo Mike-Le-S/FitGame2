@@ -58,6 +58,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   late List<Exercise> _exercises;
   String? _sessionId; // Supabase session ID
   String _dayName = 'Séance libre'; // Day name from program or default
+  bool _isLoading = true; // Loading state for exercises
 
   @override
   void initState() {
@@ -121,12 +122,40 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                       }).toList(),
               );
             }).toList();
+            _isLoading = false;
+          });
+        } else {
+          // No days in program - show empty state
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      } else {
+        // No programs - show empty state
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
           });
         }
       }
     } catch (e) {
-      // Silently fail - user can add exercises manually
       debugPrint('Error loading workout: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Impossible de charger le programme - ajoute des exercices manuellement'),
+            backgroundColor: FGColors.warning,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -390,6 +419,87 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Show loading state while exercises are being fetched
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: FGColors.background,
+        body: Stack(
+          children: [
+            _buildMeshGradient(),
+            const Center(
+              child: CircularProgressIndicator(
+                color: FGColors.accent,
+                strokeWidth: 2,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show empty state if no exercises loaded
+    if (_exercises.isEmpty) {
+      return Scaffold(
+        backgroundColor: FGColors.background,
+        body: Stack(
+          children: [
+            _buildMeshGradient(),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(Spacing.lg),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: FGColors.glassSurface.withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.close_rounded,
+                              color: FGColors.textPrimary,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.fitness_center,
+                      size: 64,
+                      color: FGColors.textSecondary.withValues(alpha: 0.3),
+                    ),
+                    const SizedBox(height: Spacing.lg),
+                    Text(
+                      'Aucun exercice',
+                      style: FGTypography.h2.copyWith(
+                        color: FGColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.sm),
+                    Text(
+                      'Crée d\'abord un programme avec des exercices',
+                      style: FGTypography.body.copyWith(
+                        color: FGColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: FGColors.background,
       body: Stack(

@@ -8,4 +8,13 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #2872 | 1:59 PM | 🔵 | Health Screen Implementation with Mock Data and Scoring Algorithms | ~476 |
+
+### Feb 1, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #3380 | 5:15 PM | 🔴 | Division by Zero Fix in Sleep Phases Bar | ~329 |
+| #3379 | " | 🔵 | Sleep Phases Visualization Bar Component | ~363 |
+| #3377 | " | 🔵 | Sleep Efficiency Calculation Investigation | ~304 |
+| #3376 | " | 🔵 | Health Screen Sleep Card Implementation | ~343 |
 </claude-mem-context>

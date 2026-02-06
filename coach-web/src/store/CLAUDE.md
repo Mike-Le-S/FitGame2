@@ -9,4 +9,10 @@
 |----|------|---|-------|------|
 | #2542 | 4:52 AM | 🔵 | Coach Web Students Store with Client Management and Progress Tracking | ~746 |
 | #2540 | 4:51 AM | 🔵 | Coach Web Programs Store with Exercise Catalog and Program Management | ~791 |
+
+### Feb 1, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #3325 | 4:42 PM | 🔵 | Existing Supabase email/password authentication in coach web application | ~399 |
 </claude-mem-context>

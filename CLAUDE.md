@@ -7,6 +7,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **TOUJOURS utiliser `/frontend-design`** lors de toute modification ou création de frontend/UI
 - **Ne JAMAIS lancer l'app** (`flutter run`) - Mike lance l'app dans son propre terminal
 - **Après chaque tâche** : Mettre à jour `fitgame/docs/CHANGELOG.md` et `fitgame/docs/SCREENS.md`
+- **TOUJOURS utiliser mobile-mcp** pour tester l'app sur simulateur iOS (pas simctl/cliclick)
+
+## Tests sur simulateur (mobile-mcp)
+
+### Prérequis
+
+1. **Simulateur iOS démarré** (Mike le lance lui-même)
+2. **Appium en cours d'exécution** :
+```bash
+# Démarrer Appium (nécessaire pour mobile-mcp)
+appium --relaxed-security &
+
+# Vérifier qu'Appium tourne
+curl -s http://127.0.0.1:4723/status | grep ready
+```
+
+### Outils MCP disponibles
+
+| Outil | Usage |
+|-------|-------|
+| `mobile_list_available_devices` | Lister les simulateurs et récupérer le device ID |
+| `mobile_take_screenshot` | Capture d'écran (voir l'état actuel) |
+| `mobile_list_elements_on_screen` | Liste les éléments UI avec coordonnées exactes |
+| `mobile_click_on_screen_at_coordinates` | Tap sur coordonnées x,y |
+| `mobile_swipe_on_screen` | Swipe (direction: up/down/left/right) |
+| `mobile_type_keys` | Saisie de texte dans le champ focusé |
+| `mobile_press_button` | Boutons physiques (HOME, BACK, etc.) |
+| `mobile_launch_app` | Lancer une app par bundle ID |
+| `mobile_list_apps` | Lister les apps installées |
+
+### Workflow de test typique
+
+```
+1. mobile_list_available_devices      → Récupérer le device ID
+2. mobile_launch_app (com.fitgame.fitgame)  → Lancer FitGame
+3. mobile_take_screenshot             → Voir l'écran
+4. mobile_list_elements_on_screen     → Trouver les coordonnées des éléments
+5. mobile_click_on_screen_at_coordinates → Interagir
+6. mobile_take_screenshot             → Vérifier le résultat
+```
+
+### Bundle ID de l'app
+
+- **FitGame** : `com.fitgame.fitgame`
 
 ## Commandes
 
