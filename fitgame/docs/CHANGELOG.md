@@ -1,5 +1,27 @@
 # Changelog FitGame
 
+## 2026-02-06 - Real Backend: Replace All Mock Data with Supabase
+
+### Phase 1: Database Migrations (Supabase)
+- Created `calendar_events` table with coach_id FK, RLS policies, and updated_at trigger
+- Created `health_metrics` table with unique constraint on (user_id, date), RLS policies
+- Created `activity_respects` table with unique constraint, `toggle_respect` + `check_achievements` RPCs
+- Created `achievement_definitions` + `user_achievements` tables with seed data (6 achievements)
+
+### Phase 2: Coach Web Portal (React/Zustand → Supabase)
+- **events-store**: Full CRUD with Supabase (fetchEvents, addEvent, updateEvent, deleteEvent, toggleComplete), snake_case mapping, loading/error state
+- **header notifications**: Real-time Supabase subscription + fetch + mark-all-read, replaces 3 hardcoded mock notifications
+- **settings-store**: Write-through to coaches/profiles tables on theme/accent/language/notifications changes, loadFromDB() on session restore
+- **student-profile**: Real compliance rate from this week's sessions, health data from health_metrics table (weight/sleep/restingHR charts)
+
+### Phase 3: Flutter Mobile App (Dart → Supabase)
+- **SupabaseService**: Added 6 new methods (saveHealthMetrics, getHealthMetrics, toggleRespect, getMyRespects, getAchievements, checkAchievements)
+- **health_screen**: Persists HealthKit data to Supabase after sync (sleep, heart, activity, global score)
+- **home_screen widgets**: SleepSummaryWidget, MacroSummaryWidget, FriendActivityPeek converted from hardcoded fields to constructor params fed by real Supabase data
+- **social_screen**: Respect system now calls toggle_respect RPC, fetches user's given respects
+- **profile_screen**: Achievements loaded from achievement_definitions + user_achievements tables with icon mapping
+- **active_workout_screen**: Calls checkAchievements() after workout completion
+
 ## 2026-02-06 - Security & Quality Audit Remediation
 
 ### Security Fixes
