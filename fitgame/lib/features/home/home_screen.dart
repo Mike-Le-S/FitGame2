@@ -43,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Map<String, dynamic>? _todayNutrition;
   Map<String, dynamic>? _yesterdayNutrition;
   List<Map<String, dynamic>> _recentActivities = [];
+  int _targetCalories = 2000;
 
   @override
   void initState() {
@@ -85,14 +86,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             final days = program['days'] as List? ?? [];
 
             if (days.isNotEmpty) {
-              final firstDay = days[0] as Map<String, dynamic>;
-              _sessionName = firstDay['name'] ?? 'Jour 1';
+              // Match today's weekday to a program day
+              final weekdayNames = {
+                1: 'lundi', 2: 'mardi', 3: 'mercredi',
+                4: 'jeudi', 5: 'vendredi', 6: 'samedi', 7: 'dimanche',
+              };
+              final todayName = weekdayNames[DateTime.now().weekday]!;
+
+              // Find matching day or fall back to first day
+              var matchedDay = days[0] as Map<String, dynamic>;
+              for (final day in days) {
+                final dayMap = day as Map<String, dynamic>;
+                final dayName = (dayMap['name'] ?? '').toString().toLowerCase();
+                if (dayName.contains(todayName)) {
+                  matchedDay = dayMap;
+                  break;
+                }
+              }
+
+              _sessionName = matchedDay['name'] ?? 'Jour 1';
 
               // Extract muscles from exercises
-              final exercises = firstDay['exercises'] as List? ?? [];
+              final exercises = matchedDay['exercises'] as List? ?? [];
               final muscles = <String>{};
               for (final ex in exercises) {
-                final muscle = ex['muscleGroup'] ?? ex['muscle_group'];
+                final muscle = ex['muscle'] ?? ex['muscleGroup'] ?? ex['muscle_group'];
                 if (muscle != null) muscles.add(muscle.toString());
               }
               _sessionMuscles = muscles.take(2).join(' • ');
@@ -134,6 +152,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         SupabaseService.getNutritionLog(yesterday),
         SupabaseService.getActivityFeed(limit: 3),
         SupabaseService.getHealthMetrics(startDate: todayStr, endDate: todayStr),
+        SupabaseService.getActiveDietPlan(),
       ]);
 
       if (mounted) {
@@ -143,6 +162,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _yesterdayNutrition = widgetResults[1] as Map<String, dynamic>?;
           _recentActivities = widgetResults[2] as List<Map<String, dynamic>>;
           _todayHealth = healthList.isNotEmpty ? healthList.first : null;
+
+          final dietPlan = widgetResults[4] as Map<String, dynamic>?;
+          if (dietPlan != null) {
+            _targetCalories = (dietPlan['training_calories'] as num?)?.toInt() ?? 2000;
+          }
         });
       }
     } catch (e) {
@@ -226,13 +250,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           // === [3] SLEEP SUMMARY → Santé (index 4) ===
                           SleepSummaryWidget(
                             onTap: () => _navigateToTab(4),
-                            totalSleep: _todayHealth?['sleep_hours'] != null
-                                ? '${(_todayHealth!['sleep_hours'] as num).toStringAsFixed(1)}h'
+                            totalSleep: _todayHealth?['sleep_duration_minutes'] != null
+                                ? '${((_todayHealth!['sleep_duration_minutes'] as num) / 60).toStringAsFixed(1)}h'
                                 : '--',
                             sleepScore: (_todayHealth?['sleep_score'] as num?)?.toInt() ?? 0,
-                            deepPercent: (_todayHealth?['deep_sleep_percent'] as num?)?.toDouble() ?? 0.0,
-                            corePercent: (_todayHealth?['core_sleep_percent'] as num?)?.toDouble() ?? 0.0,
-                            remPercent: (_todayHealth?['rem_sleep_percent'] as num?)?.toDouble() ?? 0.0,
+                            deepPercent: _calculateSleepPercent(_todayHealth, 'deep_sleep_minutes'),
+                            corePercent: _calculateSleepPercent(_todayHealth, 'light_sleep_minutes'),
+                            remPercent: _calculateSleepPercent(_todayHealth, 'rem_sleep_minutes'),
                           ),
                           const SizedBox(height: Spacing.md),
 
@@ -240,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           MacroSummaryWidget(
                             onTap: () => _navigateToTab(3),
                             currentCalories: (_todayNutrition?['calories_consumed'] as num?)?.toInt() ?? 0,
-                            targetCalories: (_todayNutrition?['target_calories'] as num?)?.toInt() ?? 2000,
+                            targetCalories: _targetCalories,
                             proteinPercent: _calculateMacroPercent(_todayNutrition, 'protein'),
                             carbsPercent: _calculateMacroPercent(_todayNutrition, 'carbs'),
                             fatPercent: _calculateMacroPercent(_todayNutrition, 'fat'),
@@ -293,6 +317,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Convert macro grams to calories: P=4cal/g, C=4cal/g, F=9cal/g
     final calPerGram = macro == 'fat' ? 9.0 : 4.0;
     return ((totalMacro * calPerGram) / totalCalories).clamp(0.0, 1.0);
+  }
+
+  double _calculateSleepPercent(Map<String, dynamic>? health, String minutesKey) {
+    if (health == null) return 0.0;
+    final totalMinutes = (health['sleep_duration_minutes'] as num?)?.toDouble() ?? 0.0;
+    if (totalMinutes == 0) return 0.0;
+    final phaseMinutes = (health[minutesKey] as num?)?.toDouble() ?? 0.0;
+    return (phaseMinutes / totalMinutes).clamp(0.0, 1.0);
   }
 
   Widget _buildBottomCTA() {
