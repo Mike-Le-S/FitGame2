@@ -112,6 +112,41 @@ class _SocialScreenState extends State<SocialScreen>
           _unreadNotifications = unreadCount;
           _isLoading = false;
         });
+
+        // Fetch which activities I've respected (after setState)
+        final activityIds = _activities.map((a) => a.id).where((id) => id.isNotEmpty).toList();
+        if (activityIds.isNotEmpty) {
+          try {
+            final myRespects = await SupabaseService.getMyRespects(activityIds);
+            if (mounted) {
+              setState(() {
+                _activities = _activities.map((a) {
+                  final respectedData = activityData.firstWhere(
+                    (d) => d['id'] == a.id,
+                    orElse: () => <String, dynamic>{},
+                  );
+                  return Activity(
+                    id: a.id,
+                    userName: a.userName,
+                    userAvatarUrl: a.userAvatarUrl,
+                    workoutName: a.workoutName,
+                    muscles: a.muscles,
+                    durationMinutes: a.durationMinutes,
+                    volumeKg: a.volumeKg,
+                    exerciseCount: a.exerciseCount,
+                    timestamp: a.timestamp,
+                    topExercises: a.topExercises,
+                    respectCount: respectedData['respect_count'] as int? ?? 0,
+                    hasGivenRespect: myRespects.contains(a.id),
+                    respectGivers: a.respectGivers,
+                  );
+                }).toList();
+              });
+            }
+          } catch (e) {
+            debugPrint('Error fetching respects: $e');
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -126,29 +161,37 @@ class _SocialScreenState extends State<SocialScreen>
     super.dispose();
   }
 
-  void _onRespect(String activityId) {
-    setState(() {
-      final index = _activities.indexWhere((a) => a.id == activityId);
-      if (index != -1) {
-        final activity = _activities[index];
-        _activities[index] = Activity(
-          id: activity.id,
-          userName: activity.userName,
-          userAvatarUrl: activity.userAvatarUrl,
-          workoutName: activity.workoutName,
-          muscles: activity.muscles,
-          durationMinutes: activity.durationMinutes,
-          volumeKg: activity.volumeKg,
-          exerciseCount: activity.exerciseCount,
-          timestamp: activity.timestamp,
-          topExercises: activity.topExercises,
-          pr: activity.pr,
-          respectCount: activity.respectCount + 1,
-          hasGivenRespect: true,
-          respectGivers: ['Toi', ...activity.respectGivers],
-        );
-      }
-    });
+  void _onRespect(String activityId) async {
+    try {
+      final result = await SupabaseService.toggleRespect(activityId);
+      final newCount = result['respect_count'] as int? ?? 0;
+      final action = result['action'] as String? ?? 'added';
+
+      setState(() {
+        final index = _activities.indexWhere((a) => a.id == activityId);
+        if (index != -1) {
+          final activity = _activities[index];
+          _activities[index] = Activity(
+            id: activity.id,
+            userName: activity.userName,
+            userAvatarUrl: activity.userAvatarUrl,
+            workoutName: activity.workoutName,
+            muscles: activity.muscles,
+            durationMinutes: activity.durationMinutes,
+            volumeKg: activity.volumeKg,
+            exerciseCount: activity.exerciseCount,
+            timestamp: activity.timestamp,
+            topExercises: activity.topExercises,
+            pr: activity.pr,
+            respectCount: newCount,
+            hasGivenRespect: action == 'added',
+            respectGivers: activity.respectGivers,
+          );
+        }
+      });
+    } catch (e) {
+      debugPrint('Error toggling respect: $e');
+    }
   }
 
   void _openActivityDetail(Activity activity) {
