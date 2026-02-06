@@ -39,28 +39,31 @@ export function CreateEventModal({ isOpen, onClose, selectedDate = new Date() }:
     e.preventDefault()
     setIsSubmitting(true)
 
-    await new Promise(resolve => setTimeout(resolve, 500))
+    try {
+      await addEvent({
+        title: formData.title,
+        type: formData.type,
+        date: formData.date,
+        time: formData.time,
+        studentId: formData.studentId || undefined,
+        description: formData.notes || undefined,
+        completed: false,
+      })
 
-    addEvent({
-      title: formData.title,
-      type: formData.type,
-      date: formData.date,
-      time: formData.time,
-      studentId: formData.studentId,
-      notes: formData.notes || undefined,
-      completed: false,
-    })
-
-    setIsSubmitting(false)
-    setFormData({
-      title: '',
-      type: 'workout',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      time: '09:00',
-      studentId: '',
-      notes: '',
-    })
-    onClose()
+      setFormData({
+        title: '',
+        type: 'workout',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        time: '09:00',
+        studentId: '',
+        notes: '',
+      })
+      onClose()
+    } catch (error) {
+      console.error('Error creating event:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!isOpen) return null
@@ -147,10 +150,9 @@ export function CreateEventModal({ isOpen, onClose, selectedDate = new Date() }:
           {/* Student */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-text-secondary">
-              Élève <span className="text-error">*</span>
+              Élève
             </label>
             <select
-              required
               value={formData.studentId}
               onChange={(e) => setFormData(prev => ({ ...prev, studentId: e.target.value }))}
               className={cn(
@@ -246,7 +248,7 @@ export function CreateEventModal({ isOpen, onClose, selectedDate = new Date() }:
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !formData.title || !formData.studentId}
+              disabled={isSubmitting || !formData.title}
               className={cn(
                 'flex items-center gap-2 h-11 px-6 rounded-xl font-semibold text-white',
                 'bg-gradient-to-r from-accent to-[#ff8f5c]',

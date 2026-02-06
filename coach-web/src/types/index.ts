@@ -186,14 +186,17 @@ export interface EnergyBalance {
 
 export interface CalendarEvent {
   id: string
-  studentId: string
+  coachId: string
+  studentId?: string
   title: string
-  type: 'workout' | 'nutrition' | 'check-in' | 'other'
+  description?: string
+  type: 'workout' | 'check-in' | 'nutrition' | 'note' | 'holiday'
   date: string
   time?: string
-  duration?: number
-  notes?: string
+  durationMinutes?: number
   completed: boolean
+  recurring?: boolean
+  recurrenceRule?: string
 }
 
 // ============================================

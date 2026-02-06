@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -34,7 +34,7 @@ import { useStudentsStore } from '@/store/students-store'
 import { cn } from '@/lib/utils'
 import type { CalendarEvent } from '@/types'
 
-const eventTypeConfig = {
+const eventTypeConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   workout: { label: 'Entraînement', icon: Dumbbell, color: 'accent' },
   nutrition: { label: 'Nutrition', icon: Apple, color: 'success' },
   'check-in': { label: 'Check-in', icon: MessageSquare, color: 'info' },
@@ -48,8 +48,12 @@ export function CalendarPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([])
-  const { events, toggleComplete, deleteEvent } = useEventsStore()
+  const { events, fetchEvents, isLoading, toggleComplete, deleteEvent } = useEventsStore()
   const { students } = useStudentsStore()
+
+  useEffect(() => {
+    fetchEvents()
+  }, [fetchEvents])
 
   const toggleStudentFilter = (studentId: string) => {
     setSelectedStudentIds(prev =>
@@ -77,7 +81,7 @@ export function CalendarPage() {
   const getEventsForDate = (date: Date) => {
     return events.filter((e) => {
       const matchesDate = e.date === format(date, 'yyyy-MM-dd')
-      const matchesStudent = selectedStudentIds.length === 0 || selectedStudentIds.includes(e.studentId)
+      const matchesStudent = selectedStudentIds.length === 0 || (e.studentId && selectedStudentIds.includes(e.studentId))
       return matchesDate && matchesStudent
     })
   }
@@ -85,7 +89,7 @@ export function CalendarPage() {
   // Filtered events for stats
   const filteredEvents = selectedStudentIds.length === 0
     ? events
-    : events.filter(e => selectedStudentIds.includes(e.studentId))
+    : events.filter(e => e.studentId && selectedStudentIds.includes(e.studentId))
 
   const selectedDateEvents = getEventsForDate(selectedDate)
 

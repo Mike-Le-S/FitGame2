@@ -44,8 +44,8 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
         type: event.type,
         date: event.date,
         time: event.time || '09:00',
-        studentId: event.studentId,
-        notes: event.notes || '',
+        studentId: event.studentId || '',
+        notes: event.description || '',
       })
     }
   }, [event])
@@ -55,31 +55,36 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
     if (!event) return
 
     setIsSubmitting(true)
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    updateEvent(event.id, {
-      title: formData.title,
-      type: formData.type,
-      date: formData.date,
-      time: formData.time,
-      studentId: formData.studentId,
-      notes: formData.notes || undefined,
-    })
-
-    setIsSubmitting(false)
-    onClose()
+    try {
+      await updateEvent(event.id, {
+        title: formData.title,
+        type: formData.type,
+        date: formData.date,
+        time: formData.time,
+        studentId: formData.studentId || undefined,
+        description: formData.notes || undefined,
+      })
+      onClose()
+    } catch (error) {
+      console.error('Error updating event:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleDelete = async () => {
     if (!event) return
 
     setIsDeleting(true)
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    deleteEvent(event.id)
-    setIsDeleting(false)
-    setShowDeleteConfirm(false)
-    onClose()
+    try {
+      await deleteEvent(event.id)
+      setShowDeleteConfirm(false)
+      onClose()
+    } catch (error) {
+      console.error('Error deleting event:', error)
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   if (!isOpen || !event) return null
@@ -217,10 +222,9 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
             {/* Student */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-text-secondary">
-                Élève <span className="text-error">*</span>
+                Élève
               </label>
               <select
-                required
                 value={formData.studentId}
                 onChange={(e) => setFormData(prev => ({ ...prev, studentId: e.target.value }))}
                 className={cn(
@@ -331,7 +335,7 @@ export function EditEventModal({ isOpen, onClose, event }: EditEventModalProps) 
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !formData.title || !formData.studentId}
+                  disabled={isSubmitting || !formData.title}
                   className={cn(
                     'flex items-center gap-2 h-11 px-6 rounded-xl font-semibold text-white',
                     'bg-gradient-to-r from-accent to-[#ff8f5c]',
