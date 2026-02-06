@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,6 +28,13 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
     'Sèche été': {'goal': 'cut', 'cal': 2400, 'restCal': 2000, 'protein': 40, 'carbs': 35, 'fat': 25},
     'Nutrition équilibrée': {'goal': 'maintain', 'cal': 2800, 'restCal': 2500, 'protein': 30, 'carbs': 45, 'fat': 25},
     'Plan personnalisé': {'goal': 'maintain', 'cal': 2800, 'restCal': 2400, 'protein': 30, 'carbs': 45, 'fat': 25},
+  };
+
+  static const _macroPresets = {
+    'Équilibré': {'protein': 30, 'carbs': 45, 'fat': 25},
+    'High Protein': {'protein': 40, 'carbs': 35, 'fat': 25},
+    'Low Carb': {'protein': 35, 'carbs': 25, 'fat': 40},
+    'Keto': {'protein': 25, 'carbs': 5, 'fat': 70},
   };
 
   final PageController _pageController = PageController();
@@ -506,7 +514,7 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
                   children: [
                     _buildStep1Identity(),
                     _buildStep2ObjectiveCalories(),
-                    _buildStep3Placeholder(),
+                    _buildStep3Macros(),
                     _buildStep4Placeholder(),
                     _buildStep5Placeholder(),
                     _buildStep6Placeholder(),
@@ -942,8 +950,264 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
     );
   }
 
-  Widget _buildStep3Placeholder() {
-    return const Center(child: Text('Step 3', style: TextStyle(color: Colors.white)));
+  Widget _buildStep3Macros() {
+    final proteinGrams = (_trainingCalories * _proteinPercent / 100 / 4).round();
+    final carbsGrams = (_trainingCalories * _carbsPercent / 100 / 4).round();
+    final fatGrams = (_trainingCalories * _fatPercent / 100 / 9).round();
+    final total = _proteinPercent + _carbsPercent + _fatPercent;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: Spacing.xl),
+          Text(
+            'Répartition\nmacros',
+            style: FGTypography.h1.copyWith(color: _nutritionGreen),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'Ajuste la répartition de tes macronutriments.',
+            style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+          ),
+          const SizedBox(height: Spacing.lg),
+
+          // Preset chips
+          Text(
+            'PRESETS',
+            style: FGTypography.caption.copyWith(
+              letterSpacing: 2,
+              fontWeight: FontWeight.w700,
+              color: FGColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Wrap(
+            spacing: Spacing.sm,
+            runSpacing: Spacing.sm,
+            children: _macroPresets.entries.map((entry) {
+              final isActive = _proteinPercent == entry.value['protein'] &&
+                  _carbsPercent == entry.value['carbs'] &&
+                  _fatPercent == entry.value['fat'];
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _proteinPercent = entry.value['protein'] as int;
+                    _carbsPercent = entry.value['carbs'] as int;
+                    _fatPercent = entry.value['fat'] as int;
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.md,
+                    vertical: Spacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? _nutritionGreen.withValues(alpha: 0.15)
+                        : FGColors.glassSurface,
+                    borderRadius: BorderRadius.circular(Spacing.xl),
+                    border: Border.all(
+                      color: isActive ? _nutritionGreen : FGColors.glassBorder,
+                    ),
+                  ),
+                  child: Text(
+                    entry.key,
+                    style: FGTypography.caption.copyWith(
+                      color: isActive ? _nutritionGreen : FGColors.textSecondary,
+                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: Spacing.xl),
+
+          // Pie chart
+          Center(
+            child: SizedBox(
+              width: 180,
+              height: 180,
+              child: CustomPaint(
+                painter: _MacroPieChartPainter(
+                  proteinPercent: _proteinPercent,
+                  carbsPercent: _carbsPercent,
+                  fatPercent: _fatPercent,
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$total%',
+                        style: FGTypography.h2.copyWith(
+                          color: total == 100 ? _nutritionGreen : FGColors.error,
+                        ),
+                      ),
+                      Text(
+                        total == 100 ? 'Parfait' : 'Ajuster',
+                        style: FGTypography.caption.copyWith(
+                          color: total == 100 ? _nutritionGreen : FGColors.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: Spacing.xl),
+
+          // Sliders
+          _buildMacroSlider(
+            label: 'Protéines',
+            percent: _proteinPercent,
+            grams: proteinGrams,
+            color: const Color(0xFFE74C3C),
+            unit: 'g (x4 kcal)',
+            onChanged: (val) => _adjustMacros('protein', val),
+          ),
+          const SizedBox(height: Spacing.md),
+          _buildMacroSlider(
+            label: 'Glucides',
+            percent: _carbsPercent,
+            grams: carbsGrams,
+            color: const Color(0xFF3498DB),
+            unit: 'g (x4 kcal)',
+            onChanged: (val) => _adjustMacros('carbs', val),
+          ),
+          const SizedBox(height: Spacing.md),
+          _buildMacroSlider(
+            label: 'Lipides',
+            percent: _fatPercent,
+            grams: fatGrams,
+            color: const Color(0xFFF39C12),
+            unit: 'g (x9 kcal)',
+            onChanged: (val) => _adjustMacros('fat', val),
+          ),
+          const SizedBox(height: Spacing.xxl),
+        ],
+      ),
+    );
+  }
+
+  void _adjustMacros(String changed, int newValue) {
+    setState(() {
+      switch (changed) {
+        case 'protein':
+          final diff = newValue - _proteinPercent;
+          _proteinPercent = newValue;
+          // Distribute the difference between the other two
+          if (_carbsPercent - diff ~/ 2 >= 0 && _fatPercent - (diff - diff ~/ 2) >= 0) {
+            _carbsPercent -= diff ~/ 2;
+            _fatPercent -= (diff - diff ~/ 2);
+          } else {
+            _carbsPercent = (100 - _proteinPercent) ~/ 2;
+            _fatPercent = 100 - _proteinPercent - _carbsPercent;
+          }
+          break;
+        case 'carbs':
+          final diff = newValue - _carbsPercent;
+          _carbsPercent = newValue;
+          if (_proteinPercent - diff ~/ 2 >= 0 && _fatPercent - (diff - diff ~/ 2) >= 0) {
+            _proteinPercent -= diff ~/ 2;
+            _fatPercent -= (diff - diff ~/ 2);
+          } else {
+            _proteinPercent = (100 - _carbsPercent) ~/ 2;
+            _fatPercent = 100 - _carbsPercent - _proteinPercent;
+          }
+          break;
+        case 'fat':
+          final diff = newValue - _fatPercent;
+          _fatPercent = newValue;
+          if (_proteinPercent - diff ~/ 2 >= 0 && _carbsPercent - (diff - diff ~/ 2) >= 0) {
+            _proteinPercent -= diff ~/ 2;
+            _carbsPercent -= (diff - diff ~/ 2);
+          } else {
+            _proteinPercent = (100 - _fatPercent) ~/ 2;
+            _carbsPercent = 100 - _fatPercent - _proteinPercent;
+          }
+          break;
+      }
+
+      // Clamp all values
+      _proteinPercent = _proteinPercent.clamp(0, 100);
+      _carbsPercent = _carbsPercent.clamp(0, 100);
+      _fatPercent = _fatPercent.clamp(0, 100);
+    });
+  }
+
+  Widget _buildMacroSlider({
+    required String label,
+    required int percent,
+    required int grams,
+    required Color color,
+    required String unit,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(Spacing.md),
+      decoration: BoxDecoration(
+        color: FGColors.glassSurface,
+        borderRadius: BorderRadius.circular(Spacing.md),
+        border: Border.all(color: FGColors.glassBorder),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: Spacing.sm),
+              Text(
+                label,
+                style: FGTypography.body.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              Text(
+                '$percent%',
+                style: FGTypography.h3.copyWith(color: color),
+              ),
+              const SizedBox(width: Spacing.sm),
+              Text(
+                '$grams$unit',
+                style: FGTypography.caption.copyWith(color: FGColors.textSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.sm),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: color,
+              inactiveTrackColor: color.withValues(alpha: 0.2),
+              thumbColor: color,
+              overlayColor: color.withValues(alpha: 0.1),
+              trackHeight: 6,
+            ),
+            child: Slider(
+              value: percent.toDouble(),
+              min: 0,
+              max: 80,
+              divisions: 80,
+              onChanged: (val) {
+                HapticFeedback.selectionClick();
+                onChanged(val.round());
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildStep4Placeholder() {
@@ -956,5 +1220,74 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
 
   Widget _buildStep6Placeholder() {
     return const Center(child: Text('Step 6', style: TextStyle(color: Colors.white)));
+  }
+}
+
+class _MacroPieChartPainter extends CustomPainter {
+  final int proteinPercent;
+  final int carbsPercent;
+  final int fatPercent;
+
+  static const _proteinColor = Color(0xFFE74C3C);
+  static const _carbsColor = Color(0xFF3498DB);
+  static const _fatColor = Color(0xFFF39C12);
+
+  _MacroPieChartPainter({
+    required this.proteinPercent,
+    required this.carbsPercent,
+    required this.fatPercent,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 8;
+    const strokeWidth = 20.0;
+    const startAngle = -pi / 2;
+
+    final total = proteinPercent + carbsPercent + fatPercent;
+    if (total == 0) return;
+
+    final segments = [
+      (proteinPercent / total, _proteinColor),
+      (carbsPercent / total, _carbsColor),
+      (fatPercent / total, _fatColor),
+    ];
+
+    // Background track
+    final bgPaint = Paint()
+      ..color = const Color(0xFF1A1A1A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Draw segments
+    var currentAngle = startAngle;
+    for (final (fraction, color) in segments) {
+      if (fraction <= 0) continue;
+      final sweepAngle = 2 * pi * fraction;
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        currentAngle,
+        sweepAngle - 0.04, // Small gap between segments
+        false,
+        paint,
+      );
+      currentAngle += sweepAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MacroPieChartPainter oldDelegate) {
+    return oldDelegate.proteinPercent != proteinPercent ||
+        oldDelegate.carbsPercent != carbsPercent ||
+        oldDelegate.fatPercent != fatPercent;
   }
 }
