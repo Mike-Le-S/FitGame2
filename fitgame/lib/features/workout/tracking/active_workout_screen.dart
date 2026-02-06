@@ -406,6 +406,48 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
         // Create activity feed entry
         try {
+          // Build top exercises for social feed (top 3 by weight)
+          final topExercisesData = _exercises
+              .map((ex) {
+                final maxSet = ex.sets
+                    .where((s) => s.isCompleted && !s.isWarmup)
+                    .fold<({double weight, int reps})>(
+                      (weight: 0, reps: 0),
+                      (best, s) => s.actualWeight > best.weight
+                          ? (weight: s.actualWeight, reps: s.actualReps)
+                          : best,
+                    );
+                return {
+                  'name': ex.name,
+                  'shortName': ex.name.length > 4 ? ex.name.substring(0, 4).toUpperCase() : ex.name.toUpperCase(),
+                  'weightKg': maxSet.weight,
+                  'reps': maxSet.reps,
+                };
+              })
+              .where((e) => (e['weightKg'] as double) > 0)
+              .toList()
+            ..sort((a, b) => (b['weightKg'] as double).compareTo(a['weightKg'] as double));
+
+          // Build muscles string
+          final muscles = _exercises
+              .map((ex) => ex.muscle)
+              .where((m) => m.isNotEmpty)
+              .toSet()
+              .take(3)
+              .join(' • ');
+
+          // Build PR data for social feed
+          Map<String, dynamic>? prData;
+          if (prs.isNotEmpty) {
+            final topPr = prs.first;
+            prData = {
+              'exerciseName': topPr['exerciseName'],
+              'value': topPr['weightKg'],
+              'gain': (topPr['weightKg'] as double) - (topPr['previousBest'] as double),
+              'unit': 'kg',
+            };
+          }
+
           await SupabaseService.createActivity(
             activityType: 'workout_completed',
             title: '$_dayName terminée',
@@ -413,11 +455,50 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             metadata: {
               'session_id': _sessionId,
               'duration_minutes': (_workoutSeconds / 60).round(),
+              'volume_kg': _totalVolume,
+              'exercise_count': _exercises.length,
+              'muscles': muscles,
+              'exercises': topExercisesData.take(3).toList(),
+              if (prData != null) 'pr': prData,
               'personal_records': prs.length,
             },
           );
         } catch (e) {
           debugPrint('Error creating activity: $e');
+        }
+
+        // Update challenge progress
+        try {
+          final activeChallenges = await SupabaseService.getActiveChallenges();
+          for (final challenge in activeChallenges) {
+            final exerciseName = challenge['exercise_name'] as String? ?? '';
+            final challengeType = challenge['type'] as String? ?? '';
+
+            // Find matching exercise in this workout
+            for (final ex in _exercises) {
+              if (ex.name.toLowerCase() == exerciseName.toLowerCase()) {
+                double value = 0;
+                if (challengeType == 'weight') {
+                  value = ex.sets
+                      .where((s) => s.isCompleted && !s.isWarmup)
+                      .fold<double>(0, (max, s) => s.actualWeight > max ? s.actualWeight : max);
+                } else if (challengeType == 'reps') {
+                  value = ex.sets
+                      .where((s) => s.isCompleted && !s.isWarmup)
+                      .fold<double>(0, (max, s) => s.actualReps > max ? s.actualReps.toDouble() : max);
+                }
+                if (value > 0) {
+                  await SupabaseService.updateChallengeProgress(
+                    challenge['id'],
+                    value,
+                  );
+                }
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error updating challenge progress: $e');
         }
       }
     } catch (e) {

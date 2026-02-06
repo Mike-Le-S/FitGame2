@@ -1524,4 +1524,24 @@ class SupabaseService {
         .update({'participants': participants})
         .eq('id', challengeId);
   }
+
+  /// Get active challenges where current user participates
+  static Future<List<Map<String, dynamic>>> getActiveChallenges() async {
+    if (currentUser == null) return [];
+    try {
+      final response = await client
+          .from('challenges')
+          .select()
+          .eq('status', 'active');
+
+      // Filter to challenges where user is a participant
+      return List<Map<String, dynamic>>.from(response).where((c) {
+        final participants = c['participants'] as List? ?? [];
+        return participants.any((p) => (p as Map)['id'] == currentUser!.id);
+      }).toList();
+    } catch (e) {
+      debugPrint('Error fetching active challenges: $e');
+      return [];
+    }
+  }
 }
