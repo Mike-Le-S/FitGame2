@@ -519,7 +519,7 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
                     _buildStep2ObjectiveCalories(),
                     _buildStep3Macros(),
                     _buildStep4DayTypes(),
-                    _buildStep5Placeholder(),
+                    _buildStep5WeeklySchedule(),
                     _buildStep6Placeholder(),
                   ],
                 ),
@@ -1487,8 +1487,246 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
     );
   }
 
-  Widget _buildStep5Placeholder() {
-    return const Center(child: Text('Step 5', style: TextStyle(color: Colors.white)));
+  // ============================================
+  // STEP 5: WEEKLY SCHEDULE
+  // ============================================
+
+  void _showDayTypeSelector(int dayIndex) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: FGColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(Spacing.lg)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(Spacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: FGColors.glassBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Spacing.md),
+                Text(
+                  _dayNames[dayIndex],
+                  style: FGTypography.h3.copyWith(color: _nutritionGreen),
+                ),
+                const SizedBox(height: Spacing.md),
+                ..._dayTypes.asMap().entries.map((entry) {
+                  final typeIndex = entry.key;
+                  final dayType = entry.value;
+                  final isSelected = _weeklySchedule[dayIndex] == typeIndex;
+                  final emoji = dayType['emoji'] as String? ?? '📅';
+                  final name = dayType['name'] as String? ?? 'Type';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: Spacing.sm),
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _weeklySchedule[dayIndex] = typeIndex);
+                        _saveDraft();
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(Spacing.md),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? _nutritionGreen.withValues(alpha: 0.1)
+                              : FGColors.glassSurface,
+                          borderRadius: BorderRadius.circular(Spacing.md),
+                          border: Border.all(
+                            color: isSelected ? _nutritionGreen : FGColors.glassBorder,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(emoji, style: const TextStyle(fontSize: 24)),
+                            const SizedBox(width: Spacing.md),
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: FGTypography.body.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected ? _nutritionGreen : FGColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              Icon(Icons.check_rounded, color: _nutritionGreen, size: 22),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+                const SizedBox(height: Spacing.sm),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStep5WeeklySchedule() {
+    // Build summary: count occurrences of each day type
+    final typeCounts = <int, int>{};
+    for (final typeIndex in _weeklySchedule.values) {
+      typeCounts[typeIndex] = (typeCounts[typeIndex] ?? 0) + 1;
+    }
+
+    // Calculate total weekly calories
+    int totalWeeklyCal = 0;
+    for (final entry in _weeklySchedule.entries) {
+      final typeIndex = entry.value;
+      if (typeIndex < _dayTypes.length) {
+        final meals = _dayTypes[typeIndex]['meals'] as List? ?? [];
+        totalWeeklyCal += _calculateDayTypeCalories(meals);
+      }
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: Spacing.xl),
+          Text(
+            'Planning\nsemaine',
+            style: FGTypography.h1.copyWith(color: _nutritionGreen),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'Assigne un type de jour à chaque jour de la semaine.',
+            style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+          ),
+          const SizedBox(height: Spacing.xl),
+
+          // 7 day rows
+          ...List.generate(7, (dayIndex) {
+            final typeIndex = _weeklySchedule[dayIndex] ?? 0;
+            final safeIndex = typeIndex < _dayTypes.length ? typeIndex : 0;
+            final dayType = _dayTypes[safeIndex];
+            final emoji = dayType['emoji'] as String? ?? '📅';
+            final name = dayType['name'] as String? ?? 'Type';
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: Spacing.sm),
+              child: GestureDetector(
+                onTap: () => _showDayTypeSelector(dayIndex),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.md,
+                    vertical: Spacing.md,
+                  ),
+                  decoration: BoxDecoration(
+                    color: FGColors.glassSurface,
+                    borderRadius: BorderRadius.circular(Spacing.md),
+                    border: Border.all(color: FGColors.glassBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 40,
+                        child: Text(
+                          _dayNamesShort[dayIndex],
+                          style: FGTypography.body.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: FGColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      Text(emoji, style: const TextStyle(fontSize: 22)),
+                      const SizedBox(width: Spacing.sm),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: FGTypography.body.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: FGColors.textSecondary,
+                        size: 22,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+
+          const SizedBox(height: Spacing.lg),
+
+          // Summary section
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(Spacing.md),
+            decoration: BoxDecoration(
+              color: _nutritionGreen.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(Spacing.md),
+              border: Border.all(color: _nutritionGreen.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'RÉSUMÉ',
+                  style: FGTypography.caption.copyWith(
+                    letterSpacing: 2,
+                    fontWeight: FontWeight.w700,
+                    color: _nutritionGreen,
+                  ),
+                ),
+                const SizedBox(height: Spacing.sm),
+                // Type counts
+                Wrap(
+                  spacing: Spacing.md,
+                  runSpacing: Spacing.xs,
+                  children: typeCounts.entries.map((entry) {
+                    final safeIdx = entry.key < _dayTypes.length ? entry.key : 0;
+                    final dt = _dayTypes[safeIdx];
+                    final emoji = dt['emoji'] as String? ?? '📅';
+                    final name = dt['name'] as String? ?? 'Type';
+                    return Text(
+                      '$emoji ${entry.value}j $name',
+                      style: FGTypography.bodySmall.copyWith(
+                        color: FGColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: Spacing.sm),
+                Text(
+                  'Total semaine : $totalWeeklyCal kcal',
+                  style: FGTypography.caption.copyWith(
+                    color: FGColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: Spacing.xxl),
+        ],
+      ),
+    );
   }
 
   Widget _buildStep6Placeholder() {
