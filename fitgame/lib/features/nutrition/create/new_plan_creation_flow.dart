@@ -1,0 +1,598 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/theme/fg_colors.dart';
+import '../../../core/theme/fg_typography.dart';
+import '../../../core/constants/spacing.dart';
+import '../../../core/services/supabase_service.dart';
+import 'widgets/progress_dots.dart';
+
+class NewPlanCreationFlow extends StatefulWidget {
+  final Map<String, dynamic>? existingPlan;
+
+  const NewPlanCreationFlow({super.key, this.existingPlan});
+
+  @override
+  State<NewPlanCreationFlow> createState() => _NewPlanCreationFlowState();
+}
+
+class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
+  static const _draftKey = 'nutrition_plan_draft';
+  static const _nutritionGreen = Color(0xFF2ECC71);
+  static const _totalSteps = 6;
+
+  final PageController _pageController = PageController();
+  int _currentStep = 0;
+  final Set<int> _visitedSteps = {0};
+
+  // Step 1: Identity
+  final _nameController = TextEditingController();
+  String? _selectedSuggestion;
+
+  // Step 2: Objective & Calories
+  String _goalType = 'maintain';
+  int _trainingCalories = 2800;
+  int _restCalories = 2400;
+  bool _caloriesLinked = true;
+
+  // Step 3: Macros
+  int _proteinPercent = 30;
+  int _carbsPercent = 45;
+  int _fatPercent = 25;
+
+  // Step 4: Day Types
+  List<Map<String, dynamic>> _dayTypes = [
+    {'name': 'Entraînement', 'emoji': '💪', 'color': 0xFFFF6B35},
+    {'name': 'Repos', 'emoji': '😴', 'color': 0xFF3498DB},
+  ];
+
+  // Step 5: Weekly Schedule
+  Map<int, int> _weeklySchedule = {
+    0: 0, 1: 1, 2: 0, 3: 1, 4: 0, 5: 1, 6: 1,
+  };
+
+  bool _isSaving = false;
+
+  final List<String> _stepTitles = [
+    'Identité',
+    'Objectif',
+    'Macros',
+    'Types de jour',
+    'Semaine',
+    'Confirmation',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingPlan != null) {
+      _loadExistingPlan();
+    } else {
+      _loadDraft();
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // ============================================
+  // LOAD EXISTING PLAN
+  // ============================================
+
+  void _loadExistingPlan() {
+    final plan = widget.existingPlan!;
+    _nameController.text = plan['name'] as String? ?? '';
+    _goalType = plan['goal'] as String? ?? 'maintain';
+    _trainingCalories = plan['training_calories'] as int? ?? 2800;
+    _restCalories = plan['rest_calories'] as int? ?? 2400;
+
+    final macros = plan['training_macros'] as Map<String, dynamic>?;
+    if (macros != null) {
+      final totalCal = _trainingCalories > 0 ? _trainingCalories : 2800;
+      _proteinPercent = (((macros['protein'] as int? ?? 0) * 4 / totalCal) * 100).round();
+      _carbsPercent = (((macros['carbs'] as int? ?? 0) * 4 / totalCal) * 100).round();
+      _fatPercent = 100 - _proteinPercent - _carbsPercent;
+    }
+  }
+
+  // ============================================
+  // DRAFT MANAGEMENT
+  // ============================================
+
+  Future<void> _saveDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final draft = {
+      'name': _nameController.text,
+      'suggestion': _selectedSuggestion,
+      'goalType': _goalType,
+      'trainingCalories': _trainingCalories,
+      'restCalories': _restCalories,
+      'caloriesLinked': _caloriesLinked,
+      'proteinPercent': _proteinPercent,
+      'carbsPercent': _carbsPercent,
+      'fatPercent': _fatPercent,
+      'dayTypes': _dayTypes,
+      'weeklySchedule': _weeklySchedule.map((k, v) => MapEntry(k.toString(), v)),
+      'currentStep': _currentStep,
+      'visitedSteps': _visitedSteps.toList(),
+    };
+    await prefs.setString(_draftKey, jsonEncode(draft));
+  }
+
+  Future<void> _loadDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    final draftJson = prefs.getString(_draftKey);
+    if (draftJson == null) return;
+
+    try {
+      final draft = jsonDecode(draftJson) as Map<String, dynamic>;
+      setState(() {
+        _nameController.text = draft['name'] as String? ?? '';
+        _selectedSuggestion = draft['suggestion'] as String?;
+        _goalType = draft['goalType'] as String? ?? 'maintain';
+        _trainingCalories = draft['trainingCalories'] as int? ?? 2800;
+        _restCalories = draft['restCalories'] as int? ?? 2400;
+        _caloriesLinked = draft['caloriesLinked'] as bool? ?? true;
+        _proteinPercent = draft['proteinPercent'] as int? ?? 30;
+        _carbsPercent = draft['carbsPercent'] as int? ?? 45;
+        _fatPercent = draft['fatPercent'] as int? ?? 25;
+
+        if (draft['dayTypes'] != null) {
+          _dayTypes = List<Map<String, dynamic>>.from(
+            (draft['dayTypes'] as List).map((e) => Map<String, dynamic>.from(e)),
+          );
+        }
+
+        if (draft['weeklySchedule'] != null) {
+          final schedMap = draft['weeklySchedule'] as Map<String, dynamic>;
+          _weeklySchedule = schedMap.map((k, v) => MapEntry(int.parse(k), v as int));
+        }
+
+        final savedStep = draft['currentStep'] as int? ?? 0;
+        _currentStep = savedStep;
+
+        if (draft['visitedSteps'] != null) {
+          _visitedSteps.addAll(
+            (draft['visitedSteps'] as List).map((e) => e as int),
+          );
+        }
+      });
+
+      // Jump to saved step
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(_currentStep);
+        }
+      });
+    } catch (e) {
+      debugPrint('Error loading draft: $e');
+    }
+  }
+
+  Future<void> _clearDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_draftKey);
+  }
+
+  // ============================================
+  // NAVIGATION
+  // ============================================
+
+  void _nextStep() {
+    if (_currentStep < _totalSteps - 1) {
+      HapticFeedback.selectionClick();
+      setState(() {
+        _currentStep++;
+        _visitedSteps.add(_currentStep);
+      });
+      _pageController.animateToPage(
+        _currentStep,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutCubic,
+      );
+      _saveDraft();
+    } else {
+      _savePlan();
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) {
+      HapticFeedback.selectionClick();
+      setState(() => _currentStep--);
+      _pageController.animateToPage(
+        _currentStep,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _confirmExit();
+    }
+  }
+
+  void _jumpToStep(int step) {
+    if (_visitedSteps.contains(step)) {
+      HapticFeedback.selectionClick();
+      setState(() => _currentStep = step);
+      _pageController.animateToPage(
+        step,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  // ============================================
+  // EXIT CONFIRMATION
+  // ============================================
+
+  Future<void> _confirmExit() async {
+    HapticFeedback.lightImpact();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: FGColors.glassSurface,
+        title: Text('Quitter la création ?', style: FGTypography.h3),
+        content: Text(
+          'Tu peux sauvegarder ton brouillon pour reprendre plus tard.',
+          style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'continue'),
+            child: Text(
+              'Continuer',
+              style: FGTypography.body.copyWith(color: _nutritionGreen),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'draft'),
+            child: Text(
+              'Sauvegarder brouillon',
+              style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'delete'),
+            child: Text(
+              'Supprimer',
+              style: FGTypography.body.copyWith(color: FGColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    switch (result) {
+      case 'draft':
+        await _saveDraft();
+        if (mounted) Navigator.of(context).pop(false);
+        break;
+      case 'delete':
+        await _clearDraft();
+        if (mounted) Navigator.of(context).pop(false);
+        break;
+      case 'continue':
+      default:
+        break;
+    }
+  }
+
+  // ============================================
+  // VALIDATION
+  // ============================================
+
+  bool _canProceed() {
+    switch (_currentStep) {
+      case 0:
+        return _nameController.text.trim().isNotEmpty;
+      case 1:
+        return _goalType.isNotEmpty && _trainingCalories > 0;
+      case 2:
+        return (_proteinPercent + _carbsPercent + _fatPercent) == 100;
+      case 3:
+        return _dayTypes.isNotEmpty;
+      case 4:
+        return _weeklySchedule.length == 7;
+      case 5:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  // ============================================
+  // SAVE PLAN
+  // ============================================
+
+  Future<void> _savePlan() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    HapticFeedback.heavyImpact();
+
+    try {
+      final proteinGrams = (_trainingCalories * _proteinPercent / 100 / 4).round();
+      final carbsGrams = (_trainingCalories * _carbsPercent / 100 / 4).round();
+      final fatGrams = (_trainingCalories * _fatPercent / 100 / 9).round();
+
+      final macros = {
+        'protein': proteinGrams,
+        'carbs': carbsGrams,
+        'fat': fatGrams,
+      };
+
+      if (widget.existingPlan != null) {
+        await SupabaseService.updateDietPlan(
+          widget.existingPlan!['id'] as String,
+          {
+            'name': _nameController.text.trim(),
+            'goal': _goalType,
+            'training_calories': _trainingCalories,
+            'rest_calories': _restCalories,
+            'training_macros': macros,
+            'rest_macros': macros,
+          },
+        );
+      } else {
+        final plan = await SupabaseService.createDietPlan(
+          name: _nameController.text.trim(),
+          goal: _goalType,
+          trainingCalories: _trainingCalories,
+          restCalories: _restCalories,
+          trainingMacros: macros,
+          restMacros: macros,
+          meals: [],
+        );
+
+        final planId = plan['id'] as String;
+
+        // Create day types
+        final dayTypeIds = <String>[];
+        for (int i = 0; i < _dayTypes.length; i++) {
+          final dt = await SupabaseService.createDayType(
+            dietPlanId: planId,
+            name: _dayTypes[i]['name'] as String,
+            emoji: _dayTypes[i]['emoji'] as String? ?? '📅',
+            sortOrder: i,
+          );
+          dayTypeIds.add(dt['id'] as String);
+        }
+
+        // Create weekly schedule
+        final schedule = <int, String>{};
+        for (final entry in _weeklySchedule.entries) {
+          final typeIndex = entry.value;
+          if (typeIndex < dayTypeIds.length) {
+            schedule[entry.key] = dayTypeIds[typeIndex];
+          }
+        }
+        await SupabaseService.setWeeklySchedule(
+          dietPlanId: planId,
+          schedule: schedule,
+        );
+
+        // Activate the new plan
+        await SupabaseService.activateDietPlan(planId);
+      }
+
+      await _clearDraft();
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      debugPrint('Error saving plan: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: FGColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  // ============================================
+  // BUILD
+  // ============================================
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _confirmExit();
+      },
+      child: Scaffold(
+        backgroundColor: FGColors.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.lg,
+                  vertical: Spacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: _previousStep,
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: FGColors.glassSurface,
+                          borderRadius: BorderRadius.circular(Spacing.sm),
+                          border: Border.all(color: FGColors.glassBorder),
+                        ),
+                        child: Icon(
+                          _currentStep == 0
+                              ? Icons.close_rounded
+                              : Icons.arrow_back_rounded,
+                          color: FGColors.textPrimary,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: Spacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.existingPlan != null
+                                ? 'MODIFIER LE PLAN'
+                                : 'NOUVEAU PLAN',
+                            style: FGTypography.caption.copyWith(
+                              letterSpacing: 2,
+                              fontWeight: FontWeight.w700,
+                              color: FGColors.textSecondary,
+                            ),
+                          ),
+                          Text(
+                            _stepTitles[_currentStep],
+                            style: FGTypography.body.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: _nutritionGreen,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${_currentStep + 1}/$_totalSteps',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Progress dots
+              ProgressDots(
+                currentStep: _currentStep,
+                totalSteps: _totalSteps,
+                visitedSteps: _visitedSteps,
+                onStepTapped: _jumpToStep,
+              ),
+
+              // Steps PageView
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _buildStep1Placeholder(),
+                    _buildStep2Placeholder(),
+                    _buildStep3Placeholder(),
+                    _buildStep4Placeholder(),
+                    _buildStep5Placeholder(),
+                    _buildStep6Placeholder(),
+                  ],
+                ),
+              ),
+
+              // Bottom button
+              Padding(
+                padding: const EdgeInsets.all(Spacing.lg),
+                child: GestureDetector(
+                  onTap: _canProceed() && !_isSaving ? _nextStep : null,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: _canProceed()
+                          ? LinearGradient(
+                              colors: [
+                                _nutritionGreen,
+                                _nutritionGreen.withValues(alpha: 0.8),
+                              ],
+                            )
+                          : null,
+                      color: _canProceed() ? null : FGColors.glassSurface,
+                      borderRadius: BorderRadius.circular(Spacing.md),
+                      boxShadow: _canProceed()
+                          ? [
+                              BoxShadow(
+                                color: _nutritionGreen.withValues(alpha: 0.4),
+                                blurRadius: 16,
+                                spreadRadius: 0,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Center(
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              _currentStep == _totalSteps - 1
+                                  ? 'CRÉER MON PLAN'
+                                  : 'CONTINUER',
+                              style: FGTypography.button.copyWith(
+                                color: _canProceed()
+                                    ? FGColors.textOnAccent
+                                    : FGColors.textSecondary,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================
+  // PLACEHOLDER STEP BUILDERS
+  // ============================================
+
+  Widget _buildStep1Placeholder() {
+    return const Center(child: Text('Step 1', style: TextStyle(color: Colors.white)));
+  }
+
+  Widget _buildStep2Placeholder() {
+    return const Center(child: Text('Step 2', style: TextStyle(color: Colors.white)));
+  }
+
+  Widget _buildStep3Placeholder() {
+    return const Center(child: Text('Step 3', style: TextStyle(color: Colors.white)));
+  }
+
+  Widget _buildStep4Placeholder() {
+    return const Center(child: Text('Step 4', style: TextStyle(color: Colors.white)));
+  }
+
+  Widget _buildStep5Placeholder() {
+    return const Center(child: Text('Step 5', style: TextStyle(color: Colors.white)));
+  }
+
+  Widget _buildStep6Placeholder() {
+    return const Center(child: Text('Step 6', style: TextStyle(color: Colors.white)));
+  }
+}
