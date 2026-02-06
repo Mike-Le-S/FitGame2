@@ -4,6 +4,7 @@ import '../../core/theme/fg_colors.dart';
 import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/services/health_service.dart';
+import '../../core/services/supabase_service.dart';
 import '../../shared/widgets/fg_glass_card.dart';
 import '../../shared/widgets/fg_mesh_gradient.dart';
 import 'sheets/energy_detail_sheet.dart';
@@ -119,6 +120,34 @@ class _HealthScreenState extends State<HealthScreen>
     setState(() {
       _healthData = snapshot;
     });
+
+    // Persist to Supabase (after setState so _globalHealthScore can compute)
+    if (snapshot != null) {
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+      try {
+        await SupabaseService.saveHealthMetrics(
+          date: todayStr,
+          sleepDurationMinutes: snapshot.sleep?.totalMinutes,
+          sleepScore: null,
+          deepSleepMinutes: snapshot.sleep?.deepMinutes,
+          lightSleepMinutes: snapshot.sleep?.lightMinutes,
+          remSleepMinutes: snapshot.sleep?.remMinutes,
+          awakeMinutes: snapshot.sleep?.awakeMinutes,
+          restingHr: snapshot.heart?.restingHeartRate,
+          avgHr: snapshot.heart?.averageHeartRate,
+          maxHr: snapshot.heart?.maxHeartRate,
+          minHr: snapshot.heart?.minHeartRate,
+          hrvMs: snapshot.heart?.hrvMs?.toDouble(),
+          steps: snapshot.activity?.steps,
+          activeCalories: snapshot.activity?.activeCaloriesBurned,
+          totalCalories: snapshot.activity?.totalCaloriesBurned,
+          distanceKm: snapshot.activity?.distanceKm,
+          energyScore: _globalHealthScore,
+        );
+      } catch (e) {
+        debugPrint('Error saving health metrics: $e');
+      }
+    }
   }
 
   @override

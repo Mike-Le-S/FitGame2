@@ -1334,6 +1334,147 @@ class SupabaseService {
         .eq('id', challengeId);
   }
 
+  // ============================================
+  // Health Metrics
+  // ============================================
+
+  /// Save daily health metrics to Supabase
+  static Future<void> saveHealthMetrics({
+    required String date,
+    int? sleepDurationMinutes,
+    int? sleepScore,
+    int? deepSleepMinutes,
+    int? lightSleepMinutes,
+    int? remSleepMinutes,
+    int? awakeMinutes,
+    int? restingHr,
+    int? avgHr,
+    int? maxHr,
+    int? minHr,
+    double? hrvMs,
+    int? steps,
+    int? activeCalories,
+    int? totalCalories,
+    double? distanceKm,
+    int? energyScore,
+    String source = 'apple_health',
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+
+    await client.from('health_metrics').upsert({
+      'user_id': userId,
+      'date': date,
+      'sleep_duration_minutes': sleepDurationMinutes,
+      'sleep_score': sleepScore,
+      'deep_sleep_minutes': deepSleepMinutes,
+      'light_sleep_minutes': lightSleepMinutes,
+      'rem_sleep_minutes': remSleepMinutes,
+      'awake_minutes': awakeMinutes,
+      'resting_hr': restingHr,
+      'avg_hr': avgHr,
+      'max_hr': maxHr,
+      'min_hr': minHr,
+      'hrv_ms': hrvMs,
+      'steps': steps,
+      'active_calories': activeCalories,
+      'total_calories': totalCalories,
+      'distance_km': distanceKm,
+      'energy_score': energyScore,
+      'source': source,
+    }, onConflict: 'user_id,date');
+  }
+
+  /// Get health metrics for a date range
+  static Future<List<Map<String, dynamic>>> getHealthMetrics({
+    required String startDate,
+    required String endDate,
+  }) async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    final response = await client
+        .from('health_metrics')
+        .select()
+        .eq('user_id', userId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // ============================================
+  // Activity Respects
+  // ============================================
+
+  /// Toggle respect on an activity (like/unlike)
+  static Future<Map<String, dynamic>> toggleRespect(String activityId) async {
+    final response = await client.rpc('toggle_respect', params: {
+      'p_activity_id': activityId,
+    });
+    return Map<String, dynamic>.from(response);
+  }
+
+  /// Check if current user has given respect to activities
+  static Future<Set<String>> getMyRespects(List<String> activityIds) async {
+    final userId = currentUser?.id;
+    if (userId == null || activityIds.isEmpty) return {};
+
+    final response = await client
+        .from('activity_respects')
+        .select('activity_id')
+        .eq('user_id', userId)
+        .inFilter('activity_id', activityIds);
+
+    return Set<String>.from(
+      (response as List).map((r) => r['activity_id'] as String),
+    );
+  }
+
+  // ============================================
+  // Achievements
+  // ============================================
+
+  /// Get all achievement definitions with user's unlock status
+  static Future<List<Map<String, dynamic>>> getAchievements() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    final definitions = await client
+        .from('achievement_definitions')
+        .select()
+        .order('sort_order');
+
+    final unlocked = await client
+        .from('user_achievements')
+        .select('achievement_id, unlocked_at')
+        .eq('user_id', userId);
+
+    final unlockedMap = {
+      for (final u in unlocked) u['achievement_id']: u['unlocked_at']
+    };
+
+    return (definitions as List).map((def) {
+      return {
+        ...Map<String, dynamic>.from(def),
+        'unlocked': unlockedMap.containsKey(def['id']),
+        'unlocked_at': unlockedMap[def['id']],
+      };
+    }).toList();
+  }
+
+  /// Check and unlock achievements after an action
+  static Future<List<String>> checkAchievements() async {
+    final userId = currentUser?.id;
+    if (userId == null) return [];
+
+    final result = await client.rpc('check_achievements', params: {
+      'p_user_id': userId,
+    });
+
+    return List<String>.from(result['new_achievements'] ?? []);
+  }
+
   /// Update challenge progress for current user
   static Future<void> updateChallengeProgress(
     String challengeId,
