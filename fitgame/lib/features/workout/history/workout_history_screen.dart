@@ -721,7 +721,7 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
       final s = set as Map<String, dynamic>;
       if (s['completed'] == true) {
         completedSets++;
-        final weight = (s['weightKg'] as num?)?.toDouble() ?? 0;
+        final weight = (s['actualWeight'] as num?)?.toDouble() ?? (s['weightKg'] as num?)?.toDouble() ?? 0;
         if (weight > maxWeight) {
           maxWeight = weight;
         }

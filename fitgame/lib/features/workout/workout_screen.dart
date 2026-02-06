@@ -232,7 +232,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       final exercises = firstDay['exercises'] as List? ?? [];
       final muscles = <String>{};
       for (final ex in exercises) {
-        final muscle = ex['muscleGroup'] ?? ex['muscle_group'];
+        final muscle = ex['muscle'] ?? ex['muscleGroup'] ?? ex['muscle_group'];
         if (muscle != null) muscles.add(muscle.toString());
       }
       nextSessionMuscles = muscles.take(2).join(' • ');

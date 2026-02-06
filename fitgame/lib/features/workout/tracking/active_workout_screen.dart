@@ -58,6 +58,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   late List<Exercise> _exercises;
   String? _sessionId; // Supabase session ID
   String _dayName = 'Séance libre'; // Day name from program or default
+  String? _programId;
   bool _isLoading = true; // Loading state for exercises
 
   @override
@@ -91,6 +92,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
       if (allPrograms.isNotEmpty && mounted) {
         final program = allPrograms.first;
+        _programId = program['id']?.toString();
         final days = program['days'] as List? ?? [];
 
         if (days.isNotEmpty) {
@@ -101,25 +103,24 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           setState(() {
             _dayName = dayName;
             _exercises = exercisesData.map((ex) {
-              final setsData = ex['sets'] as List? ?? [];
+              final numSets = (ex['sets'] as num?)?.toInt() ?? 3;
+              final numReps = (ex['reps'] as num?)?.toInt() ?? 10;
+              final warmupEnabled = ex['warmupEnabled'] == true;
+
+              final sets = <WorkoutSet>[];
+              if (warmupEnabled) {
+                sets.add(WorkoutSet(targetWeight: 0, targetReps: numReps, isWarmup: true));
+              }
+              for (int i = 0; i < numSets; i++) {
+                sets.add(WorkoutSet(targetWeight: 0, targetReps: numReps));
+              }
+
               return Exercise(
                 name: ex['name'] ?? 'Exercice',
-                muscle: ex['muscleGroup'] ?? ex['muscle_group'] ?? '',
+                muscle: ex['muscle'] ?? ex['muscleGroup'] ?? ex['muscle_group'] ?? '',
                 restSeconds: ex['rest_seconds'] ?? 90,
                 previousBest: (ex['previous_best'] as num?)?.toDouble() ?? 0,
-                sets: setsData.isEmpty
-                    ? [
-                        WorkoutSet(targetWeight: 0, targetReps: 10),
-                        WorkoutSet(targetWeight: 0, targetReps: 10),
-                        WorkoutSet(targetWeight: 0, targetReps: 10),
-                      ]
-                    : setsData.map((s) {
-                        return WorkoutSet(
-                          targetWeight: (s['weight'] as num?)?.toDouble() ?? 0,
-                          targetReps: s['reps'] ?? 10,
-                          isWarmup: s['is_warmup'] ?? false,
-                        );
-                      }).toList(),
+                sets: sets,
               );
             }).toList();
             _isLoading = false;
@@ -369,6 +370,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         // Start session if not already started
         if (_sessionId == null) {
           final session = await SupabaseService.startWorkoutSession(
+            programId: _programId,
             dayName: _dayName,
             exercises: exercisesData,
           );
@@ -385,6 +387,13 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           personalRecords: prs.isNotEmpty ? prs : null,
         );
 
+        // Update streak
+        try {
+          await SupabaseService.updateStreak();
+        } catch (e) {
+          debugPrint('Error updating streak: $e');
+        }
+
         // Check and unlock achievements
         try {
           final newAchievements = await SupabaseService.checkAchievements();
@@ -393,6 +402,22 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           }
         } catch (e) {
           debugPrint('Error checking achievements: $e');
+        }
+
+        // Create activity feed entry
+        try {
+          await SupabaseService.createActivity(
+            activityType: 'workout_completed',
+            title: '$_dayName terminée',
+            description: '$totalSets séries • ${(_totalVolume / 1000).toStringAsFixed(1)}t volume',
+            metadata: {
+              'session_id': _sessionId,
+              'duration_minutes': (_workoutSeconds / 60).round(),
+              'personal_records': prs.length,
+            },
+          );
+        } catch (e) {
+          debugPrint('Error creating activity: $e');
         }
       }
     } catch (e) {

@@ -367,6 +367,20 @@ class SupabaseService {
     }
   }
 
+  /// Update user's workout streak
+  static Future<int> updateStreak() async {
+    if (currentUser == null) return 0;
+    try {
+      final result = await client.rpc('update_streak', params: {
+        'p_user_id': currentUser!.id,
+      });
+      return (result as num?)?.toInt() ?? 0;
+    } catch (e) {
+      debugPrint('Error updating streak: $e');
+      return 0;
+    }
+  }
+
   /// Delete/cancel a workout session
   static Future<void> deleteWorkoutSession(String id) async {
     await client
