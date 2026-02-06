@@ -384,6 +384,16 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           exercises: exercisesData,
           personalRecords: prs.isNotEmpty ? prs : null,
         );
+
+        // Check and unlock achievements
+        try {
+          final newAchievements = await SupabaseService.checkAchievements();
+          if (newAchievements.isNotEmpty && mounted) {
+            debugPrint('New achievements unlocked: $newAchievements');
+          }
+        } catch (e) {
+          debugPrint('Error checking achievements: $e');
+        }
       }
     } catch (e) {
       debugPrint('Error saving workout session: $e');

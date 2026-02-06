@@ -42,44 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   String _memberSince = '';
 
   // Achievements
-  final List<Map<String, dynamic>> _achievements = [
-    {
-      'id': 'first_pr',
-      'name': 'Premier PR',
-      'icon': Icons.emoji_events_rounded,
-      'unlocked': true
-    },
-    {
-      'id': 'streak_7',
-      'name': '7j Streak',
-      'icon': Icons.local_fire_department_rounded,
-      'unlocked': true
-    },
-    {
-      'id': '100_workouts',
-      'name': '100 Séances',
-      'icon': Icons.fitness_center_rounded,
-      'unlocked': true
-    },
-    {
-      'id': 'marathon',
-      'name': 'Marathon',
-      'icon': Icons.directions_run_rounded,
-      'unlocked': false
-    },
-    {
-      'id': 'iron_will',
-      'name': 'Iron Will',
-      'icon': Icons.psychology_rounded,
-      'unlocked': false
-    },
-    {
-      'id': 'elite',
-      'name': 'Elite',
-      'icon': Icons.military_tech_rounded,
-      'unlocked': false
-    },
-  ];
+  List<Map<String, dynamic>> _achievements = [];
 
   @override
   void initState() {
@@ -124,10 +87,50 @@ class _ProfileScreenState extends State<ProfileScreen>
           _isLoading = false;
         });
       }
+
+      // Load achievements from Supabase
+      try {
+        final achievements = await SupabaseService.getAchievements();
+        if (mounted) {
+          setState(() {
+            _achievements = achievements.map((a) => <String, dynamic>{
+              'id': a['id'],
+              'name': a['name'],
+              'icon': _getAchievementIcon(a['icon'] as String? ?? ''),
+              'unlocked': a['unlocked'] ?? false,
+            }).toList();
+          });
+        }
+      } catch (e) {
+        debugPrint('Error loading achievements: $e');
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  IconData _getAchievementIcon(String iconName) {
+    switch (iconName) {
+      case 'emoji_events':
+        return Icons.emoji_events_rounded;
+      case 'local_fire_department':
+        return Icons.local_fire_department_rounded;
+      case 'whatshot':
+        return Icons.whatshot_rounded;
+      case 'fitness_center':
+        return Icons.fitness_center_rounded;
+      case 'people':
+        return Icons.people_rounded;
+      case 'military_tech':
+        return Icons.military_tech_rounded;
+      case 'restaurant':
+        return Icons.restaurant_rounded;
+      case 'iron':
+        return Icons.fitness_center_rounded;
+      default:
+        return Icons.star_rounded;
     }
   }
 
