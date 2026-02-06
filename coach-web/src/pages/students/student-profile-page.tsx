@@ -31,6 +31,7 @@ import { SessionDetailModal } from '@/components/modals/session-detail-modal'
 import { useStudentsStore } from '@/store/students-store'
 import { useProgramsStore } from '@/store/programs-store'
 import { useNutritionStore } from '@/store/nutrition-store'
+import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { goalConfig } from '@/constants/goals'
@@ -80,13 +81,35 @@ export function StudentProfilePage() {
     { id: 'progress', label: 'Progression', icon: TrendingUp },
   ]
 
-  // Mock data for weekly progress and health
-  const weeklyProgress = [65, 72, 68, 85, 78, 92, 88]
+  const [healthData, setHealthData] = useState<any[]>([])
 
-  const mockHealthData = {
-    weight: [82.5, 82.3, 82.1, 82.0, 81.8, 81.7, 81.5],
-    sleep: [7.5, 6.8, 7.2, 8.1, 7.0, 6.5, 7.8],
-    restingHR: [62, 60, 58, 61, 59, 57, 58],
+  useEffect(() => {
+    if (!student) return
+
+    const fetchHealth = async () => {
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+      const { data } = await supabase
+        .from('health_metrics')
+        .select('*')
+        .eq('user_id', student.id)
+        .gte('date', sevenDaysAgo.toISOString().substring(0, 10))
+        .order('date')
+      setHealthData(data || [])
+    }
+    fetchHealth()
+  }, [student?.id])
+
+  // Map health data for charts (7 days, pad with zeros if missing)
+  const weeklyProgress = healthData.length > 0
+    ? healthData.map(d => d.energy_score || 0)
+    : [0, 0, 0, 0, 0, 0, 0]
+
+  const healthChartData = {
+    weight: healthData.map(d => d.total_calories || 0),
+    sleep: healthData.map(d => (d.sleep_duration_minutes || 0) / 60),
+    restingHR: healthData.map(d => d.resting_hr || 0),
   }
 
   const handleDelete = () => {
@@ -835,11 +858,11 @@ export function StudentProfilePage() {
                   Évolution du poids
                 </h3>
                 <div className="flex items-end justify-between gap-1 h-32">
-                  {mockHealthData.weight.map((w, i) => (
+                  {healthChartData.weight.map((w, i) => (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
                       <div
                         className="w-full bg-success/30 rounded-t"
-                        style={{ height: `${((w - 80) / 5) * 100}%` }}
+                        style={{ height: `${Math.max(0, Math.min(100, (w / 3000) * 100))}%` }}
                       />
                       <span className="text-[10px] text-text-muted">{['L', 'M', 'M', 'J', 'V', 'S', 'D'][i]}</span>
                     </div>
@@ -854,7 +877,7 @@ export function StudentProfilePage() {
                   Qualité du sommeil
                 </h3>
                 <div className="flex items-end justify-between gap-1 h-32">
-                  {mockHealthData.sleep.map((s, i) => (
+                  {healthChartData.sleep.map((s, i) => (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
                       <div
                         className={cn(
@@ -876,11 +899,11 @@ export function StudentProfilePage() {
                   FC au repos
                 </h3>
                 <div className="flex items-end justify-between gap-1 h-32">
-                  {mockHealthData.restingHR.map((hr, i) => (
+                  {healthChartData.restingHR.map((hr, i) => (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
                       <div
                         className="w-full bg-accent/30 rounded-t"
-                        style={{ height: `${((hr - 50) / 20) * 100}%` }}
+                        style={{ height: `${Math.max(0, ((hr - 40) / 40) * 100)}%` }}
                       />
                       <span className="text-[10px] text-text-muted">{['L', 'M', 'M', 'J', 'V', 'S', 'D'][i]}</span>
                     </div>

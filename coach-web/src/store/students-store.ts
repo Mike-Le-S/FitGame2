@@ -79,7 +79,7 @@ function dbToStudent(profile: any, assignments: any[], workoutSessions: any[]): 
       totalWorkouts: profile.total_sessions || studentSessions.length,
       thisWeekWorkouts: thisWeekSessions.length,
       averageSessionDuration: avgDuration,
-      complianceRate: 85, // TODO: Calculate real compliance rate
+      complianceRate: Math.min(100, Math.round((thisWeekSessions.length / 4) * 100)),
     },
   }
 }
