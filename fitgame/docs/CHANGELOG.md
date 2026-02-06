@@ -1,5 +1,19 @@
 # Changelog FitGame
 
+## 2026-02-06 - Workout Feature Bugfixes
+
+### Bug Fixes
+- **Active workout**: Fixed critical bug where program sets/reps were ignored (int cast as List), now correctly generates WorkoutSet objects from program data
+- **Active workout**: Muscle group now read from `muscle` key (was `muscleGroup`)
+- **Active workout**: `program_id` now passed to `startWorkoutSession()` (was always null)
+- **Active workout**: Activity feed entry created on workout completion (social feed now works)
+- **Workout history**: Weight display fixed — reads `actualWeight` with `weightKg` fallback
+- **Workout dashboard**: Muscle groups now display correctly (`muscle` key)
+- **Program edit**: All exercise metadata preserved through edit/save cycle (muscle, mode, warmupEnabled, id, dayOfWeek, supersets)
+
+### New Features
+- **Streak system**: Added `update_streak` RPC function — streak auto-updates after each completed workout
+
 ## 2026-02-06 - Home Screen Bugfixes
 
 ### Bug Fixes
