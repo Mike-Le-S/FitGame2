@@ -20,7 +20,7 @@ import 'widgets/meal_card.dart';
 import 'widgets/macro_dashboard.dart';
 import 'widgets/day_selector.dart';
 import 'widgets/calorie_balance_card.dart';
-import 'create/plan_creation_flow.dart';
+import 'create/new_plan_creation_flow.dart';
 
 class NutritionScreen extends StatefulWidget {
   const NutritionScreen({super.key});
@@ -1588,7 +1588,7 @@ class _NutritionScreenState extends State<NutritionScreen>
     final result = await Navigator.of(context).push<bool>(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            PlanCreationFlow(existingPlan: existingPlan),
+            NewPlanCreationFlow(existingPlan: existingPlan),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: Tween<Offset>(
