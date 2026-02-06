@@ -1,5 +1,19 @@
 # Changelog FitGame
 
+## 2026-02-06 - Social Screen Bugfixes
+
+### Bug Fixes
+- **Activity feed**: Enriched workout metadata with exercises (top 3), muscles, volume, PR details — feed cards now display real content
+- **Activity feed**: topExercises and PR parsed from metadata — exercise cards and PR badges now display
+- **Challenges**: Fixed missing `getChallenges()` call — challenges tab now loads from Supabase
+- **Challenges**: Current user avatar URL now passed to challenge participants (was empty string)
+- **Challenges**: Progress auto-updates from workouts when exercise matches active challenge
+- **Friends**: Online status uses `updated_at` from profiles (was hardcoded false)
+- **Friends**: Last active timestamp uses real DB data (was hardcoded `DateTime.now()`)
+
+### Database
+- Added `updated_at` trigger on `friendships` table — timestamp auto-updates on status changes
+
 ## 2026-02-06 - Workout Feature Bugfixes
 
 ### Bug Fixes
