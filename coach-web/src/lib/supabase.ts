@@ -21,6 +21,7 @@ export interface Profile {
   current_streak: number
   weight_unit: 'kg' | 'lbs'
   language: 'fr' | 'en'
+  goal?: 'lose' | 'maintain' | 'gain' | 'bulk' | 'cut' | 'performance'
   notifications_enabled: boolean
   created_at: string
   updated_at: string

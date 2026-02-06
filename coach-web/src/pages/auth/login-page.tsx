@@ -19,8 +19,8 @@ import { cn } from '@/lib/utils'
 export function LoginPage() {
   const navigate = useNavigate()
   const { login, loginWithGoogle, isAuthenticated } = useAuthStore()
-  const [email, setEmail] = useState('coach@fitgame.app')
-  const [password, setPassword] = useState('password')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)

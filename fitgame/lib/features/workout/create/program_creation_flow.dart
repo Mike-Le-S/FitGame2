@@ -68,6 +68,10 @@ class _ProgramCreationFlowState extends State<ProgramCreationFlow>
     if (_currentStep < _totalSteps - 1) {
       HapticFeedback.lightImpact();
       setState(() => _currentStep++);
+      // Initialize exercise maps when entering the exercises step (step 3)
+      if (_currentStep == 3) {
+        _initializeExercisesForDays();
+      }
       _pageController.nextPage(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
@@ -165,7 +169,7 @@ class _ProgramCreationFlowState extends State<ProgramCreationFlow>
       backgroundColor: Colors.transparent,
       isDismissible: false,
       enableDrag: false,
-      builder: (context) => SuccessModal(
+      builder: (modalContext) => SuccessModal(
         programName: _programName,
         daysCount: _trainingDays.length,
         exercisesCount: _trainingDays.fold<int>(
@@ -173,9 +177,9 @@ class _ProgramCreationFlowState extends State<ProgramCreationFlow>
           (sum, day) => sum + (_exercisesByDay[day]?.length ?? 0),
         ),
         onDismiss: () {
-          Navigator.pop(context); // Close modal
-          Navigator.pop(context); // Close flow
-          Navigator.pop(context); // Close create choice
+          Navigator.pop(modalContext); // Close modal
+          Navigator.pop(context, true); // Close flow, return true to CreateChoiceScreen
+          // CreateChoiceScreen._navigateTo will handle closing itself when it receives true
         },
       ),
     );
@@ -316,11 +320,6 @@ class _ProgramCreationFlowState extends State<ProgramCreationFlow>
 
   @override
   Widget build(BuildContext context) {
-    // Initialize exercises when entering step 4
-    if (_currentStep == 3) {
-      _initializeExercisesForDays();
-    }
-
     return Scaffold(
       backgroundColor: FGColors.background,
       body: Stack(

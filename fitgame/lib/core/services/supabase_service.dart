@@ -59,15 +59,8 @@ class SupabaseService {
       },
     );
 
-    // Create profile after signup
-    if (response.user != null) {
-      await client.from('profiles').insert({
-        'id': response.user!.id,
-        'email': email,
-        'full_name': fullName,
-        'role': role,
-      });
-    }
+    // Profile is auto-created by handle_new_user() trigger
+    // Metadata (full_name, role) is passed via signUp data above
 
     return response;
   }
@@ -85,10 +78,9 @@ class SupabaseService {
 
   // Sign in with Google
   static Future<AuthResponse> signInWithGoogle() async {
-    // iOS Client ID from Google Cloud Console
-    const iosClientId = '241707453312-24n1s72q44oughb28s7fjhiaehgop7ss.apps.googleusercontent.com';
-    // Web Client ID (needed for Android)
-    const webClientId = '241707453312-bcdt4drl7bi0t10pga3g83f9bp123384.apps.googleusercontent.com';
+    // OAuth Client IDs loaded from .env
+    final iosClientId = dotenv.env['GOOGLE_IOS_CLIENT_ID']!;
+    final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']!;
 
     final GoogleSignIn googleSignIn = GoogleSignIn(
       clientId: Platform.isIOS ? iosClientId : null,
@@ -365,15 +357,13 @@ class SupabaseService {
 
     // Update profile stats
     if (currentUser != null) {
-      await client.rpc('increment_total_sessions', params: {
-        'user_id': currentUser!.id,
-      }).catchError((_) {
-        // Fallback: update directly
-        client
-            .from('profiles')
-            .update({'total_sessions': client.rpc('get_total_sessions')})
-            .eq('id', currentUser!.id);
-      });
+      try {
+        await client.rpc('increment_total_sessions', params: {
+          'p_user_id': currentUser!.id,
+        });
+      } catch (e) {
+        debugPrint('Error incrementing total_sessions: $e');
+      }
     }
   }
 
@@ -815,22 +805,12 @@ class SupabaseService {
   /// Update favorite food use count
   static Future<void> updateFavoriteFoodUsage(String id) async {
     try {
-      // Fetch current count
-      final current = await client
-          .from('user_favorite_foods')
-          .select('use_count')
-          .eq('id', id)
-          .single();
-
-      await client
-          .from('user_favorite_foods')
-          .update({
-            'use_count': (current['use_count'] as int) + 1,
-            'last_used_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', id);
+      await client.rpc('increment_food_use_count', params: {
+        'p_table': 'user_favorite_foods',
+        'p_id': id,
+      });
     } catch (e) {
-      debugPrint('Error updating favorite food usage: $e');
+      debugPrint('Error updating food usage: $e');
     }
   }
 
@@ -946,19 +926,12 @@ class SupabaseService {
   /// Increment community food use count
   static Future<void> incrementCommunityFoodUseCount(String id) async {
     try {
-      // Simple approach: fetch current, increment, update
-      final current = await client
-          .from('community_foods')
-          .select('use_count')
-          .eq('id', id)
-          .single();
-
-      await client
-          .from('community_foods')
-          .update({'use_count': (current['use_count'] as int) + 1})
-          .eq('id', id);
+      await client.rpc('increment_food_use_count', params: {
+        'p_table': 'community_foods',
+        'p_id': id,
+      });
     } catch (e) {
-      debugPrint('Error incrementing community food use count: $e');
+      debugPrint('Error incrementing community food: $e');
     }
   }
 
@@ -1318,7 +1291,7 @@ class SupabaseService {
         'type': 'challenge_invite',
         'title': 'Nouveau défi !',
         'body': '$creatorName t\'a invité au défi "$title"',
-        'metadata': {'challenge_id': response['id']},
+        'data': {'challenge_id': response['id']},
       });
     }
 

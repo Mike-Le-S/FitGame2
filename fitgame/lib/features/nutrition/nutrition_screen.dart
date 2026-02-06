@@ -21,6 +21,7 @@ import 'widgets/macro_dashboard.dart';
 import 'widgets/day_selector.dart';
 import 'widgets/calorie_balance_card.dart';
 import 'create/new_plan_creation_flow.dart';
+import '../../shared/widgets/fg_mesh_gradient.dart';
 
 class NutritionScreen extends StatefulWidget {
   const NutritionScreen({super.key});
@@ -878,7 +879,7 @@ class _NutritionScreenState extends State<NutritionScreen>
       backgroundColor: FGColors.background,
       body: Stack(
         children: [
-          _buildMeshGradient(),
+          FGMeshGradient.nutrition(animation: _pulseAnimation),
           SafeArea(
             child: Column(
               children: [
@@ -923,54 +924,6 @@ class _NutritionScreenState extends State<NutritionScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMeshGradient() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            Container(color: FGColors.background),
-            // Green/teal gradient for nutrition theme
-            Positioned(
-              top: -80,
-              right: -60,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFF2ECC71).withValues(alpha: _pulseAnimation.value),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 200,
-              left: -100,
-              child: Container(
-                width: 350,
-                height: 350,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.5),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 

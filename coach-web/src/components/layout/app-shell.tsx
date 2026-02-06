@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import { Menu, Loader2 } from 'lucide-react'
 import { Sidebar } from './sidebar'
+import { ErrorBoundary } from '@/components/shared/error-boundary'
 import { useAuthStore } from '@/store/auth-store'
 import { useProgramsStore } from '@/store/programs-store'
 import { useNutritionStore } from '@/store/nutrition-store'
@@ -155,7 +156,9 @@ export function AppShell() {
 
         {/* Page content */}
         <div className="relative">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </div>
       </main>
     </div>

@@ -6,6 +6,7 @@ import '../../core/constants/spacing.dart';
 import '../../core/services/supabase_service.dart';
 import '../../shared/widgets/fg_glass_card.dart';
 import '../../shared/sheets/placeholder_sheet.dart';
+import '../../shared/widgets/fg_mesh_gradient.dart';
 import 'sheets/edit_profile_sheet.dart';
 import 'sheets/advanced_settings_sheet.dart';
 import 'sheets/achievements_sheet.dart';
@@ -109,6 +110,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           _weightUnit = profile['weight_unit'] ?? 'kg';
           _language = profile['language'] == 'en' ? 'English' : 'Français';
           _notificationsEnabled = profile['notifications_enabled'] ?? true;
+          _workoutReminders = profile['workout_reminders'] ?? true;
+          _restDayReminders = profile['rest_day_reminders'] ?? false;
+          _progressAlerts = profile['progress_alerts'] ?? true;
 
           // Format member since date
           final createdAt = DateTime.tryParse(profile['created_at'] ?? '');
@@ -123,6 +127,27 @@ class _ProfileScreenState extends State<ProfileScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  /// Save a single setting to Supabase
+  Future<void> _saveSetting(String key, dynamic value) async {
+    try {
+      await SupabaseService.updateProfile({key: value});
+    } catch (e) {
+      debugPrint('Error saving setting $key: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Erreur lors de la sauvegarde'),
+            backgroundColor: FGColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
       }
     }
   }
@@ -143,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       body: Stack(
         children: [
           // === MESH GRADIENT BACKGROUND ===
-          _buildMeshGradient(),
+          FGMeshGradient.profile(animation: _pulseAnimation),
 
           // === MAIN CONTENT ===
           SafeArea(
@@ -210,63 +235,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMeshGradient() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            Container(color: FGColors.background),
-
-            // Top-left accent glow
-            Positioned(
-              top: -80,
-              left: -100,
-              child: Container(
-                width: 350,
-                height: 350,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      FGColors.accent
-                          .withValues(alpha: _pulseAnimation.value * 0.5),
-                      FGColors.accent
-                          .withValues(alpha: _pulseAnimation.value * 0.2),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.4, 1.0],
-                  ),
-                ),
-              ),
-            ),
-
-            // Bottom-right subtle glow
-            Positioned(
-              bottom: 150,
-              right: -100,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      FGColors.accent
-                          .withValues(alpha: _pulseAnimation.value * 0.25),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -669,6 +637,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             onChanged: (val) {
               HapticFeedback.lightImpact();
               setState(() => _notificationsEnabled = val);
+              _saveSetting('notifications_enabled', val);
             },
           ),
           if (_notificationsEnabled) ...[
@@ -681,6 +650,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               onChanged: (val) {
                 HapticFeedback.lightImpact();
                 setState(() => _workoutReminders = val);
+                _saveSetting('workout_reminders', val);
               },
               isSubItem: true,
             ),
@@ -693,6 +663,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               onChanged: (val) {
                 HapticFeedback.lightImpact();
                 setState(() => _restDayReminders = val);
+                _saveSetting('rest_day_reminders', val);
               },
               isSubItem: true,
             ),
@@ -705,6 +676,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               onChanged: (val) {
                 HapticFeedback.lightImpact();
                 setState(() => _progressAlerts = val);
+                _saveSetting('progress_alerts', val);
               },
               isSubItem: true,
             ),
@@ -727,6 +699,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             onChanged: (val) {
               HapticFeedback.lightImpact();
               setState(() => _weightUnit = val);
+              _saveSetting('weight_unit', val);
             },
           ),
           _buildDivider(),
@@ -738,6 +711,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             onChanged: (val) {
               HapticFeedback.lightImpact();
               setState(() => _language = val);
+              _saveSetting('language', val == 'English' ? 'en' : 'fr');
             },
           ),
           _buildDivider(),

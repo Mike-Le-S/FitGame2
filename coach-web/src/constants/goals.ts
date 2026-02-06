@@ -12,3 +12,11 @@ export const goalConfig = {
 } as const
 
 export type GoalType = keyof typeof goalConfig
+
+// Extended config with 'all' option for filter UIs
+export const goalFilterConfig = {
+  all: { label: 'Tous' },
+  ...goalConfig,
+} as const
+
+export type FilterGoalType = keyof typeof goalFilterConfig

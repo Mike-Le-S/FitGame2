@@ -19,20 +19,9 @@ import { Badge } from '@/components/ui'
 import { useProgramsStore } from '@/store/programs-store'
 import { formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import type { Goal } from '@/types'
+import { goalConfig, goalFilterConfig, type FilterGoalType } from '@/constants/goals'
 
-type FilterGoal = Goal | 'all'
-
-const goalConfig = {
-  all: { label: 'Tous', color: 'text-text-secondary' },
-  bulk: { label: 'Masse', color: 'text-success' },
-  cut: { label: 'Sèche', color: 'text-warning' },
-  maintain: { label: 'Maintien', color: 'text-info' },
-  strength: { label: 'Force', color: 'text-accent' },
-  endurance: { label: 'Endurance', color: 'text-info' },
-  recomp: { label: 'Recomp', color: 'text-success' },
-  other: { label: 'Autre', color: 'text-text-secondary' },
-}
+type FilterGoal = FilterGoalType
 
 export function ProgramsListPage() {
   const navigate = useNavigate()
@@ -59,9 +48,9 @@ export function ProgramsListPage() {
     navigate(`/programs/${programId}`)
   }
 
-  const handleDuplicate = (programId: string) => {
+  const handleDuplicate = async (programId: string) => {
     setOpenMenuId(null)
-    const newId = duplicateProgram(programId)
+    const newId = await duplicateProgram(programId)
     if (newId) {
       navigate(`/programs/${newId}`)
     }
@@ -181,7 +170,7 @@ export function ProgramsListPage() {
                       : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
                   )}
                 >
-                  {goalConfig[goal].label}
+                  {goalFilterConfig[goal].label}
                 </button>
               ))}
             </div>

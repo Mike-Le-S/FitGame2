@@ -96,7 +96,7 @@ class _MainNavigationState extends State<MainNavigation> {
     });
   }
 
-  List<Widget> get _screens => [
+  late final List<Widget> _screens = [
     HomeScreen(onNavigateToTab: _navigateToTab),
     const WorkoutScreen(),
     const SocialScreen(),

@@ -1,5 +1,47 @@
 # Changelog FitGame
 
+## 2026-02-06 - Security & Quality Audit Remediation
+
+### Security Fixes
+- Removed hardcoded credentials from coach-web login page
+- Removed Supabase anon key from documentation
+- Replaced fake 2FA with "coming soon" notice
+- Moved Google OAuth client IDs to environment variables
+- Fixed notifications INSERT policy (was unrestricted)
+- Fixed handle_new_user search_path vulnerability
+- Implemented real password change and forgot password
+- Added .env to coach-web .gitignore
+
+### Database Fixes
+- Fixed FK references (4 tables now reference profiles instead of auth.users)
+- Created increment_total_sessions RPC function
+- Created challenges table with RLS policies
+- Created atomic increment RPCs for race conditions
+- Added 3 missing FK indexes
+- Optimized all RLS policies with (select auth.uid()) wrapper
+- Fixed community_foods DELETE policy
+- Fixed friendships UPDATE policy
+
+### Cross-Platform Fixes
+- Added missing goal field to React Profile type
+- Added isActive/activeFrom to React DietPlan type
+- Fixed notification metadata column name mismatch
+
+### React Fixes
+- Fixed duplicateProgram navigation to [object Promise]
+- Fixed NaN on empty students list
+- Fixed sidebar message badge (was hardcoded to 3)
+- Removed unused @tanstack/react-query dependency
+- Consolidated goalConfig to single source
+- Added ErrorBoundary for page-level error recovery
+
+### Flutter Fixes
+- Cached _screens list in MainNavigation
+- Converted FGEffects getters to static final
+- Extracted shared FGMeshGradient widget (removed 300 lines duplication)
+- Moved side-effect out of build() in ProgramCreationFlow
+- Fixed broken workout completion fallback
+
 ## 2026-02-06 - Nouveau Flow de Création de Plan Nutritionnel (6 étapes)
 
 ### NewPlanCreationFlow (create/new_plan_creation_flow.dart)

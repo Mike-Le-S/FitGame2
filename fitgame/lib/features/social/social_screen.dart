@@ -13,6 +13,7 @@ import 'sheets/activity_detail_sheet.dart';
 import 'sheets/challenge_detail_sheet.dart';
 import 'sheets/create_challenge_sheet.dart';
 import 'sheets/notifications_sheet.dart';
+import '../../shared/widgets/fg_mesh_gradient.dart';
 
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key});
@@ -179,7 +180,7 @@ class _SocialScreenState extends State<SocialScreen>
     );
   }
 
-  void _participateInChallenge(Challenge challenge) {
+  void _participateInChallenge(Challenge challenge) async {
     HapticFeedback.mediumImpact();
     // Check if already participating
     final isParticipating = challenge.participants.any((p) => p.id == _currentUserId);
@@ -197,49 +198,70 @@ class _SocialScreenState extends State<SocialScreen>
       return;
     }
 
-    setState(() {
-      final index = _challenges.indexWhere((c) => c.id == challenge.id);
-      if (index != -1) {
-        final updatedParticipants = [
-          ...challenge.participants,
-          ChallengeParticipant(
-            id: _currentUserId,
-            name: _currentUserName,
-            avatarUrl: '',
-            currentValue: 0,
-            hasCompleted: false,
+    try {
+      // Save to Supabase
+      await SupabaseService.joinChallenge(challenge.id);
+
+      if (mounted) {
+        setState(() {
+          final index = _challenges.indexWhere((c) => c.id == challenge.id);
+          if (index != -1) {
+            final updatedParticipants = [
+              ...challenge.participants,
+              ChallengeParticipant(
+                id: _currentUserId,
+                name: _currentUserName,
+                avatarUrl: '',
+                currentValue: 0,
+                hasCompleted: false,
+              ),
+            ];
+            _challenges[index] = Challenge(
+              id: challenge.id,
+              title: challenge.title,
+              exerciseName: challenge.exerciseName,
+              type: challenge.type,
+              targetValue: challenge.targetValue,
+              unit: challenge.unit,
+              deadline: challenge.deadline,
+              status: challenge.status,
+              creatorId: challenge.creatorId,
+              creatorName: challenge.creatorName,
+              participants: updatedParticipants,
+              createdAt: challenge.createdAt,
+            );
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Tu participes maintenant au défi "${challenge.title}" !'),
+            backgroundColor: FGColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
-        ];
-        _challenges[index] = Challenge(
-          id: challenge.id,
-          title: challenge.title,
-          exerciseName: challenge.exerciseName,
-          type: challenge.type,
-          targetValue: challenge.targetValue,
-          unit: challenge.unit,
-          deadline: challenge.deadline,
-          status: challenge.status,
-          creatorId: challenge.creatorId,
-          creatorName: challenge.creatorName,
-          participants: updatedParticipants,
-          createdAt: challenge.createdAt,
         );
       }
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Tu participes maintenant au défi "${challenge.title}" !'),
-        backgroundColor: FGColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
+    } catch (e) {
+      debugPrint('Error joining challenge: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Erreur lors de l\'inscription au défi'),
+            backgroundColor: FGColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 
-  void _createChallenge(Map<String, dynamic> data) {
+  void _createChallenge(Map<String, dynamic> data) async {
     HapticFeedback.mediumImpact();
     final friendIds = data['friendIds'] as List<String>;
     final title = data['title'] as String? ?? 'Nouveau défi';
@@ -247,56 +269,85 @@ class _SocialScreenState extends State<SocialScreen>
     final targetValue = data['target'] as double? ?? 100;
     final unit = data['unit'] as String? ?? 'kg';
 
-    // Create participants from invited friends
-    final participants = <ChallengeParticipant>[
-      ChallengeParticipant(
-        id: _currentUserId,
-        name: _currentUserName,
-        avatarUrl: '',
-        currentValue: 0,
-        hasCompleted: false,
-      ),
-      ...friendIds.map((id) {
-        final friend = _friends.firstWhere((f) => f.id == id);
-        return ChallengeParticipant(
-          id: friend.id,
-          name: friend.name,
-          avatarUrl: friend.avatarUrl,
+    try {
+      // Save to Supabase
+      final response = await SupabaseService.createChallenge(
+        title: title,
+        exerciseName: exerciseName,
+        type: 'weight',
+        targetValue: targetValue,
+        unit: unit,
+        deadline: DateTime.now().add(const Duration(days: 30)),
+        participantIds: friendIds,
+      );
+
+      // Create local Challenge object from response
+      final participants = <ChallengeParticipant>[
+        ChallengeParticipant(
+          id: _currentUserId,
+          name: _currentUserName,
+          avatarUrl: '',
           currentValue: 0,
           hasCompleted: false,
-        );
-      }),
-    ];
-
-    final newChallenge = Challenge(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: title,
-      exerciseName: exerciseName,
-      type: ChallengeType.weight,
-      targetValue: targetValue,
-      unit: unit,
-      deadline: DateTime.now().add(const Duration(days: 30)),
-      status: ChallengeStatus.active,
-      creatorId: _currentUserId,
-      creatorName: _currentUserName,
-      participants: participants,
-      createdAt: DateTime.now(),
-    );
-
-    setState(() {
-      _challenges.insert(0, newChallenge);
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Défi "$title" créé ! ${friendIds.length} ami(s) invité(s)'),
-        backgroundColor: FGColors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
         ),
-      ),
-    );
+        ...friendIds.map((id) {
+          final friend = _friends.firstWhere((f) => f.id == id);
+          return ChallengeParticipant(
+            id: friend.id,
+            name: friend.name,
+            avatarUrl: friend.avatarUrl,
+            currentValue: 0,
+            hasCompleted: false,
+          );
+        }),
+      ];
+
+      final newChallenge = Challenge(
+        id: response['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        title: title,
+        exerciseName: exerciseName,
+        type: ChallengeType.weight,
+        targetValue: targetValue,
+        unit: unit,
+        deadline: DateTime.now().add(const Duration(days: 30)),
+        status: ChallengeStatus.active,
+        creatorId: _currentUserId,
+        creatorName: _currentUserName,
+        participants: participants,
+        createdAt: DateTime.now(),
+      );
+
+      if (mounted) {
+        setState(() {
+          _challenges.insert(0, newChallenge);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Défi "$title" créé ! ${friendIds.length} ami(s) invité(s)'),
+            backgroundColor: FGColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error creating challenge: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Erreur lors de la création du défi'),
+            backgroundColor: FGColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   void _openCreateChallenge() {
@@ -327,7 +378,7 @@ class _SocialScreenState extends State<SocialScreen>
           : null,
       body: Stack(
         children: [
-          _buildMeshGradient(),
+          FGMeshGradient.social(animation: _pulseAnimation),
           SafeArea(
             child: _isLoading
                 ? const Center(
@@ -360,54 +411,6 @@ class _SocialScreenState extends State<SocialScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMeshGradient() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            Container(color: FGColors.background),
-            Positioned(
-              top: -50,
-              right: -100,
-              child: Container(
-                width: 350,
-                height: 350,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      FGColors.accent.withValues(alpha: _pulseAnimation.value),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 150,
-              left: -80,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFF6B5BFF)
-                          .withValues(alpha: _pulseAnimation.value * 0.5),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 

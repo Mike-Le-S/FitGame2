@@ -145,6 +145,8 @@ export interface DietPlan {
   restMacros: Macros
   meals: MealPlan[]
   supplements: SupplementEntry[]
+  isActive: boolean
+  activeFrom?: string
   notes?: string
   createdAt: string
   updatedAt: string

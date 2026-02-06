@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, Mail, Loader2, Check, ArrowLeft, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 interface ForgotPasswordModalProps {
   isOpen: boolean
@@ -18,10 +19,12 @@ export function ForgotPasswordModal({ isOpen, onClose }: ForgotPasswordModalProp
     setError('')
     setIsSubmitting(true)
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-
-    // Always succeed for demo
+    const { error } = await supabase.auth.resetPasswordForEmail(email)
+    if (error) {
+      setError(error.message)
+      setIsSubmitting(false)
+      return
+    }
     setIsSubmitting(false)
     setIsSuccess(true)
   }

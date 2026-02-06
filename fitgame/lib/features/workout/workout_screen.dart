@@ -5,6 +5,7 @@ import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/services/supabase_service.dart';
 import '../../shared/widgets/fg_glass_card.dart';
+import '../../shared/widgets/fg_mesh_gradient.dart';
 import 'create/create_choice_screen.dart';
 import 'create/session_creation_screen.dart';
 import 'tracking/active_workout_screen.dart';
@@ -332,7 +333,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       backgroundColor: FGColors.background,
       body: Stack(
         children: [
-          _buildMeshGradient(),
+          FGMeshGradient.workout(animation: _pulseAnimation),
           SafeArea(
             child: _isLoading
                 ? _buildLoadingState()
@@ -351,57 +352,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         color: FGColors.accent,
         strokeWidth: 2,
       ),
-    );
-  }
-
-  Widget _buildMeshGradient() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            Container(color: FGColors.background),
-            // Top right glow
-            Positioned(
-              top: -50,
-              right: -100,
-              child: Container(
-                width: 400,
-                height: 400,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.5),
-                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.2),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.4, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            // Bottom left subtle
-            Positioned(
-              bottom: 100,
-              left: -150,
-              child: Container(
-                width: 350,
-                height: 350,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.15),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -487,8 +437,8 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     );
   }
 
-  void _openCreateFlow() {
-    Navigator.push(
+  void _openCreateFlow() async {
+    final result = await Navigator.push<bool>(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -508,6 +458,11 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         transitionDuration: const Duration(milliseconds: 400),
       ),
     );
+
+    // Reload data if program was created successfully
+    if (result == true && mounted) {
+      _loadData();
+    }
   }
 
   Widget _buildMainContent() {

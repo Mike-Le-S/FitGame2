@@ -17,21 +17,10 @@ import { AddStudentModal } from '@/components/modals/add-student-modal'
 import { useStudentsStore } from '@/store/students-store'
 import { formatRelativeTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import type { Goal } from '@/types'
+import { goalConfig, goalFilterConfig, type FilterGoalType } from '@/constants/goals'
 
 type ViewMode = 'grid' | 'list'
-type FilterGoal = Goal | 'all'
-
-const goalConfig = {
-  all: { label: 'Tous', color: 'text-text-secondary', bg: 'bg-surface-elevated' },
-  bulk: { label: 'Masse', color: 'text-success', bg: 'bg-success/10' },
-  cut: { label: 'Sèche', color: 'text-warning', bg: 'bg-warning/10' },
-  maintain: { label: 'Maintien', color: 'text-info', bg: 'bg-info/10' },
-  strength: { label: 'Force', color: 'text-accent', bg: 'bg-accent/10' },
-  endurance: { label: 'Endurance', color: 'text-info', bg: 'bg-info/10' },
-  recomp: { label: 'Recomp', color: 'text-success', bg: 'bg-success/10' },
-  other: { label: 'Autre', color: 'text-text-secondary', bg: 'bg-surface-elevated' },
-}
+type FilterGoal = FilterGoalType
 
 export function StudentsListPage() {
   const { students } = useStudentsStore()
@@ -51,9 +40,9 @@ export function StudentsListPage() {
 
   // Stats
   const totalActive = students.length
-  const avgCompliance = Math.round(
-    students.reduce((acc, s) => acc + s.stats.complianceRate, 0) / students.length
-  )
+  const avgCompliance = students.length > 0
+    ? Math.round(students.reduce((acc, s) => acc + s.stats.complianceRate, 0) / students.length)
+    : 0
   const totalWorkoutsWeek = students.reduce((acc, s) => acc + s.stats.thisWeekWorkouts, 0)
 
   return (
@@ -129,7 +118,7 @@ export function StudentsListPage() {
                       : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
                   )}
                 >
-                  {goalConfig[goal].label}
+                  {goalFilterConfig[goal].label}
                 </button>
               ))}
             </div>

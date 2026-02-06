@@ -31,6 +31,7 @@ import { useAuthStore } from '@/store/auth-store'
 import { useSettingsStore } from '@/store/settings-store'
 import { notificationService, type NotificationPermission } from '@/lib/notifications'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 type SettingsSection = 'profile' | 'notifications' | 'security' | 'appearance' | 'help'
 
@@ -44,7 +45,7 @@ const themes = [
 
 export function SettingsPage() {
   const { coach, logout, updateProfile } = useAuthStore()
-  const { notifications, updateNotifications, theme, setTheme, twoFactorEnabled, setTwoFactorEnabled } = useSettingsStore()
+  const { notifications, updateNotifications, theme, setTheme } = useSettingsStore()
 
   const [activeSection, setActiveSection] = useState<SettingsSection>('profile')
   const [is2FAModalOpen, setIs2FAModalOpen] = useState(false)
@@ -157,12 +158,18 @@ export function SettingsPage() {
     }
 
     setIsChangingPassword(true)
-    await new Promise(resolve => setTimeout(resolve, 500))
-    // In real app, would call API to change password
-    setIsChangingPassword(false)
-    setPasswordChanged(true)
-    setPasswordForm({ current: '', new: '', confirm: '' })
-    setTimeout(() => setPasswordChanged(false), 2000)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: passwordForm.new })
+      if (error) throw error
+      setIsChangingPassword(false)
+      setPasswordChanged(true)
+      setPasswordForm({ current: '', new: '', confirm: '' })
+      setTimeout(() => setPasswordChanged(false), 2000)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erreur lors du changement de mot de passe'
+      setPasswordError(message)
+      setIsChangingPassword(false)
+    }
   }
 
   const handleThemeChange = (themeId: string) => {
@@ -650,63 +657,30 @@ export function SettingsPage() {
                 )}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className={cn(
-                        'w-14 h-14 rounded-xl flex items-center justify-center',
-                        twoFactorEnabled
-                          ? 'bg-gradient-to-br from-success/20 to-success/5'
-                          : 'bg-gradient-to-br from-warning/20 to-warning/5'
-                      )}>
-                        <Smartphone className={cn(
-                          'w-7 h-7',
-                          twoFactorEnabled ? 'text-success' : 'text-warning'
-                        )} />
+                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-warning/20 to-warning/5 flex items-center justify-center">
+                        <Smartphone className="w-7 h-7 text-warning" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-text-primary">
-                            Authentification à deux facteurs
-                          </h3>
-                          {twoFactorEnabled && (
-                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-success/10 text-success">
-                              Activée
-                            </span>
-                          )}
-                        </div>
+                        <h3 className="font-semibold text-text-primary">
+                          Authentification à deux facteurs
+                        </h3>
                         <p className="text-sm text-text-muted">
-                          {twoFactorEnabled
-                            ? 'Votre compte est protégé par la 2FA'
-                            : 'Ajoutez une couche de sécurité supplémentaire à votre compte'
-                          }
+                          Ajoutez une couche de sécurité supplémentaire à votre compte
                         </p>
                       </div>
                     </div>
-                    {twoFactorEnabled ? (
-                      <button
-                        onClick={() => setTwoFactorEnabled(false)}
-                        className={cn(
-                          'flex items-center gap-2 h-11 px-5 rounded-xl font-semibold',
-                          'bg-error/10 text-error border border-error/30',
-                          'hover:bg-error/20 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]',
-                          'transition-all duration-300'
-                        )}
-                      >
-                        <Shield className="w-4 h-4" />
-                        Désactiver
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setIs2FAModalOpen(true)}
-                        className={cn(
-                          'flex items-center gap-2 h-11 px-5 rounded-xl font-semibold',
-                          'bg-gradient-to-r from-success to-[#4ade80] text-white',
-                          'hover:shadow-[0_0_25px_rgba(34,197,94,0.35)]',
-                          'transition-all duration-300'
-                        )}
-                      >
-                        <Shield className="w-4 h-4" />
-                        Configurer
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setIs2FAModalOpen(true)}
+                      className={cn(
+                        'flex items-center gap-2 h-11 px-5 rounded-xl font-semibold',
+                        'bg-gradient-to-r from-success to-[#4ade80] text-white',
+                        'hover:shadow-[0_0_25px_rgba(34,197,94,0.35)]',
+                        'transition-all duration-300'
+                      )}
+                    >
+                      <Shield className="w-4 h-4" />
+                      Configurer
+                    </button>
                   </div>
                 </div>
               </div>
@@ -892,7 +866,6 @@ export function SettingsPage() {
       <Setup2FAModal
         isOpen={is2FAModalOpen}
         onClose={() => setIs2FAModalOpen(false)}
-        onSuccess={() => setTwoFactorEnabled(true)}
       />
     </div>
   )

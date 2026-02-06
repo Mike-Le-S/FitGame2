@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { useStudentsStore } from '@/store/students-store'
 import { useProgramsStore } from '@/store/programs-store'
 import { Badge } from '@/components/ui'
+import { goalConfig } from '@/constants/goals'
 import type { Student } from '@/types'
 
 interface AssignProgramModalProps {
@@ -12,16 +13,6 @@ interface AssignProgramModalProps {
   onClose: () => void
   student: Student
 }
-
-const goalConfig = {
-  bulk: { label: 'Masse', color: 'success' },
-  cut: { label: 'Sèche', color: 'warning' },
-  maintain: { label: 'Maintien', color: 'info' },
-  strength: { label: 'Force', color: 'default' },
-  endurance: { label: 'Endurance', color: 'info' },
-  recomp: { label: 'Recomp', color: 'success' },
-  other: { label: 'Autre', color: 'default' },
-} as const
 
 export function AssignProgramModal({ isOpen, onClose, student }: AssignProgramModalProps) {
   const navigate = useNavigate()

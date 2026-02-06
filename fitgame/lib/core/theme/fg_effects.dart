@@ -7,13 +7,13 @@ abstract class FGEffects {
   // Glass blur effect
   static const double glassBlurSigma = 20.0;
 
-  static ImageFilter get glassBlur => ImageFilter.blur(
+  static final ImageFilter glassBlur = ImageFilter.blur(
     sigmaX: glassBlurSigma,
     sigmaY: glassBlurSigma,
   );
 
   // Neon glow shadow for accent elements
-  static List<BoxShadow> get neonGlow => [
+  static final List<BoxShadow> neonGlow = [
     BoxShadow(
       color: FGColors.accentGlow,
       blurRadius: 20,
@@ -27,7 +27,7 @@ abstract class FGEffects {
   ];
 
   // Subtle shadow for elevated elements
-  static List<BoxShadow> get subtleShadow => [
+  static final List<BoxShadow> subtleShadow = [
     BoxShadow(
       color: Colors.black.withValues(alpha: 0.3),
       blurRadius: 16,

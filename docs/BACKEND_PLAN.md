@@ -21,9 +21,9 @@ Phase 5: Fonctions Avancées ← ON EST ICI
 
 | Clé | Valeur |
 |-----|--------|
-| **Project ID** | `snqeueklxfdwxfrrpdvl` |
-| **URL** | `https://snqeueklxfdwxfrrpdvl.supabase.co` |
-| **Anon Key** | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNucWV1ZWtseGZkd3hmcnJwZHZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk5NDExMTMsImV4cCI6MjA4NTUxNzExM30.0fiwCVZU4kuK2aWMBSI6FCPp5YLa3L9PN9XobPQ2m3Y` |
+| **Project ID** | `<SUPABASE_PROJECT_ID from .env>` |
+| **URL** | `<SUPABASE_URL from .env>` |
+| **Anon Key** | `<SUPABASE_ANON_KEY from .env>` |
 | **Region** | `eu-west-1` (Ireland) |
 
 ---

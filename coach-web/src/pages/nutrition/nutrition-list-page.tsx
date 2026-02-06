@@ -19,20 +19,9 @@ import { Header } from '@/components/layout'
 import { Badge } from '@/components/ui'
 import { useNutritionStore } from '@/store/nutrition-store'
 import { formatDate, cn } from '@/lib/utils'
-import type { Goal } from '@/types'
+import { goalConfig, goalFilterConfig, type FilterGoalType } from '@/constants/goals'
 
-type FilterGoal = Goal | 'all'
-
-const goalConfig = {
-  all: { label: 'Tous', color: 'text-text-secondary' },
-  bulk: { label: 'Masse', color: 'text-success' },
-  cut: { label: 'Sèche', color: 'text-warning' },
-  maintain: { label: 'Maintien', color: 'text-info' },
-  strength: { label: 'Force', color: 'text-accent' },
-  endurance: { label: 'Endurance', color: 'text-info' },
-  recomp: { label: 'Recomp', color: 'text-success' },
-  other: { label: 'Autre', color: 'text-text-secondary' },
-}
+type FilterGoal = FilterGoalType
 
 export function NutritionListPage() {
   const navigate = useNavigate()
@@ -58,9 +47,9 @@ export function NutritionListPage() {
     navigate(`/nutrition/${planId}`)
   }
 
-  const handleDuplicate = (planId: string) => {
+  const handleDuplicate = async (planId: string) => {
     setOpenMenuId(null)
-    const newId = duplicateDietPlan(planId)
+    const newId = await duplicateDietPlan(planId)
     if (newId) {
       navigate(`/nutrition/${newId}`)
     }
@@ -183,7 +172,7 @@ export function NutritionListPage() {
                       : 'text-text-secondary hover:text-text-primary hover:bg-surface-elevated'
                   )}
                 >
-                  {goalConfig[goal].label}
+                  {goalFilterConfig[goal].label}
                 </button>
               ))}
             </div>

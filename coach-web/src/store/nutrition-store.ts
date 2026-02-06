@@ -120,6 +120,8 @@ function dbToDietPlan(row: any): DietPlan {
     restMacros: row.rest_macros || { protein: 0, carbs: 0, fat: 0 },
     meals: row.meals || [],
     supplements: row.supplements || [],
+    isActive: row.is_active ?? false,
+    activeFrom: row.active_from ?? undefined,
     notes: row.notes || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -139,6 +141,8 @@ function dietPlanToDb(plan: Omit<DietPlan, 'id' | 'createdAt' | 'updatedAt' | 'a
     rest_macros: plan.restMacros,
     meals: plan.meals,
     supplements: plan.supplements,
+    is_active: plan.isActive ?? false,
+    active_from: plan.activeFrom || null,
     notes: plan.notes || null,
   }
 }
@@ -221,6 +225,8 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
     if (updates.restMacros !== undefined) dbUpdates.rest_macros = updates.restMacros
     if (updates.meals !== undefined) dbUpdates.meals = updates.meals
     if (updates.supplements !== undefined) dbUpdates.supplements = updates.supplements
+    if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive
+    if (updates.activeFrom !== undefined) dbUpdates.active_from = updates.activeFrom
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes
 
     const { error } = await supabase
@@ -261,6 +267,8 @@ export const useNutritionStore = create<NutritionState>((set, get) => ({
     const duplicateData = {
       name: `${plan.name} (copie)`,
       goal: plan.goal,
+      isActive: false,
+      activeFrom: undefined,
       trainingCalories: plan.trainingCalories,
       restCalories: plan.restCalories,
       trainingMacros: { ...plan.trainingMacros },

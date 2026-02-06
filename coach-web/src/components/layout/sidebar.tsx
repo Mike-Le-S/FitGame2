@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth-store'
+import { useMessagesStore } from '@/store/messages-store'
 import { Avatar } from '@/components/ui'
 
 const navItems = [
@@ -19,7 +20,7 @@ const navItems = [
   { path: '/students', icon: Users, label: 'Élèves' },
   { path: '/programs', icon: Dumbbell, label: 'Programmes' },
   { path: '/nutrition', icon: Apple, label: 'Nutrition' },
-  { path: '/messages', icon: MessageSquare, label: 'Messages', badge: 3 },
+  { path: '/messages', icon: MessageSquare, label: 'Messages' },
 ]
 
 interface SidebarProps {
@@ -30,6 +31,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation()
   const { coach, logout } = useAuthStore()
+  const totalUnread = useMessagesStore(state => state.getTotalUnread())
 
   return (
     <aside
@@ -148,14 +150,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <span className="relative flex-1">{item.label}</span>
 
                     {/* Badge or chevron */}
-                    {item.badge ? (
+                    {item.path === '/messages' && totalUnread > 0 ? (
                       <span className={cn(
                         'relative px-2 py-0.5 rounded-full text-xs font-semibold',
                         'bg-accent text-white',
                         'shadow-[0_0_10px_rgba(255,107,53,0.4)]',
                         'animate-pulse'
                       )}>
-                        {item.badge}
+                        {totalUnread}
                       </span>
                     ) : (
                       <ChevronRight className={cn(

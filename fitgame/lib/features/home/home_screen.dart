@@ -4,6 +4,7 @@ import '../../core/theme/fg_colors.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/services/supabase_service.dart';
 import '../../shared/widgets/fg_neon_button.dart';
+import '../../shared/widgets/fg_mesh_gradient.dart';
 import '../workout/tracking/active_workout_screen.dart';
 import 'widgets/home_header.dart';
 import 'widgets/today_workout_card.dart';
@@ -96,7 +97,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
       }
     } catch (e) {
-      // Silently fail - will show default values
+      debugPrint('Error loading home data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Impossible de charger les données'),
+            backgroundColor: FGColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            action: SnackBarAction(
+              label: 'Réessayer',
+              textColor: FGColors.textPrimary,
+              onPressed: _loadUserData,
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -141,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       body: Stack(
         children: [
           // === MESH GRADIENT BACKGROUND ===
-          _buildMeshGradient(),
+          FGMeshGradient.home(animation: _pulseAnimation),
 
           // === MAIN CONTENT ===
           SafeArea(
@@ -203,77 +221,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMeshGradient() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            // Base background
-            Container(color: FGColors.background),
-
-            // Top-right glow orb
-            Positioned(
-              top: -100,
-              right: -80,
-              child: Container(
-                width: 350,
-                height: 350,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.6),
-                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.2),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.4, 1.0],
-                  ),
-                ),
-              ),
-            ),
-
-            // Bottom-left subtle glow
-            Positioned(
-              bottom: 100,
-              left: -120,
-              child: Container(
-                width: 300,
-                height: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      FGColors.accent.withValues(alpha: _pulseAnimation.value * 0.15),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 1.0],
-                  ),
-                ),
-              ),
-            ),
-
-            // Noise overlay for texture
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      FGColors.background.withValues(alpha: 0.3),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 

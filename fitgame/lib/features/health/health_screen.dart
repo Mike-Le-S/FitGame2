@@ -5,6 +5,7 @@ import '../../core/theme/fg_typography.dart';
 import '../../core/constants/spacing.dart';
 import '../../core/services/health_service.dart';
 import '../../shared/widgets/fg_glass_card.dart';
+import '../../shared/widgets/fg_mesh_gradient.dart';
 import 'sheets/energy_detail_sheet.dart';
 import 'sheets/sleep_detail_sheet.dart';
 import 'sheets/heart_detail_sheet.dart';
@@ -127,11 +128,27 @@ class _HealthScreenState extends State<HealthScreen>
     super.dispose();
   }
 
+  // Check if we have valid data for each category
+  bool get _hasSleepData => totalSleepMinutes > 0;
+  bool get _hasHeartData => restingHeartRate > 0 || hrvMs > 0;
+  bool get _hasActivityData => steps > 0 || caloriesBurned > 0;
+
   int get _globalHealthScore {
-    final sleepScore = _calculateSleepScore();
-    final heartScore = _calculateHeartScore();
-    final activityScore = _calculateActivityScore();
-    return ((sleepScore + heartScore + activityScore) / 3).round();
+    final scores = <int>[];
+
+    // Only include scores for data we actually have
+    if (_hasSleepData) {
+      scores.add(_calculateSleepScore());
+    }
+    if (_hasHeartData) {
+      scores.add(_calculateHeartScore());
+    }
+    if (_hasActivityData) {
+      scores.add(_calculateActivityScore());
+    }
+
+    if (scores.isEmpty) return 0;
+    return (scores.reduce((a, b) => a + b) / scores.length).round();
   }
 
   int _calculateHeartScore() {
@@ -176,106 +193,61 @@ class _HealthScreenState extends State<HealthScreen>
       backgroundColor: FGColors.background,
       body: Stack(
         children: [
-          _buildMeshGradient(),
+          FGMeshGradient.health(animation: _pulseAnimation),
           SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: Spacing.md),
-                    _buildHeader(),
-                    const SizedBox(height: Spacing.lg),
+            child: RefreshIndicator(
+              onRefresh: _loadHealthData,
+              color: FGColors.accent,
+              backgroundColor: FGColors.glassSurface,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: Spacing.md),
+                      _buildHeader(),
+                      const SizedBox(height: Spacing.lg),
 
-                    // === HERO SCORE ===
-                    _buildHeroScore(),
-                    const SizedBox(height: Spacing.lg),
+                      // === HERO SCORE ===
+                      _buildHeroScore(),
+                      const SizedBox(height: Spacing.lg),
 
-                    // === QUICK STATS ===
-                    _buildQuickStats(),
-                    const SizedBox(height: Spacing.xl),
+                      // === QUICK STATS ===
+                      _buildQuickStats(),
+                      const SizedBox(height: Spacing.xl),
 
-                    // === SECTION LABEL ===
-                    Text(
-                      'MÉTRIQUES DÉTAILLÉES',
-                      style: FGTypography.caption.copyWith(
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w700,
-                        color: FGColors.textSecondary,
+                      // === SECTION LABEL ===
+                      Text(
+                        'MÉTRIQUES DÉTAILLÉES',
+                        style: FGTypography.caption.copyWith(
+                          letterSpacing: 2,
+                          fontWeight: FontWeight.w700,
+                          color: FGColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: Spacing.md),
+                      const SizedBox(height: Spacing.md),
 
-                    // === THREE MAIN CARDS ===
-                    _buildSleepCard(),
-                    const SizedBox(height: Spacing.md),
-                    _buildHeartCard(),
-                    const SizedBox(height: Spacing.md),
-                    _buildEnergyCard(),
-                    const SizedBox(height: Spacing.xxl),
-                  ],
+                      // === THREE MAIN CARDS ===
+                      _buildSleepCard(),
+                      const SizedBox(height: Spacing.md),
+                      _buildHeartCard(),
+                      const SizedBox(height: Spacing.md),
+                      _buildEnergyCard(),
+                      const SizedBox(height: Spacing.xxl),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMeshGradient() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            Container(color: FGColors.background),
-            Positioned(
-              top: -80,
-              left: -120,
-              child: Container(
-                width: 400,
-                height: 400,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFF6B5BFF)
-                          .withValues(alpha: _pulseAnimation.value * 0.8),
-                      const Color(0xFF6B5BFF)
-                          .withValues(alpha: _pulseAnimation.value * 0.3),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.4, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 50,
-              right: -100,
-              child: Container(
-                width: 350,
-                height: 350,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFFFF5B7F)
-                          .withValues(alpha: _pulseAnimation.value * 0.4),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -520,30 +492,35 @@ class _HealthScreenState extends State<HealthScreen>
         Expanded(
           child: _buildQuickStatPill(
             icon: Icons.directions_walk,
-            value: _formatSteps(steps),
+            value: steps > 0 ? _formatSteps(steps) : '—',
             label: 'pas',
             progress: stepsProgress,
             color: const Color(0xFF00D9FF),
+            isAvailable: steps > 0,
           ),
         ),
         const SizedBox(width: Spacing.sm),
         Expanded(
           child: _buildQuickStatPill(
             icon: Icons.local_fire_department,
-            value: '$caloriesBurned',
+            value: caloriesBurned > 0 ? '$caloriesBurned' : '—',
             label: 'kcal',
             progress: calorieProgress,
             color: FGColors.accent,
+            isAvailable: caloriesBurned > 0,
           ),
         ),
         const SizedBox(width: Spacing.sm),
         Expanded(
           child: _buildQuickStatPill(
             icon: Icons.bedtime,
-            value: '${totalSleepMinutes ~/ 60}h${(totalSleepMinutes % 60).toString().padLeft(2, '0')}',
+            value: totalSleepMinutes > 0
+                ? '${totalSleepMinutes ~/ 60}h${(totalSleepMinutes % 60).toString().padLeft(2, '0')}'
+                : '—',
             label: 'sommeil',
             progress: totalSleepMinutes / (8 * 60), // Goal: 8h
             color: const Color(0xFF6B5BFF),
+            isAvailable: totalSleepMinutes > 0,
           ),
         ),
       ],
@@ -563,7 +540,10 @@ class _HealthScreenState extends State<HealthScreen>
     required String label,
     required double progress,
     required Color color,
+    bool isAvailable = true,
   }) {
+    final displayColor = isAvailable ? color : FGColors.textSecondary.withValues(alpha: 0.3);
+
     return Container(
       padding: const EdgeInsets.all(Spacing.md),
       decoration: BoxDecoration(
@@ -573,7 +553,7 @@ class _HealthScreenState extends State<HealthScreen>
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 18),
+          Icon(icon, color: displayColor, size: 18),
           const SizedBox(height: Spacing.xs),
           Text(
             value,
@@ -581,7 +561,7 @@ class _HealthScreenState extends State<HealthScreen>
               fontWeight: FontWeight.w900,
               fontStyle: FontStyle.italic,
               fontSize: 16,
-              color: color,
+              color: displayColor,
             ),
           ),
           const SizedBox(height: 2),
@@ -599,9 +579,9 @@ class _HealthScreenState extends State<HealthScreen>
             child: SizedBox(
               height: 3,
               child: LinearProgressIndicator(
-                value: progress.clamp(0.0, 1.0),
+                value: isAvailable ? progress.clamp(0.0, 1.0) : 0.0,
                 backgroundColor: FGColors.glassBorder,
-                valueColor: AlwaysStoppedAnimation(color),
+                valueColor: AlwaysStoppedAnimation(displayColor),
               ),
             ),
           ),
@@ -993,7 +973,12 @@ class _HealthScreenState extends State<HealthScreen>
   // ENERGY CARD
   // ============================================
   Widget _buildEnergyCard() {
-    final netCalories = caloriesConsumed - caloriesBurned;
+    // Check if user has logged calories consumed (otherwise don't show deficit)
+    final hasCaloriesConsumed = caloriesConsumed > 0;
+    final hasCaloriesBurned = caloriesBurned > 0;
+
+    // Only calculate balance if user is tracking food intake
+    final netCalories = hasCaloriesConsumed ? caloriesConsumed - caloriesBurned : 0;
     final isDeficit = netCalories < 0;
 
     return FGGlassCard(
@@ -1043,7 +1028,7 @@ class _HealthScreenState extends State<HealthScreen>
                       ],
                     ),
                     Text(
-                      'Balance calorique',
+                      hasCaloriesConsumed ? 'Balance calorique' : 'Calories dépensées',
                       style: FGTypography.caption.copyWith(
                         color: FGColors.textSecondary.withValues(alpha: 0.7),
                         fontSize: 10,
@@ -1052,29 +1037,69 @@ class _HealthScreenState extends State<HealthScreen>
                   ],
                 ),
               ),
-              // Net calories badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.sm,
-                  vertical: Spacing.xs,
-                ),
-                decoration: BoxDecoration(
-                  color: (isDeficit ? FGColors.success : FGColors.warning)
-                      .withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(Spacing.sm),
-                  border: Border.all(
+              // Net calories badge - only show if tracking food
+              if (hasCaloriesConsumed)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.sm,
+                    vertical: Spacing.xs,
+                  ),
+                  decoration: BoxDecoration(
                     color: (isDeficit ? FGColors.success : FGColors.warning)
-                        .withValues(alpha: 0.4),
+                        .withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(Spacing.sm),
+                    border: Border.all(
+                      color: (isDeficit ? FGColors.success : FGColors.warning)
+                          .withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Text(
+                    '${isDeficit ? '' : '+'}$netCalories',
+                    style: FGTypography.caption.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: isDeficit ? FGColors.success : FGColors.warning,
+                    ),
+                  ),
+                )
+              else if (hasCaloriesBurned)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.sm,
+                    vertical: Spacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: FGColors.accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(Spacing.sm),
+                    border: Border.all(
+                      color: FGColors.accent.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Text(
+                    '$caloriesBurned',
+                    style: FGTypography.caption.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: FGColors.accent,
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.sm,
+                    vertical: Spacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: FGColors.glassBorder,
+                    borderRadius: BorderRadius.circular(Spacing.sm),
+                  ),
+                  child: Text(
+                    '—',
+                    style: FGTypography.caption.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: FGColors.textSecondary,
+                    ),
                   ),
                 ),
-                child: Text(
-                  '${isDeficit ? '' : '+'}$netCalories',
-                  style: FGTypography.caption.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: isDeficit ? FGColors.success : FGColors.warning,
-                  ),
-                ),
-              ),
               const SizedBox(width: Spacing.sm),
               Icon(
                 Icons.chevron_right_rounded,
@@ -1091,10 +1116,13 @@ class _HealthScreenState extends State<HealthScreen>
                 child: _buildEnergyBar(
                   label: 'Consommé',
                   value: caloriesConsumed,
-                  max: caloriesBurned > caloriesConsumed
-                      ? caloriesBurned
-                      : caloriesConsumed,
-                  color: const Color(0xFF00D9FF),
+                  max: hasCaloriesConsumed
+                      ? (caloriesBurned > caloriesConsumed ? caloriesBurned : caloriesConsumed)
+                      : caloriesBurned > 0 ? caloriesBurned : 1,
+                  color: hasCaloriesConsumed
+                      ? const Color(0xFF00D9FF)
+                      : FGColors.textSecondary.withValues(alpha: 0.3),
+                  isAvailable: hasCaloriesConsumed,
                 ),
               ),
               const SizedBox(width: Spacing.md),
@@ -1102,10 +1130,13 @@ class _HealthScreenState extends State<HealthScreen>
                 child: _buildEnergyBar(
                   label: 'Dépensé',
                   value: caloriesBurned,
-                  max: caloriesBurned > caloriesConsumed
-                      ? caloriesBurned
-                      : caloriesConsumed,
-                  color: FGColors.accent,
+                  max: hasCaloriesConsumed
+                      ? (caloriesBurned > caloriesConsumed ? caloriesBurned : caloriesConsumed)
+                      : caloriesBurned > 0 ? caloriesBurned : 1,
+                  color: hasCaloriesBurned
+                      ? FGColors.accent
+                      : FGColors.textSecondary.withValues(alpha: 0.3),
+                  isAvailable: hasCaloriesBurned,
                 ),
               ),
             ],
@@ -1120,9 +1151,11 @@ class _HealthScreenState extends State<HealthScreen>
     required int value,
     required int max,
     required Color color,
+    bool isAvailable = true,
   }) {
     // Avoid division by zero
     final progress = max > 0 ? value / max : 0.0;
+    final displayColor = isAvailable ? color : FGColors.textSecondary.withValues(alpha: 0.3);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1138,11 +1171,11 @@ class _HealthScreenState extends State<HealthScreen>
               ),
             ),
             Text(
-              '$value kcal',
+              isAvailable ? '$value kcal' : '— kcal',
               style: FGTypography.caption.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: color,
+                color: displayColor,
               ),
             ),
           ],
@@ -1153,9 +1186,9 @@ class _HealthScreenState extends State<HealthScreen>
           child: SizedBox(
             height: 8,
             child: LinearProgressIndicator(
-              value: progress,
+              value: isAvailable ? progress : 0.0,
               backgroundColor: FGColors.glassBorder,
-              valueColor: AlwaysStoppedAnimation(color),
+              valueColor: AlwaysStoppedAnimation(displayColor),
             ),
           ),
         ),
