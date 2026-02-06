@@ -39,6 +39,7 @@ class _SocialScreenState extends State<SocialScreen>
   // Current user info
   String _currentUserId = '';
   String _currentUserName = 'Toi';
+  String _currentUserAvatarUrl = '';
 
   @override
   void initState() {
@@ -66,17 +67,43 @@ class _SocialScreenState extends State<SocialScreen>
       final activityData = await SupabaseService.getActivityFeed();
       final friendsData = await SupabaseService.getFriends();
       final unreadCount = await SupabaseService.getUnreadNotificationsCount();
+      final challengesData = await SupabaseService.getChallenges();
 
       if (mounted) {
         setState(() {
           // Set current user info
           _currentUserId = userId;
           _currentUserName = userName;
+          _currentUserAvatarUrl = profile?['avatar_url'] ?? '';
 
           // Convert Supabase data to Activity models
           _activities = activityData.map((data) {
             final user = data['user'] as Map<String, dynamic>?;
             final metadata = data['metadata'] as Map<String, dynamic>? ?? {};
+
+            // Parse top exercises from metadata
+            final exercisesList = metadata['exercises'] as List? ?? [];
+            final topExercises = exercisesList.map((e) {
+              final ex = e as Map<String, dynamic>;
+              return ExerciseSummary(
+                name: ex['name'] ?? '',
+                shortName: ex['shortName'] ?? '',
+                weightKg: (ex['weightKg'] as num?)?.toDouble() ?? 0,
+                reps: (ex['reps'] as num?)?.toInt() ?? 0,
+              );
+            }).toList();
+
+            // Parse PR from metadata
+            final prData = metadata['pr'] as Map<String, dynamic>?;
+            PersonalRecord? pr;
+            if (prData != null) {
+              pr = PersonalRecord(
+                exerciseName: prData['exerciseName'] ?? '',
+                value: (prData['value'] as num?)?.toDouble() ?? 0,
+                gain: (prData['gain'] as num?)?.toDouble() ?? 0,
+                unit: prData['unit'] ?? 'kg',
+              );
+            }
 
             return Activity(
               id: data['id'] ?? '',
@@ -84,11 +111,12 @@ class _SocialScreenState extends State<SocialScreen>
               userAvatarUrl: user?['avatar_url'] ?? '',
               workoutName: data['title'] ?? '',
               muscles: metadata['muscles'] ?? '',
-              durationMinutes: metadata['duration_minutes'] ?? 0,
-              volumeKg: (metadata['volume_kg'] ?? 0).toDouble(),
-              exerciseCount: metadata['exercise_count'] ?? 0,
+              durationMinutes: (metadata['duration_minutes'] as num?)?.toInt() ?? 0,
+              volumeKg: (metadata['volume_kg'] as num?)?.toDouble() ?? 0,
+              exerciseCount: (metadata['exercise_count'] as num?)?.toInt() ?? 0,
               timestamp: DateTime.tryParse(data['created_at'] ?? '') ?? DateTime.now(),
-              topExercises: [],
+              topExercises: topExercises,
+              pr: pr,
               respectCount: 0,
               hasGivenRespect: false,
               respectGivers: [],
@@ -98,18 +126,63 @@ class _SocialScreenState extends State<SocialScreen>
           // Convert friends data
           _friends = friendsData.map((data) {
             final friend = data['friend'] as Map<String, dynamic>?;
+            final lastActiveAt = friend?['updated_at'] != null
+                ? DateTime.tryParse(friend!['updated_at'])
+                : null;
+            final isRecentlyActive = lastActiveAt != null &&
+                DateTime.now().difference(lastActiveAt).inMinutes < 5;
             return Friend(
               id: friend?['id'] ?? '',
               name: friend?['full_name'] ?? 'Ami',
               avatarUrl: friend?['avatar_url'] ?? '',
-              isOnline: false,
+              isOnline: isRecentlyActive,
               streak: friend?['current_streak'] ?? 0,
               totalWorkouts: friend?['total_sessions'] ?? 0,
-              lastActive: DateTime.now(),
+              lastActive: lastActiveAt,
             );
           }).toList();
 
           _unreadNotifications = unreadCount;
+
+          // Convert challenges data
+          _challenges = challengesData.map((data) {
+            final participantsRaw = data['participants'] as List? ?? [];
+            final participants = participantsRaw.map((p) {
+              final participant = p as Map<String, dynamic>;
+              return ChallengeParticipant(
+                id: participant['id'] ?? '',
+                name: participant['name'] ?? '',
+                avatarUrl: participant['avatar_url'] ?? '',
+                currentValue: (participant['current_value'] as num?)?.toDouble() ?? 0,
+                hasCompleted: participant['has_completed'] == true,
+                completedAt: participant['completed_at'] != null
+                    ? DateTime.tryParse(participant['completed_at'])
+                    : null,
+              );
+            }).toList();
+
+            return Challenge(
+              id: data['id'] ?? '',
+              title: data['title'] ?? '',
+              exerciseName: data['exercise_name'] ?? '',
+              type: ChallengeType.values.firstWhere(
+                (t) => t.name == data['type'],
+                orElse: () => ChallengeType.weight,
+              ),
+              targetValue: (data['target_value'] as num?)?.toDouble() ?? 0,
+              unit: data['unit'] ?? 'kg',
+              deadline: data['deadline'] != null ? DateTime.tryParse(data['deadline']) : null,
+              status: ChallengeStatus.values.firstWhere(
+                (s) => s.name == data['status'],
+                orElse: () => ChallengeStatus.active,
+              ),
+              creatorId: data['creator_id'] ?? '',
+              creatorName: data['creator_name'] ?? '',
+              participants: participants,
+              createdAt: DateTime.tryParse(data['created_at'] ?? '') ?? DateTime.now(),
+            );
+          }).toList();
+
           _isLoading = false;
         });
 
@@ -254,7 +327,7 @@ class _SocialScreenState extends State<SocialScreen>
               ChallengeParticipant(
                 id: _currentUserId,
                 name: _currentUserName,
-                avatarUrl: '',
+                avatarUrl: _currentUserAvatarUrl,
                 currentValue: 0,
                 hasCompleted: false,
               ),
@@ -329,7 +402,7 @@ class _SocialScreenState extends State<SocialScreen>
         ChallengeParticipant(
           id: _currentUserId,
           name: _currentUserName,
-          avatarUrl: '',
+          avatarUrl: _currentUserAvatarUrl,
           currentValue: 0,
           hasCompleted: false,
         ),
