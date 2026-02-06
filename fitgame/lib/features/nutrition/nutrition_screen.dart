@@ -49,6 +49,7 @@ class _NutritionScreenState extends State<NutritionScreen>
   List<Map<String, dynamic>> _myDietPlans = [];
   List<Map<String, dynamic>> _assignedDietPlans = [];
   Map<String, dynamic>? _activePlan; // Currently active diet plan
+  Map<int, String> _dayTypeIds = {}; // dayIndex → day_type_id
   String? _activePlanName;
 
   // Realtime listener reference
@@ -284,7 +285,6 @@ class _NutritionScreenState extends State<NutritionScreen>
         final mealsForLog = planMeals.map((meal) {
           return {
             'name': meal['name'],
-            'icon': meal['icon'].toString(),
             'foods': (meal['foods'] as List).map((f) => Map<String, dynamic>.from(f)).toList(),
             'plan_foods': (meal['foods'] as List).map((f) => Map<String, dynamic>.from(f)).toList(),
           };
@@ -415,6 +415,12 @@ class _NutritionScreenState extends State<NutritionScreen>
 
         final dayType = daySchedule['day_type'] as Map<String, dynamic>?;
         if (dayType != null) {
+          // Store day_type_id for saving back later
+          final dayTypeId = dayType['id'] as String?;
+          if (dayTypeId != null) {
+            _dayTypeIds[dayIndex] = dayTypeId;
+          }
+
           final meals = (dayType['meals'] as List? ?? []).map((meal) {
             final foods = (meal['foods'] as List? ?? []).map((food) {
               return {
@@ -440,11 +446,8 @@ class _NutritionScreenState extends State<NutritionScreen>
             });
           }
 
-          // Check if this is a training day based on day type name
-          final typeName = (dayType['name'] as String? ?? '').toLowerCase();
-          if (typeName.contains('entraînement') ||
-              typeName.contains('training') ||
-              typeName.contains('muscu')) {
+          // Use is_training flag from day_type
+          if (dayType['is_training'] == true) {
             _trainingDays.add(dayIndex);
           } else {
             _trainingDays.remove(dayIndex);
@@ -1989,27 +1992,50 @@ class _NutritionScreenState extends State<NutritionScreen>
     );
   }
 
-  /// Save current diet plan changes to Supabase
+  /// Save current diet plan changes to Supabase (per day_type)
   Future<void> _saveDietPlanChanges() async {
-    if (_activePlan == null || _activePlan!['id'] == null) {
-      // No active plan to update - create one if needed
-      return;
-    }
+    if (_activePlan == null || _activePlan!['id'] == null) return;
 
     try {
-      // Convert _weeklyPlan to meals format for Supabase
-      // We'll save the meals from Monday as the template (since meals repeat)
-      final mealsForSave = (_weeklyPlan[0]['meals'] as List).map((meal) {
+      // Save meals per day_type (not per-day, since multiple days share a type)
+      final savedTypeIds = <String>{};
+
+      for (int dayIndex = 0; dayIndex < 7; dayIndex++) {
+        final typeId = _dayTypeIds[dayIndex];
+        if (typeId == null || savedTypeIds.contains(typeId)) continue;
+        savedTypeIds.add(typeId);
+
+        final mealsForSave = (_weeklyPlan[dayIndex]['meals'] as List).map((meal) {
+          return {
+            'name': meal['name'],
+            'foods': (meal['foods'] as List).map((food) {
+              return {
+                'name': food['name'],
+                'quantity': food['quantity'] ?? '',
+                'calories': food['cal'] ?? food['calories'] ?? 0,
+                'protein': food['p'] ?? food['protein'] ?? 0,
+                'carbs': food['c'] ?? food['carbs'] ?? 0,
+                'fat': food['f'] ?? food['fat'] ?? 0,
+              };
+            }).toList(),
+          };
+        }).toList();
+
+        await SupabaseService.updateDayType(typeId, {'meals': mealsForSave});
+      }
+
+      // Also update the diet_plans.meals as legacy fallback
+      final mondayMeals = (_weeklyPlan[0]['meals'] as List).map((meal) {
         return {
           'name': meal['name'],
           'foods': (meal['foods'] as List).map((food) {
             return {
               'name': food['name'],
               'quantity': food['quantity'] ?? '',
-              'calories': food['cal'] ?? 0,
-              'protein': food['p'] ?? 0,
-              'carbs': food['c'] ?? 0,
-              'fat': food['f'] ?? 0,
+              'calories': food['cal'] ?? food['calories'] ?? 0,
+              'protein': food['p'] ?? food['protein'] ?? 0,
+              'carbs': food['c'] ?? food['carbs'] ?? 0,
+              'fat': food['f'] ?? food['fat'] ?? 0,
             };
           }).toList(),
         };
@@ -2017,7 +2043,7 @@ class _NutritionScreenState extends State<NutritionScreen>
 
       await SupabaseService.updateDietPlan(
         _activePlan!['id'] as String,
-        {'meals': mealsForSave},
+        {'meals': mondayMeals},
       );
     } catch (e) {
       debugPrint('Error saving diet plan: $e');
