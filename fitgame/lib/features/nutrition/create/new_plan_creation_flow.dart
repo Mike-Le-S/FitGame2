@@ -7,6 +7,7 @@ import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/constants/spacing.dart';
 import '../../../core/services/supabase_service.dart';
+import 'widgets/day_type_editor_sheet.dart';
 import 'widgets/progress_dots.dart';
 
 class NewPlanCreationFlow extends StatefulWidget {
@@ -22,6 +23,8 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
   static const _draftKey = 'nutrition_plan_draft';
   static const _nutritionGreen = Color(0xFF2ECC71);
   static const _totalSteps = 6;
+  static const _dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  static const _dayNamesShort = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
   static const _suggestionDefaults = {
     'Prise de masse': {'goal': 'bulk', 'cal': 3200, 'restCal': 2800, 'protein': 30, 'carbs': 45, 'fat': 25},
@@ -515,7 +518,7 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
                     _buildStep1Identity(),
                     _buildStep2ObjectiveCalories(),
                     _buildStep3Macros(),
-                    _buildStep4Placeholder(),
+                    _buildStep4DayTypes(),
                     _buildStep5Placeholder(),
                     _buildStep6Placeholder(),
                   ],
@@ -1210,8 +1213,278 @@ class _NewPlanCreationFlowState extends State<NewPlanCreationFlow> {
     );
   }
 
-  Widget _buildStep4Placeholder() {
-    return const Center(child: Text('Step 4', style: TextStyle(color: Colors.white)));
+  // ============================================
+  // STEP 4: DAY TYPES
+  // ============================================
+
+  int _calculateDayTypeCalories(List meals) {
+    int total = 0;
+    for (final meal in meals) {
+      final foods = (meal as Map)['foods'] as List? ?? [];
+      for (final food in foods) {
+        total += ((food as Map)['cal'] as int?) ?? ((food)['calories'] as int?) ?? 0;
+      }
+    }
+    return total;
+  }
+
+  void _editDayType(int index) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DayTypeEditorSheet(
+        dayType: _dayTypes[index],
+        onSave: (updated) {
+          Navigator.pop(context);
+          setState(() => _dayTypes[index] = updated);
+          _saveDraft();
+        },
+      ),
+    );
+  }
+
+  void _duplicateDayType(int index) {
+    HapticFeedback.mediumImpact();
+    final original = _dayTypes[index];
+    final copy = Map<String, dynamic>.from(original);
+    copy['name'] = '${original['name']} (copie)';
+    if (original['meals'] != null) {
+      copy['meals'] = List<Map<String, dynamic>>.from(
+        (original['meals'] as List).map((m) {
+          final meal = Map<String, dynamic>.from(m as Map);
+          if (meal['foods'] != null) {
+            meal['foods'] = List<Map<String, dynamic>>.from(
+              (meal['foods'] as List).map((f) => Map<String, dynamic>.from(f as Map)),
+            );
+          }
+          return meal;
+        }),
+      );
+    }
+    setState(() => _dayTypes.add(copy));
+    _saveDraft();
+  }
+
+  void _deleteDayType(int index) {
+    if (_dayTypes.length <= 1) return;
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _dayTypes.removeAt(index);
+      // Fix weekly schedule references
+      for (final key in _weeklySchedule.keys.toList()) {
+        if (_weeklySchedule[key]! >= _dayTypes.length) {
+          _weeklySchedule[key] = _dayTypes.length - 1;
+        }
+      }
+    });
+    _saveDraft();
+  }
+
+  void _addDayType() {
+    HapticFeedback.mediumImpact();
+    final newType = {
+      'name': 'Nouveau type',
+      'emoji': '📅',
+      'color': 0xFF9B59B6,
+      'meals': [
+        {'name': 'Petit-déjeuner', 'icon': 'free_breakfast_rounded', 'foods': <Map<String, dynamic>>[]},
+        {'name': 'Déjeuner', 'icon': 'restaurant_rounded', 'foods': <Map<String, dynamic>>[]},
+        {'name': 'Dîner', 'icon': 'dinner_dining_rounded', 'foods': <Map<String, dynamic>>[]},
+      ],
+    };
+    setState(() => _dayTypes.add(newType));
+    _saveDraft();
+    _editDayType(_dayTypes.length - 1);
+  }
+
+  Widget _buildStep4DayTypes() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: Spacing.xl),
+          Text(
+            'Types de\njour',
+            style: FGTypography.h1.copyWith(color: _nutritionGreen),
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'Définis tes types de journées (entraînement, repos, etc.) et leurs repas.',
+            style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+          ),
+          const SizedBox(height: Spacing.xl),
+
+          // Day type cards
+          ..._dayTypes.asMap().entries.map((entry) {
+            final index = entry.key;
+            final dayType = entry.value;
+            final emoji = dayType['emoji'] as String? ?? '📅';
+            final name = dayType['name'] as String? ?? 'Type';
+            final meals = dayType['meals'] as List? ?? [];
+            final cal = _calculateDayTypeCalories(meals);
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: Spacing.sm),
+              child: Container(
+                padding: const EdgeInsets.all(Spacing.md),
+                decoration: BoxDecoration(
+                  color: FGColors.glassSurface,
+                  borderRadius: BorderRadius.circular(Spacing.md),
+                  border: Border.all(color: FGColors.glassBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(emoji, style: const TextStyle(fontSize: 28)),
+                        const SizedBox(width: Spacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: FGTypography.body.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                '${meals.length} repas · $cal kcal',
+                                style: FGTypography.caption.copyWith(
+                                  color: FGColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => _editDayType(index),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: _nutritionGreen.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(Spacing.sm),
+                            ),
+                            child: Icon(
+                              Icons.edit_rounded,
+                              color: _nutritionGreen,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.xs),
+                        GestureDetector(
+                          onTap: () => _duplicateDayType(index),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: FGColors.glassSurface,
+                              borderRadius: BorderRadius.circular(Spacing.sm),
+                              border: Border.all(color: FGColors.glassBorder),
+                            ),
+                            child: Icon(
+                              Icons.copy_rounded,
+                              color: FGColors.textSecondary,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                        if (_dayTypes.length > 1) ...[
+                          const SizedBox(width: Spacing.xs),
+                          GestureDetector(
+                            onTap: () => _deleteDayType(index),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: FGColors.error.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(Spacing.sm),
+                              ),
+                              child: Icon(
+                                Icons.delete_rounded,
+                                color: FGColors.error,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+
+                    // Mini meal name chips
+                    if (meals.isNotEmpty) ...[
+                      const SizedBox(height: Spacing.sm),
+                      Wrap(
+                        spacing: Spacing.xs,
+                        runSpacing: Spacing.xs,
+                        children: meals.map((meal) {
+                          final mealName = (meal as Map)['name'] as String? ?? 'Repas';
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: Spacing.sm,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: FGColors.background,
+                              borderRadius: BorderRadius.circular(Spacing.xs),
+                            ),
+                            child: Text(
+                              mealName,
+                              style: FGTypography.caption.copyWith(
+                                color: FGColors.textSecondary,
+                                fontSize: 10,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }),
+
+          // Add day type button
+          const SizedBox(height: Spacing.sm),
+          GestureDetector(
+            onTap: _addDayType,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(Spacing.md),
+              decoration: BoxDecoration(
+                color: FGColors.glassSurface,
+                borderRadius: BorderRadius.circular(Spacing.md),
+                border: Border.all(
+                  color: _nutritionGreen.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_rounded, color: _nutritionGreen, size: 20),
+                  const SizedBox(width: Spacing.sm),
+                  Text(
+                    'Ajouter un type de jour',
+                    style: FGTypography.body.copyWith(
+                      color: _nutritionGreen,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: Spacing.xxl),
+        ],
+      ),
+    );
   }
 
   Widget _buildStep5Placeholder() {
