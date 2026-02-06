@@ -67,12 +67,19 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
             final exercises = day['exercises'] as List? ?? [];
             return {
               'name': day['name'] ?? 'Séance',
+              'dayOfWeek': day['dayOfWeek'],
+              'isRestDay': day['isRestDay'] ?? false,
+              'supersets': day['supersets'] ?? [],
               'muscles': _extractMuscles(exercises),
               'exercises': exercises.map((e) {
                 final ex = e as Map<String, dynamic>;
                 return {
                   'name': ex['name'] ?? '',
                   'sets': '${ex['sets'] ?? 3}x${ex['reps'] ?? 10}',
+                  'id': ex['id'],
+                  'muscle': ex['muscle'],
+                  'mode': ex['mode'],
+                  'warmupEnabled': ex['warmupEnabled'],
                 };
               }).toList(),
             };
@@ -677,12 +684,19 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
       final days = _sessions.map((session) {
         return {
           'name': session['name'],
+          'dayOfWeek': session['dayOfWeek'],
+          'isRestDay': session['isRestDay'] ?? false,
+          'supersets': session['supersets'] ?? [],
           'exercises': (session['exercises'] as List).map((ex) {
             final parts = (ex['sets'] as String).split('x');
             return {
+              'id': ex['id'],
               'name': ex['name'],
               'sets': int.tryParse(parts[0]) ?? 3,
               'reps': int.tryParse(parts.length > 1 ? parts[1] : '10') ?? 10,
+              'muscle': ex['muscle'],
+              'mode': ex['mode'] ?? 'classic',
+              'warmupEnabled': ex['warmupEnabled'] ?? false,
             };
           }).toList(),
         };
