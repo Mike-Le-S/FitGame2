@@ -87,7 +87,31 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
     super.dispose();
   }
 
-  void _onModeChanged(String mode) {
+  void _onModeChanged(String mode) async {
+    if (_selectedMode == 'custom') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: FGColors.glassSurface,
+          title: Text('Changer de mode ?', style: FGTypography.h3),
+          content: Text(
+            'Tes séries personnalisées seront remplacées par le template "$mode".',
+            style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Annuler', style: TextStyle(color: FGColors.textSecondary)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('Remplacer', style: TextStyle(color: FGColors.accent)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
     HapticFeedback.selectionClick();
     setState(() {
       _selectedMode = mode;
