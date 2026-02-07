@@ -75,6 +75,7 @@ class NumberPickerSheetState extends State<NumberPickerSheet> {
                 keyboardType: TextInputType.numberWithOptions(
                   decimal: !widget.isInteger,
                 ),
+                textInputAction: TextInputAction.done,
                 textAlign: TextAlign.center,
                 autofocus: true,
                 style: FGTypography.display.copyWith(
@@ -94,6 +95,10 @@ class NumberPickerSheetState extends State<NumberPickerSheet> {
                   if (parsed != null) {
                     _value = parsed;
                   }
+                },
+                onSubmitted: (_) {
+                  HapticFeedback.lightImpact();
+                  widget.onValueChange(_value);
                 },
               ),
 
