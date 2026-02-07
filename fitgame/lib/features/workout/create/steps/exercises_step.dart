@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/fg_colors.dart';
 import '../../../../core/theme/fg_typography.dart';
 import '../../../../core/constants/spacing.dart';
+import '../utils/exercise_calculator.dart';
 import '../widgets/day_tabs.dart';
 import '../widgets/day_exercise_list.dart';
 import '../widgets/exercise_catalog_picker.dart';
@@ -91,6 +92,7 @@ class ExercisesStep extends StatelessWidget {
                 _DaySummary(
                   dayName: dayNames[currentDay - 1],
                   exerciseCount: currentExercises.length,
+                  exercises: currentExercises,
                 ),
                 const SizedBox(height: Spacing.lg),
 
@@ -136,14 +138,34 @@ class ExercisesStep extends StatelessWidget {
 class _DaySummary extends StatelessWidget {
   final String dayName;
   final int exerciseCount;
+  final List<Map<String, dynamic>> exercises;
 
   const _DaySummary({
     required this.dayName,
     required this.exerciseCount,
+    required this.exercises,
   });
+
+  int _computeTotalSets() {
+    int total = 0;
+    for (final ex in exercises) {
+      final customSets = ex['customSets'] as List?;
+      if (customSets != null) {
+        total += customSets.length;
+      } else {
+        total += (ex['sets'] as int? ?? 3);
+      }
+    }
+    return total;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final totalSets = exerciseCount > 0 ? _computeTotalSets() : 0;
+    final estimatedMinutes = exerciseCount > 0
+        ? ExerciseCalculator.estimateDuration(exercises)
+        : 0;
+
     return Container(
       padding: const EdgeInsets.all(Spacing.md),
       decoration: BoxDecoration(
@@ -199,6 +221,17 @@ class _DaySummary extends StatelessWidget {
                     fontWeight: exerciseCount > 0 ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
+                if (exerciseCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      '≈ $totalSets séries • $estimatedMinutes min',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

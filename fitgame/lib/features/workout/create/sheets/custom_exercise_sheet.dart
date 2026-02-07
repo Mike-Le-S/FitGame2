@@ -22,13 +22,16 @@ class CustomExerciseSheet extends StatefulWidget {
 
 class _CustomExerciseSheetState extends State<CustomExerciseSheet> {
   final _nameController = TextEditingController();
+  final _notesController = TextEditingController();
   String _selectedMuscle = 'Pectoraux';
+  String _weightType = 'kg';
   int _sets = 3;
   int _reps = 10;
 
   @override
   void dispose() {
     _nameController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -131,6 +134,26 @@ class _CustomExerciseSheetState extends State<CustomExerciseSheet> {
               }).toList(),
             ),
             const SizedBox(height: Spacing.lg),
+            // Weight type
+            Text(
+              'TYPE DE POIDS',
+              style: FGTypography.caption.copyWith(
+                color: FGColors.textSecondary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: Spacing.sm),
+            Row(
+              children: [
+                _buildWeightChip('Kg', 'kg'),
+                const SizedBox(width: Spacing.sm),
+                _buildWeightChip('PDC', 'bodyweight'),
+                const SizedBox(width: Spacing.sm),
+                _buildWeightChip('PDC+Lest', 'bodyweight_plus'),
+              ],
+            ),
+            const SizedBox(height: Spacing.lg),
             // Sets & Reps
             Row(
               children: [
@@ -181,6 +204,37 @@ class _CustomExerciseSheetState extends State<CustomExerciseSheet> {
                 ),
               ],
             ),
+            const SizedBox(height: Spacing.lg),
+            // Notes
+            Text(
+              'NOTES (OPTIONNEL)',
+              style: FGTypography.caption.copyWith(
+                color: FGColors.textSecondary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: Spacing.sm),
+            Container(
+              decoration: BoxDecoration(
+                color: FGColors.glassSurface,
+                borderRadius: BorderRadius.circular(Spacing.md),
+                border: Border.all(color: FGColors.glassBorder),
+              ),
+              child: TextField(
+                controller: _notesController,
+                maxLines: 2,
+                style: FGTypography.bodySmall,
+                decoration: InputDecoration(
+                  hintText: 'Consignes, forme, tempo...',
+                  hintStyle: FGTypography.bodySmall.copyWith(
+                    color: FGColors.textSecondary.withValues(alpha: 0.5),
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.all(Spacing.md),
+                ),
+              ),
+            ),
             const SizedBox(height: Spacing.xl),
             FGNeonButton(
               label: 'Ajouter',
@@ -195,6 +249,8 @@ class _CustomExerciseSheetState extends State<CustomExerciseSheet> {
                     'reps': _reps,
                     'mode': 'classic',
                     'warmup': false,
+                    'weightType': _weightType,
+                    'notes': _notesController.text.trim(),
                   });
                   Navigator.pop(context);
                 }
@@ -202,6 +258,40 @@ class _CustomExerciseSheetState extends State<CustomExerciseSheet> {
             ),
             const SizedBox(height: Spacing.md),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeightChip(String label, String value) {
+    final isSelected = _weightType == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _weightType = value);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? FGColors.accent.withValues(alpha: 0.15)
+                : FGColors.glassSurface,
+            borderRadius: BorderRadius.circular(Spacing.sm),
+            border: Border.all(
+              color: isSelected ? FGColors.accent : FGColors.glassBorder,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: FGTypography.caption.copyWith(
+              color: isSelected ? FGColors.accent : FGColors.textSecondary,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 11,
+            ),
+          ),
         ),
       ),
     );

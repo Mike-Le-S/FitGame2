@@ -12,6 +12,8 @@ class WeightRepsInput extends StatelessWidget {
   final Function(double) onWeightChange;
   final Function(int) onRepsChange;
   final Function(double, bool) onNumberPickerTap;
+  final String weightType;
+  final bool isMaxReps;
 
   const WeightRepsInput({
     super.key,
@@ -19,39 +21,48 @@ class WeightRepsInput extends StatelessWidget {
     required this.onWeightChange,
     required this.onRepsChange,
     required this.onNumberPickerTap,
+    this.weightType = 'kg',
+    this.isMaxReps = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool isBodyweight = weightType == 'bodyweight';
+    final bool isBodyweightPlus = weightType == 'bodyweight_plus';
+    final String weightLabel = isBodyweightPlus ? 'LEST' : 'POIDS';
+    final String weightUnit = isBodyweightPlus ? '+kg' : 'kg';
+    final String repsLabel = isMaxReps ? 'REPS (MAX)' : 'REPS';
+
     return Row(
       children: [
-        // Weight input
-        Expanded(
-          child: _InputCard(
-            label: 'POIDS',
-            unit: 'kg',
-            value: currentSet.actualWeight,
-            isInteger: false,
-            onDecrease: () {
-              final newValue = (currentSet.actualWeight - 2.5).clamp(0.0, 500.0);
-              onWeightChange(newValue);
-              HapticFeedback.lightImpact();
-            },
-            onIncrease: () {
-              final newValue = (currentSet.actualWeight + 2.5).clamp(0.0, 500.0);
-              onWeightChange(newValue);
-              HapticFeedback.lightImpact();
-            },
-            onValueTap: () => onNumberPickerTap(currentSet.actualWeight, false),
+        // Weight input - hidden for bodyweight exercises
+        if (!isBodyweight) ...[
+          Expanded(
+            child: _InputCard(
+              label: weightLabel,
+              unit: weightUnit,
+              value: currentSet.actualWeight,
+              isInteger: false,
+              onDecrease: () {
+                final newValue = (currentSet.actualWeight - 2.5).clamp(0.0, 500.0);
+                onWeightChange(newValue);
+                HapticFeedback.lightImpact();
+              },
+              onIncrease: () {
+                final newValue = (currentSet.actualWeight + 2.5).clamp(0.0, 500.0);
+                onWeightChange(newValue);
+                HapticFeedback.lightImpact();
+              },
+              onValueTap: () => onNumberPickerTap(currentSet.actualWeight, false),
+            ),
           ),
-        ),
-
-        const SizedBox(width: Spacing.md),
+          const SizedBox(width: Spacing.md),
+        ],
 
         // Reps input
         Expanded(
           child: _InputCard(
-            label: 'REPS',
+            label: repsLabel,
             unit: null,
             value: currentSet.actualReps.toDouble(),
             isInteger: true,

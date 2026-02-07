@@ -134,4 +134,97 @@ class ExerciseCalculator {
 
     return result;
   }
+
+  /// Generate custom sets from a mode template with absolute weights
+  static List<Map<String, dynamic>> generateCustomSets({
+    required String mode,
+    required int sets,
+    required int reps,
+    required double baseWeight,
+  }) {
+    final result = <Map<String, dynamic>>[];
+
+    switch (mode) {
+      case 'classic':
+        for (int i = 0; i < sets; i++) {
+          result.add({
+            'reps': reps,
+            'weight': baseWeight,
+            'isWarmup': false,
+          });
+        }
+        break;
+
+      case 'rpt':
+        for (int i = 0; i < sets; i++) {
+          final weight = (baseWeight * (1.0 - i * 0.1)).roundToDouble();
+          final currentReps = reps + (i * 2);
+          result.add({
+            'reps': currentReps,
+            'weight': weight > 0 ? weight : 0,
+            'isWarmup': false,
+          });
+        }
+        break;
+
+      case 'pyramid':
+        final ascending = (sets / 2).ceil();
+        for (int i = 0; i < ascending; i++) {
+          final weight = (baseWeight * (0.7 + i * 0.1)).roundToDouble();
+          final currentReps = reps - (i * 2);
+          result.add({
+            'reps': currentReps > 1 ? currentReps : 1,
+            'weight': weight,
+            'isWarmup': i == 0,
+          });
+        }
+        final descending = sets - ascending;
+        for (int i = 0; i < descending; i++) {
+          final weight = (baseWeight * (1.0 - (i + 1) * 0.1)).roundToDouble();
+          final currentReps = reps + ((i + 1) * 2);
+          result.add({
+            'reps': currentReps,
+            'weight': weight > 0 ? weight : 0,
+            'isWarmup': false,
+          });
+        }
+        break;
+
+      case 'dropset':
+        result.add({'reps': reps, 'weight': baseWeight, 'isWarmup': false});
+        result.add({'reps': reps + 2, 'weight': (baseWeight * 0.8).roundToDouble(), 'isWarmup': false});
+        result.add({'reps': reps + 4, 'weight': (baseWeight * 0.6).roundToDouble(), 'isWarmup': false});
+        result.add({'reps': reps + 6, 'weight': (baseWeight * 0.4).roundToDouble(), 'isWarmup': false});
+        break;
+
+      default:
+        for (int i = 0; i < sets; i++) {
+          result.add({
+            'reps': reps,
+            'weight': baseWeight,
+            'isWarmup': false,
+          });
+        }
+    }
+
+    return result;
+  }
+
+  /// Estimate workout duration in minutes
+  static int estimateDuration(List<Map<String, dynamic>> exercises, {int avgRestSeconds = 90}) {
+    int totalSets = 0;
+    for (final ex in exercises) {
+      final customSets = ex['customSets'] as List?;
+      if (customSets != null) {
+        totalSets += customSets.length;
+      } else {
+        totalSets += (ex['sets'] as int? ?? 3);
+        if (ex['warmup'] == true || ex['warmupEnabled'] == true) totalSets += 1;
+      }
+    }
+    // ~45s per set + rest between sets
+    final workTime = totalSets * 45;
+    final restTime = (totalSets - exercises.length).clamp(0, 999) * avgRestSeconds;
+    return ((workTime + restTime) / 60).ceil();
+  }
 }

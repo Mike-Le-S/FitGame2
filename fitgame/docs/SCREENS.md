@@ -11,10 +11,10 @@
 | DietCreationFlow | `lib/features/nutrition/create/diet_creation_flow.dart` | 🔒 | Legacy - Flow 9 étapes création diète (non utilisé, remplacé par NewPlanCreationFlow) |
 | HealthScreen | `lib/features/health/health_screen.dart` | ✅ | Écran santé avec persistance Supabase après sync HealthKit + 3 cartes expandables |
 | ProfileScreen | `lib/features/profile/profile_screen.dart` | ✅ | Écran profil avec accomplissements réels Supabase et réglages |
-| CreateChoiceScreen | `lib/features/workout/create/create_choice_screen.dart` | ✅ | Choix initial : créer programme ou séance unique |
+| CreateChoiceScreen | `lib/features/workout/create/create_choice_screen.dart` | ✅ | Choix initial : créer programme, séance unique ou importer Excel |
 | ProgramCreationFlow | `lib/features/workout/create/program_creation_flow.dart` | ✅ | Flow multi-étapes création programme (nom, durée, jours, exercices) - Refactorisé en 15 sous-fichiers |
 | SessionCreationScreen | `lib/features/workout/create/session_creation_screen.dart` | ✅ | Création rapide séance unique avec sélection exercices |
-| ActiveWorkoutScreen | `lib/features/workout/tracking/active_workout_screen.dart` | ✅ | Tracking workout en temps réel avec timer repos, validation séries, célébration PR |
+| ActiveWorkoutScreen | `lib/features/workout/tracking/active_workout_screen.dart` | ✅ | Tracking workout en temps réel avec timer repos, validation séries, célébration PR, support séries custom/PDC/progression |
 | WorkoutHistoryScreen | `lib/features/workout/history/workout_history_screen.dart` | ✅ | Historique séances avec filtrage par type, stats par séance, détails |
 | ProgramEditScreen | `lib/features/workout/edit/program_edit_screen.dart` | ✅ | Édition programme avec réorganisation séances, preview exercices |
 | PlaceholderSheet | `lib/shared/sheets/placeholder_sheet.dart` | ✅ | Sheet réutilisable "Coming soon" pour fonctionnalités non implémentées |
@@ -25,6 +25,7 @@
 | LegalSheet | `lib/features/profile/sheets/legal_sheet.dart` | ✅ | CGU et Politique de confidentialité |
 | NotificationsSheet | `lib/features/social/sheets/notifications_sheet.dart` | ✅ | Liste notifications sociales (respect, défis, PR, amis) |
 | ExerciseProgressScreen | `lib/features/workout/progress/exercise_progress_screen.dart` | ✅ | Visualisation évolution des poids avec graphique et historique PRs |
+| ExcelImportSheet | `lib/features/workout/create/sheets/excel_import_sheet.dart` | ✅ | Import programme depuis fichier Excel (.xlsx) avec preview et parsing automatique |
 
 ## Détail HomeScreen
 

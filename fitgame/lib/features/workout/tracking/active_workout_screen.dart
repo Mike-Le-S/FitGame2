@@ -9,6 +9,7 @@ import '../../../core/models/exercise.dart';
 import '../../../core/models/workout_set.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/health_service.dart';
+import '../../../core/services/progression_service.dart';
 import 'sheets/number_picker_sheet.dart';
 import 'sheets/workout_complete_sheet.dart';
 import 'sheets/exit_confirmation_sheet.dart';
@@ -105,24 +106,43 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           setState(() {
             _dayName = dayName;
             _exercises = exercisesData.map((ex) {
-              final numSets = (ex['sets'] as num?)?.toInt() ?? 3;
-              final numReps = (ex['reps'] as num?)?.toInt() ?? 10;
-              final warmupEnabled = ex['warmupEnabled'] == true;
-
+              final customSets = ex['customSets'] as List?;
               final sets = <WorkoutSet>[];
-              if (warmupEnabled) {
-                sets.add(WorkoutSet(targetWeight: 0, targetReps: numReps, isWarmup: true));
-              }
-              for (int i = 0; i < numSets; i++) {
-                sets.add(WorkoutSet(targetWeight: 0, targetReps: numReps));
+
+              if (customSets != null && customSets.isNotEmpty) {
+                // Use custom sets with individual reps/weight per set
+                for (final cs in customSets) {
+                  sets.add(WorkoutSet(
+                    targetReps: (cs['reps'] as num?)?.toInt() ?? 10,
+                    targetWeight: (cs['weight'] as num?)?.toDouble() ?? 0,
+                    isWarmup: cs['isWarmup'] == true,
+                    isMaxReps: cs['isMaxReps'] == true,
+                  ));
+                }
+              } else {
+                // Fallback: uniform sets
+                final numSets = (ex['sets'] as num?)?.toInt() ?? 3;
+                final numReps = (ex['reps'] as num?)?.toInt() ?? 10;
+                final warmupEnabled = ex['warmupEnabled'] == true;
+
+                if (warmupEnabled) {
+                  sets.add(WorkoutSet(targetWeight: 0, targetReps: numReps, isWarmup: true));
+                }
+                for (int i = 0; i < numSets; i++) {
+                  sets.add(WorkoutSet(targetWeight: 0, targetReps: numReps));
+                }
               }
 
               return Exercise(
                 name: ex['name'] ?? 'Exercice',
                 muscle: ex['muscle'] ?? ex['muscleGroup'] ?? ex['muscle_group'] ?? '',
-                restSeconds: ex['rest_seconds'] ?? 90,
+                restSeconds: (ex['restSeconds'] as num?)?.toInt() ?? (ex['rest_seconds'] as num?)?.toInt() ?? 90,
                 previousBest: (ex['previous_best'] as num?)?.toDouble() ?? 0,
                 sets: sets,
+                notes: ex['notes'] ?? '',
+                progressionRule: ex['progressionRule'] ?? '',
+                progression: ex['progression'] as Map<String, dynamic>?,
+                weightType: ex['weightType'] ?? 'kg',
               );
             }).toList();
             _isLoading = false;
@@ -260,6 +280,22 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
       _triggerPRCelebration();
     }
 
+    // Check progression suggestion
+    final progressionMessage = ProgressionService.checkProgression(exercise, currentSet);
+    if (progressionMessage != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(progressionMessage),
+          backgroundColor: FGColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+
     HapticFeedback.mediumImpact();
 
     // Move to next set or exercise
@@ -342,6 +378,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         return {
           'exerciseName': ex.name,
           'muscle': ex.muscle,
+          'weightType': ex.weightType,
           'sets': setsData,
         };
       }).toList();
@@ -647,6 +684,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                   totalExercises: _exercises.length,
                   workoutSeconds: _workoutSeconds,
                   onExitTap: _showExitConfirmation,
+                  notes: _exercises[_currentExerciseIndex].notes,
+                  progressionRule: _exercises[_currentExerciseIndex].progressionRule,
                 ),
                 Expanded(
                   child: _isResting
@@ -785,12 +824,16 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             previousBest: exercise.previousBest,
             isWarmup: currentSet.isWarmup,
             currentSetIndex: _currentSetIndex,
+            weightType: exercise.weightType,
+            isMaxReps: currentSet.isMaxReps,
           ),
           const SizedBox(height: Spacing.lg),
 
           // Weight and reps input
           WeightRepsInput(
             currentSet: currentSet,
+            weightType: exercise.weightType,
+            isMaxReps: currentSet.isMaxReps,
             onWeightChange: (value) {
               setState(() {
                 currentSet.actualWeight = value;

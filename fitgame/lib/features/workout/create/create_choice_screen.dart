@@ -5,6 +5,7 @@ import '../../../core/theme/fg_typography.dart';
 import '../../../core/constants/spacing.dart';
 import 'program_creation_flow.dart';
 import 'session_creation_screen.dart';
+import 'sheets/excel_import_sheet.dart';
 
 /// Initial choice screen: Create a program or a single session
 class CreateChoiceScreen extends StatefulWidget {
@@ -128,6 +129,16 @@ class _CreateChoiceScreenState extends State<CreateChoiceScreen>
                             isPrimary: false,
                             onTap: () =>
                                 _navigateTo(const SessionCreationScreen()),
+                          ),
+                          const SizedBox(height: Spacing.md),
+                          _buildChoiceCard(
+                            icon: Icons.upload_file_rounded,
+                            title: 'Importer Excel',
+                            subtitle: 'Depuis un fichier .xlsx',
+                            description:
+                                'Importe un programme depuis un fichier Excel avec tes exercices, séries et charges',
+                            isPrimary: false,
+                            onTap: () => _showExcelImport(),
                           ),
                         ],
                       ),
@@ -267,6 +278,17 @@ class _CreateChoiceScreenState extends State<CreateChoiceScreen>
           ],
         ),
       ),
+    );
+  }
+
+  void _showExcelImport() {
+    showExcelImportSheet(
+      context,
+      onSuccess: () {
+        if (mounted) {
+          Navigator.pop(context, true);
+        }
+      },
     );
   }
 

@@ -38,6 +38,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   String nextSessionName = '';
   String nextSessionMuscles = '';
   int nextSessionExercises = 0;
+  int nextSessionSets = 0;
   int nextSessionDuration = 45;
 
   // Programs from Supabase
@@ -238,12 +239,25 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       nextSessionMuscles = muscles.take(2).join(' • ');
       nextSessionExercises = exercises.length;
 
+      // Calculate total sets
+      int totalSets = 0;
+      for (final ex in exercises) {
+        final customSets = ex['customSets'] as List?;
+        if (customSets != null) {
+          totalSets += customSets.length;
+        } else {
+          totalSets += (ex['sets'] as num?)?.toInt() ?? 3;
+        }
+      }
+      nextSessionSets = totalSets;
+
       // Estimate duration
       nextSessionDuration = exercises.length * 8 + 10;
     } else {
       nextSessionName = 'Séance';
       nextSessionMuscles = '';
       nextSessionExercises = 0;
+      nextSessionSets = 0;
       nextSessionDuration = 45;
     }
   }
@@ -652,6 +666,11 @@ class _WorkoutScreenState extends State<WorkoutScreen>
                                       _buildExerciseChip(
                                         Icons.fitness_center,
                                         '$nextSessionExercises exos',
+                                      ),
+                                      const SizedBox(width: Spacing.sm),
+                                      _buildExerciseChip(
+                                        Icons.layers,
+                                        '$nextSessionSets séries',
                                       ),
                                     ],
                                   ),

@@ -200,10 +200,33 @@ class _DayExerciseItem extends StatelessWidget {
     required this.onRemove,
   });
 
+  String _buildCustomSetsSummary(List customSets) {
+    if (customSets.isEmpty) return '';
+    final count = customSets.length;
+    final weights = customSets
+        .where((s) => s['isWarmup'] != true)
+        .map((s) => (s['weight'] as num?)?.toDouble() ?? 0.0)
+        .where((w) => w > 0)
+        .toList();
+    if (weights.isEmpty) return '$count×';
+    final minW = weights.reduce((a, b) => a < b ? a : b);
+    final maxW = weights.reduce((a, b) => a > b ? a : b);
+    final minStr = minW == minW.roundToDouble() ? minW.toInt().toString() : minW.toString();
+    final maxStr = maxW == maxW.roundToDouble() ? maxW.toInt().toString() : maxW.toString();
+    if (minW == maxW) return '$count× ${minStr}kg';
+    return '$count× $minStr→${maxStr}kg';
+  }
+
   @override
   Widget build(BuildContext context) {
     final mode = exercise['mode'] ?? 'classic';
     final hasWarmup = exercise['warmup'] ?? false;
+    final customSets = exercise['customSets'] as List?;
+    final hasCustomSets = customSets != null && customSets.isNotEmpty;
+    final notes = exercise['notes'] as String? ?? '';
+    final hasNotes = notes.isNotEmpty;
+    final weightType = exercise['weightType'] as String? ?? 'kg';
+    final isBodyweight = weightType == 'bodyweight' || weightType == 'bodyweight_plus';
 
     return GestureDetector(
       onLongPress: () {
@@ -308,14 +331,33 @@ class _DayExerciseItem extends StatelessWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text(
-                        exercise['muscle'] as String,
-                        style: FGTypography.caption.copyWith(
-                          color: FGColors.textSecondary,
-                          fontSize: 11,
+                      Flexible(
+                        child: Text(
+                          exercise['muscle'] as String,
+                          style: FGTypography.caption.copyWith(
+                            color: FGColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (mode != 'classic') ...[
+                      if (hasCustomSets) ...[
+                        Text(
+                          ' • ',
+                          style: FGTypography.caption.copyWith(
+                            color: FGColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          _buildCustomSetsSummary(customSets),
+                          style: FGTypography.caption.copyWith(
+                            color: FGColors.accent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ] else if (mode != 'classic') ...[
                         Text(
                           ' • ',
                           style: FGTypography.caption.copyWith(
@@ -347,6 +389,35 @@ class _DayExerciseItem extends StatelessWidget {
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
+                        ),
+                      ],
+                      if (isBodyweight) ...[
+                        const SizedBox(width: Spacing.xs),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: FGColors.accent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            'PDC',
+                            style: FGTypography.caption.copyWith(
+                              color: FGColors.accent,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (hasNotes) ...[
+                        const SizedBox(width: Spacing.xs),
+                        Icon(
+                          Icons.note_alt_outlined,
+                          color: FGColors.textSecondary,
+                          size: 12,
                         ),
                       ],
                     ],

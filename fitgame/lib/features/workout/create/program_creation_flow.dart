@@ -117,14 +117,28 @@ class _ProgramCreationFlowState extends State<ProgramCreationFlow>
           'name': _getDayName(dayNumber),
           'dayOfWeek': dayNumber,
           'isRestDay': false,
-          'exercises': exercises.map((ex) => {
-            'id': 'ex-${DateTime.now().millisecondsSinceEpoch}-${exercises.indexOf(ex)}',
-            'name': ex['name'],
-            'muscle': ex['muscle'] ?? 'other',
-            'mode': ex['mode'] ?? 'classic',
-            'sets': ex['sets'] ?? 3,
-            'reps': ex['reps'] ?? 10,
-            'warmupEnabled': ex['warmup'] ?? false,
+          'exercises': exercises.map((ex) {
+            final exData = <String, dynamic>{
+              'id': 'ex-${DateTime.now().millisecondsSinceEpoch}-${exercises.indexOf(ex)}',
+              'name': ex['name'],
+              'muscle': ex['muscle'] ?? 'other',
+              'mode': ex['mode'] ?? 'classic',
+              'sets': ex['sets'] ?? 3,
+              'reps': ex['reps'] ?? 10,
+              'warmupEnabled': ex['warmup'] ?? false,
+            };
+            // Serialize new fields if present
+            if (ex['customSets'] != null) exData['customSets'] = ex['customSets'];
+            if (ex['weightType'] != null) exData['weightType'] = ex['weightType'];
+            if (ex['restSeconds'] != null) exData['restSeconds'] = ex['restSeconds'];
+            if (ex['notes'] != null && (ex['notes'] as String).isNotEmpty) {
+              exData['notes'] = ex['notes'];
+            }
+            if (ex['progressionRule'] != null && (ex['progressionRule'] as String).isNotEmpty) {
+              exData['progressionRule'] = ex['progressionRule'];
+            }
+            if (ex['progression'] != null) exData['progression'] = ex['progression'];
+            return exData;
           }).toList(),
           'supersets': supersets,
         });
@@ -242,10 +256,20 @@ class _ProgramCreationFlowState extends State<ProgramCreationFlow>
       exercise: exercise,
       onSave: (config) {
         setState(() {
-          _exercisesByDay[day]?[index]['mode'] = config['mode'];
-          _exercisesByDay[day]?[index]['warmup'] = config['warmup'];
-          _exercisesByDay[day]?[index]['sets'] = config['sets'];
-          _exercisesByDay[day]?[index]['reps'] = config['reps'];
+          final ex = _exercisesByDay[day]?[index];
+          if (ex == null) return;
+          ex['mode'] = config['mode'];
+          ex['warmup'] = config['warmup'];
+          ex['sets'] = config['sets'];
+          ex['reps'] = config['reps'];
+          ex['customSets'] = config['customSets'];
+          ex['weightType'] = config['weightType'];
+          ex['restSeconds'] = config['restSeconds'];
+          ex['notes'] = config['notes'];
+          ex['progressionRule'] = config['progressionRule'];
+          if (config['progression'] != null) {
+            ex['progression'] = config['progression'];
+          }
         });
       },
     );

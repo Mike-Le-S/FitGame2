@@ -1,5 +1,50 @@
 # Changelog FitGame
 
+## 2026-02-07 - Programmes entièrement paramétrables (7 features)
+
+### Modèles de données (Phase 1)
+- **WorkoutSet**: Ajout champ `isMaxReps` pour exercices poids du corps max reps
+- **Exercise**: Ajout champs `notes`, `progressionRule`, `progression` (map structurée), `weightType` (kg/bodyweight/bodyweight_plus)
+- **ExerciseCalculator**: Ajout `generateCustomSets()` (génère séries absolues selon mode) et `estimateDuration()` (durée estimée en minutes)
+
+### Création programme enrichie (Phase 2)
+- **NOUVEAU `CustomSetsEditor`**: Widget table éditable de séries (reps, poids, warmup toggle par ligne) avec bouton "Ajouter série"
+- **Refonte `ExerciseConfigSheet`**: 6 sections (type poids, mode, séries custom, repos, notes, progression) — les modes servent de templates qui pré-remplissent la table
+- **`CustomExerciseSheet`**: Ajout sélecteur type de poids (Kg/PDC/PDC+Lest) et champ notes
+- **`ProgramCreationFlow`**: Sérialisation complète des nouveaux champs (customSets, weightType, restSeconds, notes, progressionRule, progression)
+
+### Affichage enrichi (Phase 3)
+- **`ExercisesStep`**: Résumé jour sous chaque onglet ("≈ 16 séries • 50 min")
+- **`DayExerciseList`**: Aperçu séries custom (ex: "5× 40→97kg"), badge PDC, icône notes
+
+### Tracking enrichi (Phase 4)
+- **`ActiveWorkoutScreen`**: Chargement séries custom depuis programme, support `weightType`/`notes`/`progressionRule`
+- **`SetCard`**: Affichage PDC ("poids du corps"), max reps ("MAX"), PDC+lest ("+30 kg")
+- **`WeightRepsInput`**: Mode bodyweight (masque poids), mode bodyweight_plus (label "LEST"), mode max reps (label "REPS MAX")
+- **`WorkoutHeader`**: Affichage notes/progression sous le nom de l'exercice
+- **NOUVEAU `ProgressionService`**: Vérifie les conditions de progression après chaque série
+
+### Dashboard + Édition (Phase 5)
+- **`WorkoutScreen`**: Chip total séries dans la hero card
+- **`ProgramEditScreen`**: Aperçu enrichi séries custom, préservation nouveaux champs à la sauvegarde
+- **`SupabaseService`**: Param `notes` sur `createProgram()`, nouvelle méthode `getExercisePreviousBest()`
+
+### Import Excel (Phase 6)
+- **Dépendances**: `excel: ^4.0.6`, `file_picker: ^8.0.0+1`
+- **NOUVEAU `ExcelImportService`**: Parse fichiers .xlsx (détection jours, séries pyramide "1×15 @40kg → ...", notes, progression)
+- **NOUVEAU `ExcelImportSheet`**: Bottom sheet file picker + preview + import
+- **`CreateChoiceScreen`**: Ajout option "Importer Excel"
+
+### Nouveaux fichiers
+- `lib/features/workout/create/widgets/custom_sets_editor.dart`
+- `lib/core/services/progression_service.dart`
+- `lib/core/services/excel_import_service.dart`
+- `lib/features/workout/create/sheets/excel_import_sheet.dart`
+
+### Rétrocompatibilité
+- Aucune migration DB nécessaire (JSONB accepte les nouveaux champs)
+- Anciens programmes sans `customSets` → fallback vers `ExerciseCalculator` (comportement actuel)
+
 ## 2026-02-07 - Security Hardening (Full Stack Audit)
 
 ### Security Fixes

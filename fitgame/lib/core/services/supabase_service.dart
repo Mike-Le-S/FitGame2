@@ -232,20 +232,26 @@ class SupabaseService {
     int durationWeeks = 8,
     int? deloadFrequency,
     required List<Map<String, dynamic>> days,
+    String? notes,
   }) async {
     if (currentUser == null) throw Exception('Non authentifié');
 
+    final data = <String, dynamic>{
+      'created_by': currentUser!.id,
+      'name': name,
+      'description': description,
+      'goal': goal,
+      'duration_weeks': durationWeeks,
+      'deload_frequency': deloadFrequency,
+      'days': days,
+    };
+    if (notes != null && notes.isNotEmpty) {
+      data['notes'] = notes;
+    }
+
     final response = await client
         .from('programs')
-        .insert({
-          'created_by': currentUser!.id,
-          'name': name,
-          'description': description,
-          'goal': goal,
-          'duration_weeks': durationWeeks,
-          'deload_frequency': deloadFrequency,
-          'days': days,
-        })
+        .insert(data)
         .select()
         .single();
 
@@ -423,6 +429,38 @@ class SupabaseService {
     }
 
     return history;
+  }
+
+  /// Get the previous best weight for an exercise across recent sessions
+  static Future<double> getExercisePreviousBest(String exerciseName) async {
+    try {
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) return 0;
+
+      final sessions = await client
+          .from('workout_sessions')
+          .select('exercises')
+          .eq('user_id', userId)
+          .order('completed_at', ascending: false)
+          .limit(10);
+
+      double maxWeight = 0;
+      for (final session in sessions) {
+        final exercises = session['exercises'] as List? ?? [];
+        for (final ex in exercises) {
+          if (ex['exerciseName'] == exerciseName) {
+            final sets = ex['sets'] as List? ?? [];
+            for (final set in sets) {
+              final weight = (set['actualWeight'] as num?)?.toDouble() ?? 0;
+              if (weight > maxWeight) maxWeight = weight;
+            }
+          }
+        }
+      }
+      return maxWeight;
+    } catch (e) {
+      return 0;
+    }
   }
 
   // ============================================

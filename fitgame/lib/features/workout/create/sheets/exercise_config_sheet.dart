@@ -6,11 +6,9 @@ import '../../../../core/constants/spacing.dart';
 import '../../../../shared/widgets/fg_glass_card.dart';
 import '../../../../shared/widgets/fg_neon_button.dart';
 import '../utils/exercise_calculator.dart';
-import '../widgets/mode_card.dart';
-import '../widgets/number_picker.dart';
-import '../widgets/toggle_card.dart';
+import '../widgets/custom_sets_editor.dart';
 
-/// Bottom sheet for configuring an exercise (mode, sets, reps, warmup)
+/// Bottom sheet for configuring an exercise (mode, sets, reps, warmup, notes, progression)
 class ExerciseConfigSheet extends StatefulWidget {
   final Map<String, dynamic> exercise;
   final void Function(Map<String, dynamic> config) onSave;
@@ -30,28 +28,93 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
   late bool _warmupEnabled;
   late int _sets;
   late int _reps;
+  late String _weightType;
+  late int _restSeconds;
+  late List<Map<String, dynamic>> _customSets;
+  late TextEditingController _notesController;
+  late TextEditingController _progressionController;
+  bool _showNotes = false;
+  bool _showProgression = false;
+
+  // Progression structured config
+  String _progressionType = 'none';
+  int _repThreshold = 8;
+  double _weightIncrement = 2.5;
 
   @override
   void initState() {
     super.initState();
     _selectedMode = widget.exercise['mode'] ?? 'classic';
-    _warmupEnabled = widget.exercise['warmup'] ?? false;
+    _warmupEnabled = widget.exercise['warmup'] ?? widget.exercise['warmupEnabled'] ?? false;
     _sets = widget.exercise['sets'] ?? 3;
     _reps = widget.exercise['reps'] ?? 10;
+    _weightType = widget.exercise['weightType'] ?? 'kg';
+    _restSeconds = widget.exercise['restSeconds'] ?? 90;
+
+    _notesController = TextEditingController(text: widget.exercise['notes'] ?? '');
+    _progressionController = TextEditingController(text: widget.exercise['progressionRule'] ?? '');
+
+    _showNotes = _notesController.text.isNotEmpty;
+    _showProgression = _progressionController.text.isNotEmpty;
+
+    // Load progression config
+    final prog = widget.exercise['progression'] as Map<String, dynamic>?;
+    if (prog != null) {
+      _progressionType = prog['type'] ?? 'none';
+      _repThreshold = prog['repThreshold'] ?? 8;
+      _weightIncrement = (prog['weightIncrement'] as num?)?.toDouble() ?? 2.5;
+      _showProgression = true;
+    }
+
+    // Load custom sets
+    final existing = widget.exercise['customSets'] as List?;
+    if (existing != null) {
+      _customSets = existing.map((s) => Map<String, dynamic>.from(s as Map)).toList();
+    } else {
+      _customSets = ExerciseCalculator.generateCustomSets(
+        mode: _selectedMode,
+        sets: _sets,
+        reps: _reps,
+        baseWeight: 0,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    _progressionController.dispose();
+    super.dispose();
+  }
+
+  void _onModeChanged(String mode) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _selectedMode = mode;
+      if (mode != 'custom') {
+        _customSets = ExerciseCalculator.generateCustomSets(
+          mode: mode,
+          sets: _sets,
+          reps: _reps,
+          baseWeight: _customSets.isNotEmpty
+              ? (_customSets.first['weight'] as num?)?.toDouble() ?? 0
+              : 0,
+        );
+      }
+    });
+  }
+
+  void _onCustomSetsChanged(List<Map<String, dynamic>> newSets) {
+    setState(() {
+      _customSets = newSets;
+      _selectedMode = 'custom';
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Calculate preview sets based on mode
-    final previewSets = ExerciseCalculator.calculateSets(
-      mode: _selectedMode,
-      sets: _sets,
-      reps: _reps,
-      warmup: _warmupEnabled,
-    );
-
     return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
+      height: MediaQuery.of(context).size.height * 0.9,
       decoration: BoxDecoration(
         color: FGColors.background,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
@@ -99,145 +162,98 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Mode selector
-                  Text(
-                    'MODE D\'ENTRAÎNEMENT',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.5,
+                  // === WEIGHT TYPE ===
+                  _SectionLabel('TYPE DE POIDS'),
+                  const SizedBox(height: Spacing.sm),
+                  _buildWeightTypeSelector(),
+                  const SizedBox(height: Spacing.xl),
+
+                  // === MODE ===
+                  _SectionLabel('MODE D\'ENTRAÎNEMENT'),
+                  const SizedBox(height: Spacing.md),
+                  _buildModeSelector(),
+                  const SizedBox(height: Spacing.xl),
+
+                  // === CUSTOM SETS TABLE ===
+                  _SectionLabel('SÉRIES'),
+                  const SizedBox(height: Spacing.md),
+                  CustomSetsEditor(
+                    sets: _customSets,
+                    weightType: _weightType,
+                    onChanged: _onCustomSetsChanged,
+                  ),
+                  const SizedBox(height: Spacing.xl),
+
+                  // === REST ===
+                  _SectionLabel('REPOS ENTRE SÉRIES'),
+                  const SizedBox(height: Spacing.sm),
+                  _buildRestPicker(),
+                  const SizedBox(height: Spacing.xl),
+
+                  // === NOTES (collapsible) ===
+                  _buildCollapsibleSection(
+                    title: 'NOTES / CONSIGNES',
+                    icon: Icons.edit_note_rounded,
+                    isExpanded: _showNotes,
+                    onToggle: () => setState(() => _showNotes = !_showNotes),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: FGColors.glassSurface,
+                        borderRadius: BorderRadius.circular(Spacing.sm),
+                        border: Border.all(color: FGColors.glassBorder),
+                      ),
+                      child: TextField(
+                        controller: _notesController,
+                        maxLines: 3,
+                        style: FGTypography.bodySmall,
+                        decoration: InputDecoration(
+                          hintText: 'Ex: Buste penché, 2-3 min repos sur les lourdes...',
+                          hintStyle: FGTypography.bodySmall.copyWith(
+                            color: FGColors.textSecondary.withValues(alpha: 0.4),
+                          ),
+                          contentPadding: const EdgeInsets.all(Spacing.md),
+                          border: InputBorder.none,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: Spacing.md),
-                  ModeCard(
-                    mode: 'classic',
-                    label: 'Classique',
-                    description: 'Séries × Reps avec même poids',
-                    icon: Icons.fitness_center,
-                    isSelected: _selectedMode == 'classic',
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _selectedMode = 'classic');
-                    },
-                  ),
-                  const SizedBox(height: Spacing.sm),
-                  ModeCard(
-                    mode: 'rpt',
-                    label: 'RPT',
-                    description: 'Reverse Pyramid: -10% poids, -2 reps par série',
-                    icon: Icons.trending_down,
-                    isSelected: _selectedMode == 'rpt',
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _selectedMode = 'rpt');
-                    },
-                  ),
-                  const SizedBox(height: Spacing.sm),
-                  ModeCard(
-                    mode: 'pyramid',
-                    label: 'Pyramidal',
-                    description: 'Montée progressive en poids, descente en reps',
-                    icon: Icons.trending_up,
-                    isSelected: _selectedMode == 'pyramid',
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _selectedMode = 'pyramid');
-                    },
-                  ),
-                  const SizedBox(height: Spacing.sm),
-                  ModeCard(
-                    mode: 'dropset',
-                    label: 'Dropset',
-                    description: 'Série principale + 3 drops à -20%, -40%, -60%',
-                    icon: Icons.arrow_downward,
-                    isSelected: _selectedMode == 'dropset',
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _selectedMode = 'dropset');
-                    },
-                  ),
 
-                  const SizedBox(height: Spacing.xl),
-
-                  // Base sets/reps config (only for non-pyramid modes)
-                  if (_selectedMode != 'pyramid' && _selectedMode != 'dropset') ...[
-                    Row(
+                  // === PROGRESSION (collapsible) ===
+                  _buildCollapsibleSection(
+                    title: 'RÈGLE DE PROGRESSION',
+                    icon: Icons.trending_up_rounded,
+                    isExpanded: _showProgression,
+                    onToggle: () => setState(() => _showProgression = !_showProgression),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'SÉRIES',
-                                style: FGTypography.caption.copyWith(
-                                  color: FGColors.textSecondary,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 1,
-                                ),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: FGColors.glassSurface,
+                            borderRadius: BorderRadius.circular(Spacing.sm),
+                            border: Border.all(color: FGColors.glassBorder),
+                          ),
+                          child: TextField(
+                            controller: _progressionController,
+                            maxLines: 2,
+                            style: FGTypography.bodySmall,
+                            decoration: InputDecoration(
+                              hintText: 'Ex: Quand 7 reps @97kg → passe à 100kg',
+                              hintStyle: FGTypography.bodySmall.copyWith(
+                                color: FGColors.textSecondary.withValues(alpha: 0.4),
                               ),
-                              const SizedBox(height: Spacing.sm),
-                              ExpandedNumberPicker(
-                                value: _sets,
-                                min: 1,
-                                max: 10,
-                                onChanged: (v) => setState(() => _sets = v),
-                              ),
-                            ],
+                              contentPadding: const EdgeInsets.all(Spacing.md),
+                              border: InputBorder.none,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: Spacing.lg),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'RÉPÉTITIONS',
-                                style: FGTypography.caption.copyWith(
-                                  color: FGColors.textSecondary,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                              const SizedBox(height: Spacing.sm),
-                              ExpandedNumberPicker(
-                                value: _reps,
-                                min: 1,
-                                max: 30,
-                                onChanged: (v) => setState(() => _reps = v),
-                              ),
-                            ],
-                          ),
-                        ),
+                        const SizedBox(height: Spacing.md),
+                        // Structured progression
+                        _buildProgressionConfig(),
                       ],
                     ),
-                    const SizedBox(height: Spacing.xl),
-                  ],
-
-                  // Warmup toggle (not for pyramid - it's built-in)
-                  if (_selectedMode != 'pyramid')
-                    ToggleCard(
-                      icon: Icons.local_fire_department,
-                      title: 'Échauffement adaptatif',
-                      subtitle: ExerciseCalculator.getWarmupDescription(_selectedMode),
-                      value: _warmupEnabled,
-                      onChanged: (v) => setState(() => _warmupEnabled = v),
-                      activeColor: FGColors.warning,
-                    ),
-
-                  const SizedBox(height: Spacing.xl),
-
-                  // Preview section
-                  Text(
-                    'APERÇU DES SÉRIES',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.5,
-                    ),
                   ),
-                  const SizedBox(height: Spacing.md),
-                  _SetsPreviewTable(sets: previewSets),
-
                   const SizedBox(height: Spacing.xl),
                 ],
               ),
@@ -262,12 +278,27 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
               isExpanded: true,
               onPressed: () {
                 HapticFeedback.mediumImpact();
-                widget.onSave({
+                final config = <String, dynamic>{
                   'mode': _selectedMode,
                   'warmup': _warmupEnabled,
-                  'sets': _sets,
+                  'sets': _customSets.length,
                   'reps': _reps,
-                });
+                  'weightType': _weightType,
+                  'restSeconds': _restSeconds,
+                  'customSets': _customSets,
+                  'notes': _notesController.text.trim(),
+                  'progressionRule': _progressionController.text.trim(),
+                };
+
+                if (_progressionType != 'none') {
+                  config['progression'] = {
+                    'type': _progressionType,
+                    'repThreshold': _repThreshold,
+                    'weightIncrement': _weightIncrement,
+                  };
+                }
+
+                widget.onSave(config);
                 Navigator.pop(context);
               },
             ),
@@ -276,142 +307,441 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
       ),
     );
   }
-}
 
-class _SetsPreviewTable extends StatelessWidget {
-  final List<Map<String, dynamic>> sets;
+  Widget _buildWeightTypeSelector() {
+    return Row(
+      children: [
+        _WeightTypeChip(
+          label: 'Kg',
+          icon: Icons.fitness_center,
+          isSelected: _weightType == 'kg',
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _weightType = 'kg');
+          },
+        ),
+        const SizedBox(width: Spacing.sm),
+        _WeightTypeChip(
+          label: 'PDC',
+          icon: Icons.accessibility_new_rounded,
+          isSelected: _weightType == 'bodyweight',
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _weightType = 'bodyweight');
+          },
+        ),
+        const SizedBox(width: Spacing.sm),
+        _WeightTypeChip(
+          label: 'PDC + Lest',
+          icon: Icons.add_circle_outline,
+          isSelected: _weightType == 'bodyweight_plus',
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _weightType = 'bodyweight_plus');
+          },
+        ),
+      ],
+    );
+  }
 
-  const _SetsPreviewTable({required this.sets});
+  Widget _buildModeSelector() {
+    return Wrap(
+      spacing: Spacing.sm,
+      runSpacing: Spacing.sm,
+      children: [
+        _ModeChip(label: 'Classique', isSelected: _selectedMode == 'classic', onTap: () => _onModeChanged('classic')),
+        _ModeChip(label: 'RPT', isSelected: _selectedMode == 'rpt', onTap: () => _onModeChanged('rpt')),
+        _ModeChip(label: 'Pyramidal', isSelected: _selectedMode == 'pyramid', onTap: () => _onModeChanged('pyramid')),
+        _ModeChip(label: 'Dropset', isSelected: _selectedMode == 'dropset', onTap: () => _onModeChanged('dropset')),
+        if (_selectedMode == 'custom')
+          _ModeChip(label: 'Personnalisé', isSelected: true, onTap: () {}),
+      ],
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildRestPicker() {
     return FGGlassCard(
-      padding: EdgeInsets.zero,
-      child: Column(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: Spacing.sm),
+      child: Row(
         children: [
-          // Table header
-          Container(
-            padding: const EdgeInsets.all(Spacing.md),
-            decoration: BoxDecoration(
-              color: FGColors.accent.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
+          Icon(Icons.timer_outlined, size: 18, color: FGColors.textSecondary),
+          const SizedBox(width: Spacing.sm),
+          Expanded(
+            child: Text(
+              _restSeconds >= 60
+                  ? '${_restSeconds ~/ 60} min ${_restSeconds % 60 > 0 ? '${_restSeconds % 60}s' : ''}'
+                  : '${_restSeconds}s',
+              style: FGTypography.body.copyWith(fontWeight: FontWeight.w600),
             ),
-            child: Row(
+          ),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _restSeconds = (_restSeconds - 15).clamp(15, 300));
+            },
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: FGColors.glassSurface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: FGColors.glassBorder),
+              ),
+              child: const Icon(Icons.remove, size: 16, color: FGColors.textSecondary),
+            ),
+          ),
+          const SizedBox(width: Spacing.sm),
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _restSeconds = (_restSeconds + 15).clamp(15, 300));
+            },
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: FGColors.glassSurface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: FGColors.glassBorder),
+              ),
+              child: const Icon(Icons.add, size: 16, color: FGColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollapsibleSection({
+    required String title,
+    required IconData icon,
+    required bool isExpanded,
+    required VoidCallback onToggle,
+    required Widget child,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: onToggle,
+          behavior: HitTestBehavior.opaque,
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: FGColors.textSecondary),
+              const SizedBox(width: Spacing.sm),
+              Text(
+                title,
+                style: FGTypography.caption.copyWith(
+                  color: FGColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const Spacer(),
+              Icon(
+                isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                size: 18,
+                color: FGColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
+        if (isExpanded) ...[
+          const SizedBox(height: Spacing.sm),
+          child,
+        ],
+      ],
+    );
+  }
+
+  Widget _buildProgressionConfig() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'PROGRESSION AUTO',
+          style: FGTypography.caption.copyWith(
+            color: FGColors.textSecondary,
+            fontWeight: FontWeight.w600,
+            fontSize: 10,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: Spacing.sm),
+        Wrap(
+          spacing: Spacing.sm,
+          runSpacing: Spacing.sm,
+          children: [
+            _ModeChip(
+              label: 'Aucune',
+              isSelected: _progressionType == 'none',
+              onTap: () => setState(() => _progressionType = 'none'),
+            ),
+            _ModeChip(
+              label: 'Seuil reps',
+              isSelected: _progressionType == 'threshold',
+              onTap: () => setState(() => _progressionType = 'threshold'),
+            ),
+          ],
+        ),
+        if (_progressionType == 'threshold') ...[
+          const SizedBox(height: Spacing.md),
+          FGGlassCard(
+            padding: const EdgeInsets.all(Spacing.md),
+            child: Column(
               children: [
-                SizedBox(
-                  width: 60,
-                  child: Text(
-                    'SÉRIE',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.accent,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Si reps ≥',
+                        style: FGTypography.bodySmall.copyWith(
+                          color: FGColors.textSecondary,
+                        ),
+                      ),
                     ),
-                  ),
+                    SizedBox(
+                      width: 80,
+                      child: _InlineNumberPicker(
+                        value: _repThreshold,
+                        min: 1,
+                        max: 30,
+                        onChanged: (v) => setState(() => _repThreshold = v),
+                      ),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: Text(
-                    'POIDS',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.accent,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10,
+                const SizedBox(height: Spacing.sm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Augmenter de',
+                        style: FGTypography.bodySmall.copyWith(
+                          color: FGColors.textSecondary,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                SizedBox(
-                  width: 60,
-                  child: Text(
-                    'REPS',
-                    textAlign: TextAlign.right,
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.accent,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10,
+                    SizedBox(
+                      width: 80,
+                      child: _InlineWeightPicker(
+                        value: _weightIncrement,
+                        onChanged: (v) => setState(() => _weightIncrement = v),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: Spacing.xs),
+                    Text(
+                      'kg',
+                      style: FGTypography.bodySmall.copyWith(
+                        color: FGColors.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          // Table rows
-          ...sets.asMap().entries.map((entry) {
-            final i = entry.key;
-            final set = entry.value;
-            final isLast = i == sets.length - 1;
-            return Container(
-              padding: const EdgeInsets.all(Spacing.md),
-              decoration: BoxDecoration(
-                border: !isLast
-                    ? Border(
-                        bottom: BorderSide(
-                          color: FGColors.glassBorder,
-                        ),
-                      )
-                    : null,
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 60,
-                    child: Row(
-                      children: [
-                        if (set['warmup'] == true)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: FGColors.warning.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text(
-                              'W',
-                              style: FGTypography.caption.copyWith(
-                                color: FGColors.warning,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 9,
-                              ),
-                            ),
-                          )
-                        else
-                          Text(
-                            '${set['number']}',
-                            style: FGTypography.body.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      set['weight'] as String,
-                      style: FGTypography.body.copyWith(
-                        color: FGColors.accent,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 60,
-                    child: Text(
-                      '${set['reps']}',
-                      textAlign: TextAlign.right,
-                      style: FGTypography.body.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
         ],
+      ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: FGTypography.caption.copyWith(
+        color: FGColors.textSecondary,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 1.5,
       ),
+    );
+  }
+}
+
+class _WeightTypeChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _WeightTypeChip({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? FGColors.accent.withValues(alpha: 0.15)
+                : FGColors.glassSurface,
+            borderRadius: BorderRadius.circular(Spacing.sm),
+            border: Border.all(
+              color: isSelected ? FGColors.accent : FGColors.glassBorder,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected ? FGColors.accent : FGColors.textSecondary,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: FGTypography.caption.copyWith(
+                  color: isSelected ? FGColors.accent : FGColors.textSecondary,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ModeChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.md,
+          vertical: Spacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? FGColors.accent.withValues(alpha: 0.15)
+              : FGColors.glassSurface,
+          borderRadius: BorderRadius.circular(Spacing.sm),
+          border: Border.all(
+            color: isSelected ? FGColors.accent : FGColors.glassBorder,
+          ),
+        ),
+        child: Text(
+          label,
+          style: FGTypography.bodySmall.copyWith(
+            color: isSelected ? FGColors.accent : FGColors.textPrimary,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineNumberPicker extends StatelessWidget {
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  const _InlineNumberPicker({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: () {
+            if (value > min) onChanged(value - 1);
+          },
+          child: Icon(Icons.remove, size: 16, color: FGColors.textSecondary),
+        ),
+        Expanded(
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+            style: FGTypography.body.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        GestureDetector(
+          onTap: () {
+            if (value < max) onChanged(value + 1);
+          },
+          child: Icon(Icons.add, size: 16, color: FGColors.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
+class _InlineWeightPicker extends StatelessWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _InlineWeightPicker({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: () {
+            if (value > 0.5) onChanged(value - 0.5);
+          },
+          child: Icon(Icons.remove, size: 16, color: FGColors.textSecondary),
+        ),
+        Expanded(
+          child: Text(
+            value == value.toInt().toDouble()
+                ? '${value.toInt()}'
+                : value.toStringAsFixed(1),
+            textAlign: TextAlign.center,
+            style: FGTypography.body.copyWith(
+              fontWeight: FontWeight.w700,
+              color: FGColors.accent,
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: () {
+            if (value < 20) onChanged(value + 0.5);
+          },
+          child: Icon(Icons.add, size: 16, color: FGColors.textSecondary),
+        ),
+      ],
     );
   }
 }

@@ -7,6 +7,10 @@ class Exercise {
   final List<WorkoutSet> sets;
   final int restSeconds;
   final double previousBest;
+  final String notes;
+  final String progressionRule;
+  final Map<String, dynamic>? progression;
+  final String weightType; // 'kg', 'bodyweight', 'bodyweight_plus'
 
   Exercise({
     required this.name,
@@ -14,5 +18,9 @@ class Exercise {
     required this.sets,
     required this.restSeconds,
     this.previousBest = 0,
+    this.notes = '',
+    this.progressionRule = '',
+    this.progression,
+    this.weightType = 'kg',
   });
 }

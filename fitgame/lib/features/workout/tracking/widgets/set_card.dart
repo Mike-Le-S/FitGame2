@@ -11,6 +11,8 @@ class SetCard extends StatelessWidget {
   final double previousBest;
   final bool isWarmup;
   final int currentSetIndex;
+  final String weightType;
+  final bool isMaxReps;
 
   const SetCard({
     super.key,
@@ -18,6 +20,8 @@ class SetCard extends StatelessWidget {
     required this.previousBest,
     required this.isWarmup,
     required this.currentSetIndex,
+    this.weightType = 'kg',
+    this.isMaxReps = false,
   });
 
   @override
@@ -84,14 +88,22 @@ class SetCard extends StatelessWidget {
               Column(
                 children: [
                   Text(
-                    '${currentSet.targetWeight.toInt()}',
+                    weightType == 'bodyweight'
+                        ? 'PDC'
+                        : weightType == 'bodyweight_plus'
+                            ? '+${currentSet.targetWeight.toInt()}'
+                            : '${currentSet.targetWeight.toInt()}',
                     style: FGTypography.display.copyWith(
                       color: FGColors.accent,
-                      fontSize: 56,
+                      fontSize: weightType == 'bodyweight' ? 40 : 56,
                     ),
                   ),
                   Text(
-                    'kg',
+                    weightType == 'bodyweight'
+                        ? 'poids du corps'
+                        : weightType == 'bodyweight_plus'
+                            ? '+kg'
+                            : 'kg',
                     style: FGTypography.caption.copyWith(
                       color: FGColors.textSecondary,
                       fontWeight: FontWeight.w600,
@@ -103,7 +115,7 @@ class SetCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
                 child: Text(
-                  '×',
+                  '\u00d7',
                   style: FGTypography.h2.copyWith(
                     color: FGColors.textSecondary,
                   ),
@@ -114,13 +126,13 @@ class SetCard extends StatelessWidget {
               Column(
                 children: [
                   Text(
-                    '${currentSet.targetReps}',
+                    isMaxReps ? 'MAX' : '${currentSet.targetReps}',
                     style: FGTypography.display.copyWith(
-                      fontSize: 56,
+                      fontSize: isMaxReps ? 40 : 56,
                     ),
                   ),
                   Text(
-                    'reps',
+                    isMaxReps ? 'reps max' : 'reps',
                     style: FGTypography.caption.copyWith(
                       color: FGColors.textSecondary,
                       fontWeight: FontWeight.w600,

@@ -11,6 +11,8 @@ class WorkoutHeader extends StatelessWidget {
   final int totalExercises;
   final int workoutSeconds;
   final VoidCallback onExitTap;
+  final String notes;
+  final String progressionRule;
 
   const WorkoutHeader({
     super.key,
@@ -20,110 +22,145 @@ class WorkoutHeader extends StatelessWidget {
     required this.totalExercises,
     required this.workoutSeconds,
     required this.onExitTap,
+    this.notes = '',
+    this.progressionRule = '',
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.lg, Spacing.md),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Close button
-          GestureDetector(
-            onTap: onExitTap,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: FGColors.glassSurface,
-                borderRadius: BorderRadius.circular(Spacing.sm),
-                border: Border.all(color: FGColors.glassBorder),
-              ),
-              child: const Icon(
-                Icons.close_rounded,
-                color: FGColors.textPrimary,
-                size: 20,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: Spacing.md),
-
-          // Exercise info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  exerciseName,
-                  style: FGTypography.body.copyWith(
-                    fontWeight: FontWeight.w700,
+          Row(
+            children: [
+              // Close button
+              GestureDetector(
+                onTap: onExitTap,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: FGColors.glassSurface,
+                    borderRadius: BorderRadius.circular(Spacing.sm),
+                    border: Border.all(color: FGColors.glassBorder),
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: FGColors.textPrimary,
+                    size: 20,
                   ),
                 ),
-                Row(
+              ),
+
+              const SizedBox(width: Spacing.md),
+
+              // Exercise info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: Spacing.sm,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: FGColors.accent.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(Spacing.xs),
-                      ),
-                      child: Text(
-                        muscleGroup,
-                        style: FGTypography.caption.copyWith(
-                          color: FGColors.accent,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 10,
-                        ),
+                    Text(
+                      exerciseName,
+                      style: FGTypography.body.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(width: Spacing.sm),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: Spacing.sm,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: FGColors.accent.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(Spacing.xs),
+                          ),
+                          child: Text(
+                            muscleGroup,
+                            style: FGTypography.caption.copyWith(
+                              color: FGColors.accent,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.sm),
+                        Text(
+                          '$currentExercise/$totalExercises',
+                          style: FGTypography.caption.copyWith(
+                            color: FGColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Workout timer
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.md,
+                  vertical: Spacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: FGColors.glassSurface,
+                  borderRadius: BorderRadius.circular(Spacing.sm),
+                  border: Border.all(color: FGColors.glassBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      color: FGColors.textSecondary,
+                      size: 16,
+                    ),
+                    const SizedBox(width: Spacing.xs),
                     Text(
-                      '$currentExercise/$totalExercises',
-                      style: FGTypography.caption.copyWith(
-                        color: FGColors.textSecondary,
+                      _formatDuration(workoutSeconds),
+                      style: FGTypography.body.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: [const FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-
-          // Workout timer
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: Spacing.md,
-              vertical: Spacing.sm,
-            ),
-            decoration: BoxDecoration(
-              color: FGColors.glassSurface,
-              borderRadius: BorderRadius.circular(Spacing.sm),
-              border: Border.all(color: FGColors.glassBorder),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.timer_outlined,
-                  color: FGColors.textSecondary,
-                  size: 16,
+          if (notes.isNotEmpty || progressionRule.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: Spacing.xs),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xs),
+                decoration: BoxDecoration(
+                  color: FGColors.glassSurface.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(Spacing.xs),
                 ),
-                const SizedBox(width: Spacing.xs),
-                Text(
-                  _formatDuration(workoutSeconds),
-                  style: FGTypography.body.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: [const FontFeature.tabularFigures()],
-                  ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 12, color: FGColors.textSecondary),
+                    const SizedBox(width: Spacing.xs),
+                    Expanded(
+                      child: Text(
+                        notes.isNotEmpty ? notes : progressionRule,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: FGTypography.caption.copyWith(
+                          color: FGColors.textSecondary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
         ],
       ),
     );

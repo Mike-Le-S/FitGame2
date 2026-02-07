@@ -73,13 +73,33 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
               'muscles': _extractMuscles(exercises),
               'exercises': exercises.map((e) {
                 final ex = e as Map<String, dynamic>;
+                final customSets = ex['customSets'] as List?;
+                String setsLabel;
+                if (customSets != null && customSets.isNotEmpty) {
+                  final weights = customSets
+                      .where((s) => s['isWarmup'] != true)
+                      .map((s) => (s['weight'] as num?)?.toDouble() ?? 0);
+                  if (weights.isNotEmpty && weights.first > 0) {
+                    setsLabel = '${customSets.length}\u00d7 ${weights.reduce((a, b) => a < b ? a : b).toInt()}\u2192${weights.reduce((a, b) => a > b ? a : b).toInt()}kg';
+                  } else {
+                    setsLabel = '${customSets.length} s\u00e9ries';
+                  }
+                } else {
+                  setsLabel = '${ex['sets'] ?? 3}x${ex['reps'] ?? 10}';
+                }
                 return {
                   'name': ex['name'] ?? '',
-                  'sets': '${ex['sets'] ?? 3}x${ex['reps'] ?? 10}',
+                  'sets': setsLabel,
                   'id': ex['id'],
                   'muscle': ex['muscle'],
                   'mode': ex['mode'],
                   'warmupEnabled': ex['warmupEnabled'],
+                  'weightType': ex['weightType'],
+                  'notes': ex['notes'],
+                  'customSets': ex['customSets'],
+                  'progressionRule': ex['progressionRule'],
+                  'progression': ex['progression'],
+                  'restSeconds': ex['restSeconds'],
                 };
               }).toList(),
             };
@@ -100,7 +120,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
   String _extractMuscles(List exercises) {
     final muscles = <String>{};
     for (final ex in exercises) {
-      final muscle = ex['muscleGroup'] ?? ex['muscle_group'];
+      final muscle = ex['muscle'] ?? ex['muscleGroup'] ?? ex['muscle_group'];
       if (muscle != null) muscles.add(muscle.toString());
     }
     return muscles.take(3).join(', ');
@@ -688,16 +708,28 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
           'isRestDay': session['isRestDay'] ?? false,
           'supersets': session['supersets'] ?? [],
           'exercises': (session['exercises'] as List).map((ex) {
-            final parts = (ex['sets'] as String).split('x');
-            return {
+            final data = <String, dynamic>{
               'id': ex['id'],
               'name': ex['name'],
-              'sets': int.tryParse(parts[0]) ?? 3,
-              'reps': int.tryParse(parts.length > 1 ? parts[1] : '10') ?? 10,
               'muscle': ex['muscle'],
               'mode': ex['mode'] ?? 'classic',
               'warmupEnabled': ex['warmupEnabled'] ?? false,
             };
+            // Parse sets from label for backward compat
+            final setsLabel = ex['sets'] as String;
+            if (setsLabel.contains('x')) {
+              final parts = setsLabel.split('x');
+              data['sets'] = int.tryParse(parts[0]) ?? 3;
+              data['reps'] = int.tryParse(parts.length > 1 ? parts[1] : '10') ?? 10;
+            }
+            // Preserve new fields
+            if (ex['customSets'] != null) data['customSets'] = ex['customSets'];
+            if (ex['weightType'] != null) data['weightType'] = ex['weightType'];
+            if (ex['notes'] != null) data['notes'] = ex['notes'];
+            if (ex['progressionRule'] != null) data['progressionRule'] = ex['progressionRule'];
+            if (ex['progression'] != null) data['progression'] = ex['progression'];
+            if (ex['restSeconds'] != null) data['restSeconds'] = ex['restSeconds'];
+            return data;
           }).toList(),
         };
       }).toList();
