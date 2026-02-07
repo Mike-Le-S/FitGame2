@@ -1,5 +1,21 @@
 # Changelog FitGame
 
+## 2026-02-07 - Security Hardening (Full Stack Audit)
+
+### Security Fixes
+- **CRITICAL**: Revoked `anon` EXECUTE on all 8 user-facing RPCs — unauthenticated users can no longer call destructive functions
+- **CRITICAL**: Added `auth.uid()` guard in all RPCs — authenticated users can only operate on their own data (was: any user could pass any UUID)
+- **HIGH**: Added ownership check in `increment_food_use_count` — users can only increment their own favorite foods' use count
+- **HIGH**: Added `challenge_tampering_guard` trigger — participants can no longer modify `creator_id`, `target_value`, `type`, `exercise_name`, `unit`
+- **MEDIUM**: Fixed race condition in `check_achievements` — uses `ON CONFLICT DO NOTHING` instead of IF EXISTS + INSERT
+- **MEDIUM**: Expanded `delete_all_user_data` to cover all 17 tables (was 8) — includes programs, diet_plans, messages, meal_templates, user_favorite_foods, etc.
+- **MEDIUM**: `delete_all_user_data` now cleans up challenge participant JSONB entries when user is participant in others' challenges
+- **LOW**: Fixed `community_foods` INSERT policy to enforce `contributed_by = auth.uid()`
+- **LOW**: Added `SET search_path TO 'public'` on all SECURITY DEFINER functions
+
+### Database
+- Migration: `security_hardening_rpcs_and_policies` — 8 RPCs recreated with auth guards, 1 trigger, 1 policy update
+
 ## 2026-02-07 - Profile Danger Zone + Achievements Completion
 
 ### Bug Fixes
