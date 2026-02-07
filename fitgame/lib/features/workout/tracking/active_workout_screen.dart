@@ -5,6 +5,7 @@ import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/theme/fg_effects.dart';
 import '../../../core/constants/spacing.dart';
+import '../../../shared/widgets/fg_glass_card.dart';
 import '../../../core/models/exercise.dart';
 import '../../../core/models/workout_set.dart';
 import '../../../core/services/supabase_service.dart';
@@ -14,13 +15,11 @@ import 'sheets/number_picker_sheet.dart';
 import 'sheets/workout_complete_sheet.dart';
 import 'sheets/exit_confirmation_sheet.dart';
 import 'widgets/workout_header.dart';
-import 'widgets/stats_bar.dart';
 import 'widgets/set_card.dart';
 import 'widgets/exercise_navigation.dart';
 import 'widgets/set_indicators.dart';
 import 'widgets/weight_reps_input.dart';
 import 'widgets/rest_timer_view.dart';
-import 'widgets/pr_celebration.dart';
 
 /// Active Workout Tracking Screen
 /// The core experience for tracking exercises during a workout session
@@ -37,8 +36,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   late AnimationController _meshController;
   late AnimationController _timerController;
   late AnimationController _pulseController;
-  late AnimationController _prCelebrationController;
-
   late Animation<double> _meshAnimation;
   late Animation<double> _pulseAnimation;
 
@@ -55,7 +52,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   int _workoutSeconds = 0;
   final DateTime _workoutStartTime = DateTime.now();
   double _totalVolume = 0;
-  bool _showPRCelebration = false;
 
   // Workout data
   late List<Exercise> _exercises;
@@ -63,6 +59,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   String _dayName = 'Séance libre'; // Day name from program or default
   String? _programId;
   bool _isLoading = true; // Loading state for exercises
+
+  // Last session data per exercise: { exerciseName: [ {actualWeight, actualReps, ...}, ... ] }
+  final Map<String, List<Map<String, dynamic>>> _lastSessionSets = {};
 
   @override
   void initState() {
@@ -103,35 +102,45 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           final exercisesData = firstDay['exercises'] as List? ?? [];
           final dayName = firstDay['name']?.toString() ?? 'Jour 1';
 
+          // Load last session data for each exercise (non-blocking)
+          _loadLastSessionData(
+            exercisesData.map((ex) => (ex['name'] ?? '').toString()).where((n) => n.isNotEmpty).toList(),
+          );
+
           setState(() {
             _dayName = dayName;
             _exercises = exercisesData.map((ex) {
               final customSets = ex['customSets'] as List?;
+              final warmupEnabled = ex['warmup'] == true || ex['warmupEnabled'] == true;
               final sets = <WorkoutSet>[];
 
+              // Build work sets
+              final workSets = <WorkoutSet>[];
               if (customSets != null && customSets.isNotEmpty) {
-                // Use custom sets with individual reps/weight per set
                 for (final cs in customSets) {
-                  sets.add(WorkoutSet(
+                  // Skip old-style manual warmup sets (auto-generated now)
+                  if (cs['isWarmup'] == true) continue;
+                  workSets.add(WorkoutSet(
                     targetReps: (cs['reps'] as num?)?.toInt() ?? 10,
                     targetWeight: (cs['weight'] as num?)?.toDouble() ?? 0,
-                    isWarmup: cs['isWarmup'] == true,
                     isMaxReps: cs['isMaxReps'] == true,
                   ));
                 }
               } else {
-                // Fallback: uniform sets
                 final numSets = (ex['sets'] as num?)?.toInt() ?? 3;
                 final numReps = (ex['reps'] as num?)?.toInt() ?? 10;
-                final warmupEnabled = ex['warmupEnabled'] == true;
-
-                if (warmupEnabled) {
-                  sets.add(WorkoutSet(targetWeight: 0, targetReps: numReps, isWarmup: true));
-                }
                 for (int i = 0; i < numSets; i++) {
-                  sets.add(WorkoutSet(targetWeight: 0, targetReps: numReps));
+                  workSets.add(WorkoutSet(targetWeight: 0, targetReps: numReps));
                 }
               }
+
+              // Auto-generate warmup sets if enabled
+              if (warmupEnabled && workSets.isNotEmpty) {
+                final maxWeight = workSets.fold<double>(
+                  0, (max, s) => s.targetWeight > max ? s.targetWeight : max);
+                sets.addAll(_calculateWarmupSets(maxWeight));
+              }
+              sets.addAll(workSets);
 
               return Exercise(
                 name: ex['name'] ?? 'Exercice',
@@ -182,6 +191,53 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     }
   }
 
+  /// Auto-generate warmup sets based on the heaviest work set weight
+  /// >= 60kg: 3 warmups (40% × 10, 60% × 5, 80% × 3)
+  /// < 60kg: 2 warmups (50% × 8, 75% × 3)
+  List<WorkoutSet> _calculateWarmupSets(double maxWeight) {
+    if (maxWeight <= 0) return [];
+
+    final warmups = <WorkoutSet>[];
+
+    if (maxWeight >= 60) {
+      warmups.addAll([
+        WorkoutSet(targetWeight: _roundTo2_5(maxWeight * 0.4), targetReps: 10, isWarmup: true),
+        WorkoutSet(targetWeight: _roundTo2_5(maxWeight * 0.6), targetReps: 5, isWarmup: true),
+        WorkoutSet(targetWeight: _roundTo2_5(maxWeight * 0.8), targetReps: 3, isWarmup: true),
+      ]);
+    } else {
+      warmups.addAll([
+        WorkoutSet(targetWeight: _roundTo2_5(maxWeight * 0.5), targetReps: 8, isWarmup: true),
+        WorkoutSet(targetWeight: _roundTo2_5(maxWeight * 0.75), targetReps: 3, isWarmup: true),
+      ]);
+    }
+
+    return warmups;
+  }
+
+  /// Round to nearest 2.5 kg (standard plate increment)
+  double _roundTo2_5(double value) {
+    return (value / 2.5).round() * 2.5;
+  }
+
+  Future<void> _loadLastSessionData(List<String> exerciseNames) async {
+    try {
+      for (final name in exerciseNames) {
+        final history = await SupabaseService.getExerciseHistory(name, limit: 1);
+        if (history.isNotEmpty) {
+          final sets = (history.first['sets'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          if (sets.isNotEmpty && mounted) {
+            setState(() {
+              _lastSessionSets[name] = sets;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading last session data: $e');
+    }
+  }
+
   void _initializeAnimations() {
     _meshController = AnimationController(
       duration: const Duration(seconds: 8),
@@ -206,10 +262,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    _prCelebrationController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
   }
 
   void _startWorkoutTimer() {
@@ -220,11 +272,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     });
   }
 
-  void _startRestTimer() {
+  void _startRestTimer({int? overrideSeconds}) {
     final exercise = _exercises[_currentExerciseIndex];
     setState(() {
       _isResting = true;
-      _restSecondsRemaining = exercise.restSeconds;
+      _restSecondsRemaining = overrideSeconds ?? exercise.restSeconds;
     });
 
     _restTimer?.cancel();
@@ -275,11 +327,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     // Mark set as completed
     currentSet.isCompleted = true;
 
-    // Check for PR
-    if (currentSet.actualWeight > exercise.previousBest) {
-      _triggerPRCelebration();
-    }
-
     // Check progression suggestion
     final progressionMessage = ProgressionService.checkProgression(exercise, currentSet);
     if (progressionMessage != null && mounted) {
@@ -298,12 +345,15 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
     HapticFeedback.mediumImpact();
 
+    // Shorter rest after warmup sets (45s vs normal rest)
+    final restSeconds = currentSet.isWarmup ? 45 : null;
+
     // Move to next set or exercise
     if (_currentSetIndex < exercise.sets.length - 1) {
       setState(() {
         _currentSetIndex++;
       });
-      _startRestTimer();
+      _startRestTimer(overrideSeconds: restSeconds);
     } else if (_currentExerciseIndex < _exercises.length - 1) {
       // Move to next exercise
       setState(() {
@@ -315,27 +365,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeOutCubic,
       );
-      _startRestTimer();
+      _startRestTimer(overrideSeconds: restSeconds);
     } else {
       // Workout complete
       _showWorkoutCompleteSheet();
     }
-  }
-
-  void _triggerPRCelebration() {
-    setState(() {
-      _showPRCelebration = true;
-    });
-    _prCelebrationController.forward(from: 0);
-    HapticFeedback.heavyImpact();
-    Future.delayed(const Duration(seconds: 1), () {
-      HapticFeedback.mediumImpact();
-    });
-    Future.delayed(const Duration(seconds: 2), () {
-      setState(() {
-        _showPRCelebration = false;
-      });
-    });
   }
 
   Future<void> _showWorkoutCompleteSheet() async {
@@ -579,7 +613,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     _meshController.dispose();
     _timerController.dispose();
     _pulseController.dispose();
-    _prCelebrationController.dispose();
     _exercisePageController.dispose();
     _restTimer?.cancel();
     _workoutTimer?.cancel();
@@ -686,6 +719,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                   onExitTap: _showExitConfirmation,
                   notes: _exercises[_currentExerciseIndex].notes,
                   progressionRule: _exercises[_currentExerciseIndex].progressionRule,
+                  onNotesTap: () => _showNotesSheet(_exercises[_currentExerciseIndex]),
                 ),
                 Expanded(
                   child: _isResting
@@ -725,11 +759,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               ],
             ),
           ),
-          if (_showPRCelebration)
-            PRCelebration(
-              show: _showPRCelebration,
-              animationController: _prCelebrationController,
-            ),
         ],
       ),
     );
@@ -789,8 +818,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     final exercise = _exercises[_currentExerciseIndex];
     final currentSet = exercise.sets[_currentSetIndex];
 
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
       child: Column(
         children: [
@@ -816,7 +844,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               );
             },
           ),
-          const SizedBox(height: Spacing.xl),
+          const SizedBox(height: Spacing.sm),
 
           // Main set card
           SetCard(
@@ -826,8 +854,10 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             currentSetIndex: _currentSetIndex,
             weightType: exercise.weightType,
             isMaxReps: currentSet.isMaxReps,
+            lastSessionSet: _getLastSessionSet(exercise.name, _currentSetIndex),
+            suggestedWeight: _getSuggestedWeight(exercise, _currentSetIndex),
           ),
-          const SizedBox(height: Spacing.lg),
+          const SizedBox(height: Spacing.md),
 
           // Weight and reps input
           WeightRepsInput(
@@ -860,11 +890,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               );
             },
           ),
-          const SizedBox(height: Spacing.xl),
+          const SizedBox(height: Spacing.sm),
 
           // Validate button
           _buildValidateButton(),
-          const SizedBox(height: Spacing.xl),
+          const SizedBox(height: Spacing.sm),
 
           // Sets progress
           SetIndicators(
@@ -876,24 +906,315 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               });
             },
           ),
-          const SizedBox(height: Spacing.lg),
 
-          // Stats bar
-          StatsBar(
-            totalVolume: _totalVolume,
-            completedSets: _exercises.fold<int>(
-                0, (sum, e) => sum + e.sets.where((s) => s.isCompleted).length),
-            totalSets: _exercises.fold<int>(0, (sum, e) => sum + e.sets.length),
-            estimatedKcal: (_totalVolume * 0.05).toInt(),
-          ),
-          const SizedBox(height: Spacing.xxl),
+          const SizedBox(height: Spacing.sm),
+
+          // Session recap + next exercise
+          _buildSessionInsights(),
         ],
       ),
     );
   }
 
+  Widget _buildSessionInsights() {
+    // Completed sets / total (excluding warmups)
+    int completedSets = 0;
+    int totalSets = 0;
+    for (final ex in _exercises) {
+      for (final s in ex.sets) {
+        if (!s.isWarmup) {
+          totalSets++;
+          if (s.isCompleted) {
+            completedSets++;
+          }
+        }
+      }
+    }
+
+    // Volume formatted
+    String volumeStr;
+    if (_totalVolume >= 1000) {
+      volumeStr = '${(_totalVolume / 1000).toStringAsFixed(1)}T';
+    } else {
+      volumeStr = '${_totalVolume.toInt()}kg';
+    }
+
+    // Exercises remaining after current
+    final exosRemaining = _exercises.length - _currentExerciseIndex - 1;
+
+    // Next exercise
+    final hasNext = _currentExerciseIndex < _exercises.length - 1;
+    final nextExercise = hasNext ? _exercises[_currentExerciseIndex + 1] : null;
+
+    // Progress ratio for the bar
+    final progress = totalSets > 0 ? completedSets / totalSets : 0.0;
+
+    return FGGlassCard(
+      padding: const EdgeInsets.all(Spacing.md),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Stats row: 3 columns
+          Row(
+            children: [
+              // Volume
+              Expanded(
+                child: _buildStatColumn(
+                  volumeStr,
+                  'VOLUME',
+                  FGColors.accent,
+                ),
+              ),
+              // Divider
+              Container(
+                width: 1,
+                height: 32,
+                color: FGColors.glassBorder,
+              ),
+              // Sets
+              Expanded(
+                child: _buildStatColumn(
+                  '$completedSets/$totalSets',
+                  'SÉRIES',
+                  FGColors.textPrimary,
+                ),
+              ),
+              // Divider
+              Container(
+                width: 1,
+                height: 32,
+                color: FGColors.glassBorder,
+              ),
+              // Exercises remaining
+              Expanded(
+                child: _buildStatColumn(
+                  '$exosRemaining',
+                  exosRemaining <= 1 ? 'EXO RESTANT' : 'EXOS RESTANTS',
+                  exosRemaining == 0 ? FGColors.success : FGColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: Spacing.sm),
+
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 3,
+              backgroundColor: FGColors.glassBorder,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                FGColors.accent.withValues(alpha: 0.8),
+              ),
+            ),
+          ),
+
+          // Next exercise
+          if (nextExercise != null) ...[
+            const SizedBox(height: Spacing.sm),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: FGColors.accent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(
+                    Icons.skip_next_rounded,
+                    size: 12,
+                    color: FGColors.accent,
+                  ),
+                ),
+                const SizedBox(width: Spacing.sm),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: nextExercise.name,
+                          style: FGTypography.caption.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '  ${nextExercise.sets.where((s) => !s.isWarmup).length}×${nextExercise.sets.where((s) => !s.isWarmup).isNotEmpty ? nextExercise.sets.firstWhere((s) => !s.isWarmup).targetReps : '?'}',
+                          style: FGTypography.caption.copyWith(
+                            color: FGColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String value, String label, Color valueColor) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: FGTypography.body.copyWith(
+            fontWeight: FontWeight.w800,
+            fontSize: 16,
+            color: valueColor,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: FGTypography.caption.copyWith(
+            color: FGColors.textSecondary,
+            fontWeight: FontWeight.w600,
+            fontSize: 8,
+            letterSpacing: 1,
+          ),
+        ),
+      ],
+    );
+  }
 
 
+
+
+  /// Get last session's actual performance for a specific set index
+  /// Matches work sets only (skips warmups on both sides)
+  Map<String, dynamic>? _getLastSessionSet(String exerciseName, int setIndex) {
+    final exercise = _exercises.firstWhere((e) => e.name == exerciseName);
+    final currentSet = exercise.sets[setIndex];
+
+    // No history for warmup sets
+    if (currentSet.isWarmup) return null;
+
+    final sets = _lastSessionSets[exerciseName];
+    if (sets == null) return null;
+
+    // Calculate work-set index (position among non-warmup sets)
+    int workSetIndex = 0;
+    for (int i = 0; i < setIndex; i++) {
+      if (!exercise.sets[i].isWarmup) workSetIndex++;
+    }
+
+    // Match against last session's non-warmup sets
+    final lastWorkSets = sets.where((s) => s['isWarmup'] != true).toList();
+    if (workSetIndex >= lastWorkSets.length) return null;
+
+    final set = lastWorkSets[workSetIndex];
+    if (set['completed'] != true) return null;
+    return set;
+  }
+
+  /// Calculate suggested weight based on last session + progression rules
+  double? _getSuggestedWeight(Exercise exercise, int setIndex) {
+    if (exercise.sets[setIndex].isWarmup) return null;
+
+    final lastSet = _getLastSessionSet(exercise.name, setIndex);
+    if (lastSet == null) return null;
+
+    final progression = exercise.progression;
+    if (progression == null) return null;
+    if (progression['type'] != 'threshold') return null;
+
+    final repThreshold = (progression['repThreshold'] as num?)?.toInt();
+    final weightIncrement = (progression['weightIncrement'] as num?)?.toDouble();
+    if (repThreshold == null || weightIncrement == null) return null;
+
+    final lastReps = (lastSet['actualReps'] as num?)?.toInt() ?? 0;
+    final lastWeight = (lastSet['actualWeight'] as num?)?.toDouble() ?? 0;
+
+    // If last time they hit the threshold on this set, suggest increased weight
+    if (lastReps >= repThreshold && lastWeight > 0) {
+      return lastWeight + weightIncrement;
+    }
+
+    return null;
+  }
+
+  void _showNotesSheet(Exercise exercise) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        margin: const EdgeInsets.all(Spacing.md),
+        padding: const EdgeInsets.all(Spacing.lg),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(Spacing.lg),
+          border: Border.all(color: FGColors.glassBorder),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.fitness_center_rounded, color: FGColors.accent, size: 20),
+                const SizedBox(width: Spacing.sm),
+                Expanded(
+                  child: Text(
+                    exercise.name,
+                    style: FGTypography.h3.copyWith(color: FGColors.textPrimary),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Icon(Icons.close_rounded, color: FGColors.textSecondary, size: 20),
+                ),
+              ],
+            ),
+            if (exercise.notes.isNotEmpty) ...[
+              const SizedBox(height: Spacing.lg),
+              Text(
+                'Consignes',
+                style: FGTypography.caption.copyWith(
+                  color: FGColors.accent,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(height: Spacing.sm),
+              Text(
+                exercise.notes,
+                style: FGTypography.body.copyWith(color: FGColors.textPrimary),
+              ),
+            ],
+            if (exercise.progressionRule.isNotEmpty) ...[
+              const SizedBox(height: Spacing.lg),
+              Text(
+                'Progression',
+                style: FGTypography.caption.copyWith(
+                  color: FGColors.success,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(height: Spacing.sm),
+              Text(
+                exercise.progressionRule,
+                style: FGTypography.body.copyWith(color: FGColors.textPrimary),
+              ),
+            ],
+            const SizedBox(height: Spacing.md),
+          ],
+        ),
+      ),
+    );
+  }
 
   void _showNumberPicker({
     required double initialValue,
