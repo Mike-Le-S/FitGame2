@@ -40,7 +40,7 @@ class _NutritionScreenState extends State<NutritionScreen>
   int _selectedDayIndex = 0; // 0 = Monday
 
   // Training days (orange glow)
-  Set<int> _trainingDays = {0, 2, 4}; // Mon, Wed, Fri
+  final Set<int> _trainingDays = {0, 2, 4}; // Mon, Wed, Fri
 
   // Goal type: 'bulk', 'cut', 'maintain'
   String _goalType = 'bulk';
@@ -49,7 +49,7 @@ class _NutritionScreenState extends State<NutritionScreen>
   List<Map<String, dynamic>> _myDietPlans = [];
   List<Map<String, dynamic>> _assignedDietPlans = [];
   Map<String, dynamic>? _activePlan; // Currently active diet plan
-  Map<int, String> _dayTypeIds = {}; // dayIndex → day_type_id
+  final Map<int, String> _dayTypeIds = {}; // dayIndex → day_type_id
   String? _activePlanName;
 
   // Realtime listener reference
@@ -63,11 +63,11 @@ class _NutritionScreenState extends State<NutritionScreen>
   // Daily tracking (separate from plan)
   Map<String, dynamic>? _todayLog;
   List<Map<String, dynamic>> _trackingWeeklyPlan = [];
-  bool _isTrackingMode = true; // true = editing daily log, false = editing plan
+  final bool _isTrackingMode = true; // true = editing daily log, false = editing plan
 
   // === MACRO TARGETS ===
   // Macro targets based on goal and training/rest day (mutable for coach plans)
-  Map<String, Map<String, int>> _macroTargets = {
+  final Map<String, Map<String, int>> _macroTargets = {
     'bulk': {
       'training': 3200,
       'rest': 2800,

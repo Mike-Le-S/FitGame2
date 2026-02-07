@@ -11,6 +11,7 @@ class NumberPickerSheet extends StatefulWidget {
   final Function(double) onValueChange;
 
   const NumberPickerSheet({
+    super.key,
     required this.initialValue,
     required this.isInteger,
     required this.onValueChange,

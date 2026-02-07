@@ -8,6 +8,7 @@ class ExitConfirmationSheet extends StatelessWidget {
   final VoidCallback onCancel;
 
   const ExitConfirmationSheet({
+    super.key,
     required this.onConfirm,
     required this.onCancel,
   });

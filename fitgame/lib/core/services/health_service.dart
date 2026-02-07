@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:health/health.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -76,7 +77,7 @@ class HealthService {
       _isAuthorized = authorized;
       return authorized;
     } catch (e) {
-      print('Error requesting health authorization: $e');
+      debugPrint('Error requesting health authorization: $e');
       return false;
     }
   }
@@ -91,7 +92,7 @@ class HealthService {
       _isAuthorized = status ?? false;
       return _isAuthorized;
     } catch (e) {
-      print('Error checking health authorization: $e');
+      debugPrint('Error checking health authorization: $e');
       return false;
     }
   }
@@ -226,7 +227,7 @@ class HealthService {
         inBedMinutes: inBed > 0 ? inBed : totalSleep + awake,
       );
     } catch (e) {
-      print('Error fetching sleep data: $e');
+      debugPrint('Error fetching sleep data: $e');
       return null;
     }
   }
@@ -287,7 +288,7 @@ class HealthService {
         distanceMeters: distance,
       );
     } catch (e) {
-      print('Error fetching activity data: $e');
+      debugPrint('Error fetching activity data: $e');
       return null;
     }
   }
@@ -355,7 +356,7 @@ class HealthService {
         hrvMs: hrv,
       );
     } catch (e) {
-      print('Error fetching heart data: $e');
+      debugPrint('Error fetching heart data: $e');
       return null;
     }
   }
@@ -455,7 +456,7 @@ class HealthService {
         totalEnergyBurnedUnit: HealthDataUnit.KILOCALORIE,
       );
     } catch (e) {
-      print('Error writing workout: $e');
+      debugPrint('Error writing workout: $e');
       return false;
     }
   }

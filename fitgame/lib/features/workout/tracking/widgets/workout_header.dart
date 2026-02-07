@@ -13,6 +13,7 @@ class WorkoutHeader extends StatelessWidget {
   final VoidCallback onExitTap;
   final String notes;
   final String progressionRule;
+  final VoidCallback? onNotesTap;
 
   const WorkoutHeader({
     super.key,
@@ -24,6 +25,7 @@ class WorkoutHeader extends StatelessWidget {
     required this.onExitTap,
     this.notes = '',
     this.progressionRule = '',
+    this.onNotesTap,
   });
 
   @override
@@ -131,36 +133,39 @@ class WorkoutHeader extends StatelessWidget {
                   ],
                 ),
               ),
-            ],
-          ),
-          if (notes.isNotEmpty || progressionRule.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: Spacing.xs),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xs),
-                decoration: BoxDecoration(
-                  color: FGColors.glassSurface.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(Spacing.xs),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 12, color: FGColors.textSecondary),
-                    const SizedBox(width: Spacing.xs),
-                    Expanded(
+
+              // Notes info button
+              if (notes.isNotEmpty || progressionRule.isNotEmpty) ...[
+                const SizedBox(width: Spacing.sm),
+                GestureDetector(
+                  onTap: onNotesTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: FGColors.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(Spacing.sm),
+                      border: Border.all(
+                        color: FGColors.accent.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Center(
                       child: Text(
-                        notes.isNotEmpty ? notes : progressionRule,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: FGTypography.caption.copyWith(
-                          color: FGColors.textSecondary,
-                          fontSize: 10,
+                        'i',
+                        style: FGTypography.body.copyWith(
+                          color: FGColors.accent,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          fontStyle: FontStyle.italic,
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              ],
+            ],
+          ),
         ],
       ),
     );

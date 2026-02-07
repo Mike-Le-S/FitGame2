@@ -7,7 +7,7 @@ import '../../../shared/widgets/fg_neon_button.dart';
 class GenerateAISheet extends StatefulWidget {
   final Function(Map<String, dynamic>) onGenerate;
 
-  const GenerateAISheet({required this.onGenerate});
+  const GenerateAISheet({super.key, required this.onGenerate});
 
   @override
   State<GenerateAISheet> createState() => GenerateAISheetState();

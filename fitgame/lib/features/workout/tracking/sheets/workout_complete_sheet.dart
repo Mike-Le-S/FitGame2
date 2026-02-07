@@ -11,6 +11,7 @@ class WorkoutCompleteSheet extends StatelessWidget {
   final VoidCallback onClose;
 
   const WorkoutCompleteSheet({
+    super.key,
     required this.duration,
     required this.totalVolume,
     required this.exerciseCount,

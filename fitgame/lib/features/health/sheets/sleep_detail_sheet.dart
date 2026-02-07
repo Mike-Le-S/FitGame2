@@ -18,6 +18,7 @@ class SleepDetailSheet extends StatefulWidget {
   final int sleepLatencyMinutes;
 
   const SleepDetailSheet({
+    super.key,
     required this.totalSleepMinutes,
     required this.deepSleepMinutes,
     required this.coreSleepMinutes,

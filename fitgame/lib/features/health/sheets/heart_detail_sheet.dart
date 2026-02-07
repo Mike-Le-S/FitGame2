@@ -19,6 +19,7 @@ class HeartDetailSheet extends StatefulWidget {
   final double vo2Max;
 
   const HeartDetailSheet({
+    super.key,
     required this.restingHeartRate,
     required this.avgHeartRate,
     required this.maxHeartRate,
@@ -136,8 +137,11 @@ class HeartDetailSheetState extends State<HeartDetailSheet>
         int trend = 0;
         if (i > 0) {
           final prevHrv = (metrics[i - 1]['hrv_ms'] as num?)?.round() ?? 0;
-          if (hrv > prevHrv) trend = 1;
-          else if (hrv < prevHrv) trend = -1;
+          if (hrv > prevHrv) {
+            trend = 1;
+          } else if (hrv < prevHrv) {
+            trend = -1;
+          }
         }
 
         final date = DateTime.parse(m['date'] as String);

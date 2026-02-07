@@ -8,6 +8,7 @@ class GoalSelectorSheet extends StatelessWidget {
   final Function(String) onSelect;
 
   const GoalSelectorSheet({
+    super.key,
     required this.currentGoal,
     required this.onSelect,
   });

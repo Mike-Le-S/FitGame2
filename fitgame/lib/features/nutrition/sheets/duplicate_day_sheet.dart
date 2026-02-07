@@ -11,6 +11,7 @@ class DuplicateDaySheet extends StatefulWidget {
   final Function(List<int>) onDuplicate;
 
   const DuplicateDaySheet({
+    super.key,
     required this.sourceDay,
     required this.dayNames,
     required this.onDuplicate,
