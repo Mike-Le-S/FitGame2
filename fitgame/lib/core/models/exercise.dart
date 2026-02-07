@@ -11,6 +11,7 @@ class Exercise {
   final String progressionRule;
   final Map<String, dynamic>? progression;
   final String weightType; // 'kg', 'bodyweight', 'bodyweight_plus'
+  int? transitionSeconds; // Time to move from previous exercise (minus rest)
 
   Exercise({
     required this.name,

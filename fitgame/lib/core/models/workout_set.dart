@@ -7,6 +7,8 @@ class WorkoutSet {
   int actualReps;
   double actualWeight;
   bool isCompleted;
+  int? actualDurationSeconds; // Time from set active to validation
+  int? actualRestSeconds; // Actual rest taken (including extensions)
 
   WorkoutSet({
     required this.targetReps,

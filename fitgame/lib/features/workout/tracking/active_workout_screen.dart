@@ -8,6 +8,7 @@ import '../../../core/constants/spacing.dart';
 import '../../../shared/widgets/fg_glass_card.dart';
 import '../../../core/models/exercise.dart';
 import '../../../core/models/workout_set.dart';
+import '../../../core/models/time_stats.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/health_service.dart';
 import '../../../core/services/progression_service.dart';
@@ -63,6 +64,13 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   // Last session data per exercise: { exerciseName: [ {actualWeight, actualReps, ...}, ... ] }
   final Map<String, List<Map<String, dynamic>>> _lastSessionSets = {};
 
+  // Time tracking
+  DateTime? _currentSetStartTime; // When current set became active
+  DateTime? _lastExerciseEndTime; // When last exercise's final set was validated
+  DateTime? _currentRestStartTime; // When rest timer started
+  // Historical avg set duration per exercise from last session
+  final Map<String, double> _lastSessionAvgSetDuration = {};
+
   @override
   void initState() {
     super.initState();
@@ -109,6 +117,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
           setState(() {
             _dayName = dayName;
+            _currentSetStartTime = DateTime.now();
             _exercises = exercisesData.map((ex) {
               final customSets = ex['customSets'] as List?;
               final warmupEnabled = ex['warmup'] == true || ex['warmupEnabled'] == true;
@@ -230,6 +239,15 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             setState(() {
               _lastSessionSets[name] = sets;
             });
+            // Extract historical avg set duration for time estimation
+            final durations = sets
+                .where((s) => s['actualDurationSeconds'] != null && s['isWarmup'] != true)
+                .map((s) => (s['actualDurationSeconds'] as num).toDouble())
+                .toList();
+            if (durations.isNotEmpty) {
+              _lastSessionAvgSetDuration[name] =
+                  durations.reduce((a, b) => a + b) / durations.length;
+            }
           }
         }
       }
@@ -274,6 +292,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
   void _startRestTimer({int? overrideSeconds}) {
     final exercise = _exercises[_currentExerciseIndex];
+    _currentRestStartTime = DateTime.now();
     setState(() {
       _isResting = true;
       _restSecondsRemaining = overrideSeconds ?? exercise.restSeconds;
@@ -283,9 +302,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_restSecondsRemaining <= 0) {
         timer.cancel();
+        _recordRestDuration();
         setState(() {
           _isResting = false;
         });
+        _currentSetStartTime = DateTime.now();
         HapticFeedback.heavyImpact();
       } else {
         setState(() {
@@ -300,12 +321,32 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     });
   }
 
+  /// Record actual rest duration on the previous set (the one that triggered rest)
+  void _recordRestDuration() {
+    if (_currentRestStartTime == null) return;
+    final actualRest = DateTime.now().difference(_currentRestStartTime!).inSeconds;
+    // Find the previous completed set to attach rest duration
+    final exercise = _exercises[_currentExerciseIndex];
+    final prevSetIdx = _currentSetIndex - 1;
+    if (prevSetIdx >= 0 && exercise.sets[prevSetIdx].isCompleted) {
+      exercise.sets[prevSetIdx].actualRestSeconds = actualRest;
+    } else if (_currentSetIndex == 0 && _currentExerciseIndex > 0) {
+      // Rest was between exercises — attach to last set of previous exercise
+      final prevEx = _exercises[_currentExerciseIndex - 1];
+      if (prevEx.sets.isNotEmpty) {
+        prevEx.sets.last.actualRestSeconds = actualRest;
+      }
+    }
+  }
+
   void _skipRest() {
     _restTimer?.cancel();
+    _recordRestDuration();
     setState(() {
       _isResting = false;
       _restSecondsRemaining = 0;
     });
+    _currentSetStartTime = DateTime.now();
     HapticFeedback.mediumImpact();
   }
 
@@ -316,9 +357,136 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     HapticFeedback.lightImpact();
   }
 
+  /// Estimate remaining workout time in seconds
+  int _calculateEstimatedRemainingSeconds() {
+    int remaining = 0;
+
+    for (int exIdx = _currentExerciseIndex; exIdx < _exercises.length; exIdx++) {
+      final ex = _exercises[exIdx];
+      final startSet = exIdx == _currentExerciseIndex ? _currentSetIndex : 0;
+
+      for (int sIdx = startSet; sIdx < ex.sets.length; sIdx++) {
+        final s = ex.sets[sIdx];
+        if (s.isCompleted) continue;
+
+        // Estimate set execution time
+        remaining += _estimateSetDuration(ex, s);
+
+        // Estimate rest time (skip rest after the very last set of the workout)
+        final isVeryLastSet =
+            exIdx == _exercises.length - 1 && sIdx == ex.sets.length - 1;
+        if (!isVeryLastSet) {
+          remaining += s.isWarmup ? 45 : ex.restSeconds;
+        }
+      }
+
+      // Estimate transition time to next exercise (if not last)
+      if (exIdx < _exercises.length - 1 && exIdx >= _currentExerciseIndex) {
+        remaining += _estimateTransitionDuration();
+      }
+    }
+
+    return remaining.clamp(0, 99999);
+  }
+
+  /// Estimate a single set's execution time
+  int _estimateSetDuration(Exercise exercise, WorkoutSet workoutSet) {
+    // Priority 1: Current session average for this exercise
+    final completedSets = exercise.sets
+        .where((s) => s.isCompleted && !s.isWarmup && s.actualDurationSeconds != null);
+    if (completedSets.isNotEmpty) {
+      return (completedSets
+              .map((s) => s.actualDurationSeconds!)
+              .reduce((a, b) => a + b) /
+          completedSets.length)
+          .round();
+    }
+
+    // Priority 2: Historical average from last session
+    final histAvg = _lastSessionAvgSetDuration[exercise.name];
+    if (histAvg != null) {
+      return histAvg.round();
+    }
+
+    // Priority 3: Formula fallback (3s/rep + 5s setup)
+    return workoutSet.targetReps * 3 + 5;
+  }
+
+  /// Estimate transition duration between exercises
+  int _estimateTransitionDuration() {
+    // Use measured transitions from this session if available
+    final measuredTransitions = _exercises
+        .where((ex) => ex.transitionSeconds != null)
+        .map((ex) => ex.transitionSeconds!)
+        .toList();
+    if (measuredTransitions.isNotEmpty) {
+      return (measuredTransitions.reduce((a, b) => a + b) /
+              measuredTransitions.length)
+          .round();
+    }
+    // Default: 60 seconds
+    return 60;
+  }
+
+  /// Build TimeStats for the workout complete screen
+  TimeStats _buildTimeStats() {
+    int tensionTime = 0;
+    int totalRestTime = 0;
+    int totalTransitionTime = 0;
+    final transitions = <int>[];
+
+    for (final ex in _exercises) {
+      if (ex.transitionSeconds != null) {
+        totalTransitionTime += ex.transitionSeconds!;
+        transitions.add(ex.transitionSeconds!);
+      }
+      for (final s in ex.sets) {
+        if (s.actualDurationSeconds != null) {
+          tensionTime += s.actualDurationSeconds!;
+        }
+        if (s.actualRestSeconds != null) {
+          totalRestTime += s.actualRestSeconds!;
+        }
+      }
+    }
+
+    final avgTransition =
+        transitions.isNotEmpty ? transitions.reduce((a, b) => a + b) / transitions.length : 0.0;
+    final efficiency =
+        _workoutSeconds > 0 ? (tensionTime / _workoutSeconds) * 100 : 0.0;
+
+    return TimeStats(
+      totalDuration: _workoutSeconds,
+      tensionTime: tensionTime,
+      totalRestTime: totalRestTime,
+      totalTransitionTime: totalTransitionTime,
+      avgTransition: avgTransition,
+      efficiencyScore: efficiency,
+    );
+  }
+
   void _validateSet() {
     final exercise = _exercises[_currentExerciseIndex];
     final currentSet = exercise.sets[_currentSetIndex];
+
+    // Record set duration
+    if (_currentSetStartTime != null) {
+      currentSet.actualDurationSeconds =
+          DateTime.now().difference(_currentSetStartTime!).inSeconds;
+    }
+
+    // Record transition time (first set of a new exercise)
+    if (_currentSetIndex == 0 &&
+        _currentExerciseIndex > 0 &&
+        _lastExerciseEndTime != null) {
+      final transitionBrute =
+          DateTime.now().difference(_lastExerciseEndTime!).inSeconds;
+      // Subtract rest time that was taken between exercises
+      final prevEx = _exercises[_currentExerciseIndex - 1];
+      final lastSetRest = prevEx.sets.last.actualRestSeconds ?? 0;
+      exercise.transitionSeconds =
+          (transitionBrute - lastSetRest).clamp(0, 9999);
+    }
 
     // Calculate volume
     final setVolume = currentSet.actualWeight * currentSet.actualReps;
@@ -326,6 +494,12 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
     // Mark set as completed
     currentSet.isCompleted = true;
+
+    // Track if this is the last set of the exercise (for transition tracking)
+    final isLastSetOfExercise = _currentSetIndex >= exercise.sets.length - 1;
+    if (isLastSetOfExercise) {
+      _lastExerciseEndTime = DateTime.now();
+    }
 
     // Check progression suggestion
     final progressionMessage = ProgressionService.checkProgression(exercise, currentSet);
@@ -378,6 +552,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
     if (!mounted) return;
 
+    final timeStats = _buildTimeStats();
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -387,6 +563,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         duration: _workoutSeconds,
         totalVolume: _totalVolume,
         exerciseCount: _exercises.length,
+        timeStats: timeStats,
         onClose: () {
           Navigator.pop(context);
           Navigator.pop(context);
@@ -407,6 +584,10 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           'actualWeight': set.actualWeight,
           'actualReps': set.actualReps,
           'completed': set.isCompleted,
+          if (set.actualDurationSeconds != null)
+            'actualDurationSeconds': set.actualDurationSeconds,
+          if (set.actualRestSeconds != null)
+            'actualRestSeconds': set.actualRestSeconds,
         }).toList();
 
         return {
@@ -414,6 +595,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           'muscle': ex.muscle,
           'weightType': ex.weightType,
           'sets': setsData,
+          if (ex.transitionSeconds != null)
+            'transitionSeconds': ex.transitionSeconds,
         };
       }).toList();
 
@@ -1011,6 +1194,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             ),
           ),
 
+          // Estimated remaining time
+          ..._buildTimeEstimateRow(),
+
           // Next exercise
           if (nextExercise != null) ...[
             const SizedBox(height: Spacing.sm),
@@ -1086,6 +1272,73 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         ),
       ],
     );
+  }
+
+  /// Build the estimated remaining time row with transition alert
+  List<Widget> _buildTimeEstimateRow() {
+    final estimatedSeconds = _calculateEstimatedRemainingSeconds();
+
+    // Transition alert: first set of new exercise, lingering too long
+    bool isTransitionAlert = false;
+    if (_currentSetIndex == 0 &&
+        _currentExerciseIndex > 0 &&
+        _lastExerciseEndTime != null &&
+        !_isResting) {
+      final timeSinceEnd =
+          DateTime.now().difference(_lastExerciseEndTime!).inSeconds;
+      // Alert if exceeds rest + 90s
+      final prevEx = _exercises[_currentExerciseIndex - 1];
+      final expectedRest = prevEx.restSeconds;
+      if (timeSinceEnd > expectedRest + 90) {
+        isTransitionAlert = true;
+      }
+    }
+
+    // Format time
+    String timeStr;
+    if (estimatedSeconds < 60) {
+      timeStr = '< 1 min';
+    } else if (estimatedSeconds >= 3600) {
+      final h = estimatedSeconds ~/ 3600;
+      final m = (estimatedSeconds % 3600) ~/ 60;
+      timeStr = '~${h}h ${m.toString().padLeft(2, '0')} restantes';
+    } else {
+      final m = estimatedSeconds ~/ 60;
+      timeStr = '~$m min restantes';
+    }
+
+    // Color: green when < 5 min, orange on alert, otherwise secondary
+    Color timeColor;
+    if (isTransitionAlert) {
+      timeColor = FGColors.warning;
+    } else if (estimatedSeconds < 300) {
+      timeColor = FGColors.success;
+    } else {
+      timeColor = FGColors.textSecondary;
+    }
+
+    return [
+      const SizedBox(height: Spacing.sm),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (isTransitionAlert) ...[
+            Icon(Icons.bolt_rounded, size: 12, color: FGColors.warning),
+            const SizedBox(width: 2),
+          ],
+          Icon(Icons.schedule_rounded, size: 12, color: timeColor),
+          const SizedBox(width: Spacing.xs),
+          Text(
+            timeStr,
+            style: FGTypography.caption.copyWith(
+              color: timeColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    ];
   }
 
 
