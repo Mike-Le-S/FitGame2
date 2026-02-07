@@ -115,11 +115,7 @@ class _InputCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FGGlassCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.md,
-        vertical: Spacing.lg,
-      ),
+    return FGGlassCard.compact(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -133,15 +129,15 @@ class _InputCard extends StatelessWidget {
                   color: FGColors.textSecondary,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.5,
-                  fontSize: 11,
+                  fontSize: 10,
                 ),
               ),
               if (unit != null) ...[
                 const SizedBox(width: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
+                    horizontal: 5,
+                    vertical: 1,
                   ),
                   decoration: BoxDecoration(
                     color: FGColors.accent.withValues(alpha: 0.15),
@@ -152,7 +148,7 @@ class _InputCard extends StatelessWidget {
                     style: FGTypography.caption.copyWith(
                       color: FGColors.accent,
                       fontWeight: FontWeight.w700,
-                      fontSize: 10,
+                      fontSize: 9,
                     ),
                   ),
                 ),
@@ -160,7 +156,7 @@ class _InputCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: Spacing.md),
+          const SizedBox(height: Spacing.sm),
 
           // Value display - tappable with edit affordance
           GestureDetector(
@@ -169,7 +165,7 @@ class _InputCard extends StatelessWidget {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(
-                vertical: Spacing.sm,
+                vertical: 6,
                 horizontal: Spacing.sm,
               ),
               decoration: BoxDecoration(
@@ -186,17 +182,17 @@ class _InputCard extends StatelessWidget {
                     _formattedValue,
                     textAlign: TextAlign.center,
                     style: FGTypography.h1.copyWith(
-                      fontSize: 36,
+                      fontSize: 28,
                       fontWeight: FontWeight.w900,
                       fontStyle: FontStyle.italic,
                       color: FGColors.textPrimary,
                       height: 1,
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   Icon(
                     Icons.edit_rounded,
-                    size: 14,
+                    size: 12,
                     color: FGColors.accent.withValues(alpha: 0.5),
                   ),
                 ],
@@ -204,7 +200,7 @@ class _InputCard extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.md),
+          const SizedBox(height: Spacing.sm),
 
           // Increment/decrement buttons
           Row(
@@ -215,7 +211,7 @@ class _InputCard extends StatelessWidget {
                   onTap: onDecrease,
                 ),
               ),
-              const SizedBox(width: Spacing.sm),
+              const SizedBox(width: Spacing.xs),
               Expanded(
                 child: _StepperButton(
                   icon: Icons.add_rounded,
@@ -244,7 +240,7 @@ class _StepperButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 40,
+        height: 34,
         decoration: BoxDecoration(
           color: FGColors.glassSurface.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(Spacing.sm),

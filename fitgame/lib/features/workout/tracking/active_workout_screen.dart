@@ -998,7 +998,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     );
   }
 
-
   Widget _buildActiveView() {
     final exercise = _exercises[_currentExerciseIndex];
     final currentSet = exercise.sets[_currentSetIndex];
@@ -1007,9 +1006,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
       child: Column(
         children: [
-          const SizedBox(height: Spacing.md),
+          const SizedBox(height: Spacing.cardGap),
 
-          // Exercise navigation dots
+          // 1. Exercise navigation dots
           ExerciseNavigation(
             exercises: _exercises,
             currentIndex: _currentExerciseIndex,
@@ -1029,22 +1028,54 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               );
             },
           ),
-          const SizedBox(height: Spacing.sm),
+          const SizedBox(height: Spacing.cardGap),
 
-          // Main set card
-          SetCard(
-            currentSet: currentSet,
-            previousBest: exercise.previousBest,
-            isWarmup: currentSet.isWarmup,
+          // 2. Set progress timeline
+          SetIndicators(
+            exercise: exercise,
             currentSetIndex: _currentSetIndex,
-            weightType: exercise.weightType,
-            isMaxReps: currentSet.isMaxReps,
-            lastSessionSet: _getLastSessionSet(exercise.name, _currentSetIndex),
-            suggestedWeight: _getSuggestedWeight(exercise, _currentSetIndex),
+            onSetTap: (index) {
+              setState(() {
+                _currentSetIndex = index;
+              });
+            },
           ),
-          const SizedBox(height: Spacing.md),
+          const SizedBox(height: Spacing.cardGap),
 
-          // Weight and reps input
+          // 3. Inline notes/progression (tappable for full view)
+          if (exercise.notes.isNotEmpty || exercise.progressionRule.isNotEmpty) ...[
+            _buildInlineNotes(exercise),
+            const SizedBox(height: Spacing.cardGap),
+          ],
+
+          // 4. Target set card — takes available space
+          Expanded(
+            child: SetCard(
+              currentSet: currentSet,
+              previousBest: exercise.previousBest,
+              isWarmup: currentSet.isWarmup,
+              currentSetIndex: _currentSetIndex,
+              weightType: exercise.weightType,
+              isMaxReps: currentSet.isMaxReps,
+              lastSessionSet: _getLastSessionSet(exercise.name, _currentSetIndex),
+              suggestedWeight: _getSuggestedWeight(exercise, _currentSetIndex),
+            ),
+          ),
+          const SizedBox(height: Spacing.cardGap),
+
+          // 5. Last session comparison (all work sets)
+          if (_lastSessionSets[exercise.name]?.isNotEmpty == true) ...[
+            _buildLastSessionRow(exercise),
+            const SizedBox(height: Spacing.cardGap),
+          ],
+
+          // 6. Completed sets mini-log (this session)
+          if (exercise.sets.any((s) => s.isCompleted)) ...[
+            _buildCompletedSetsLog(exercise),
+            const SizedBox(height: Spacing.cardGap),
+          ],
+
+          // 7. Weight & reps input
           WeightRepsInput(
             currentSet: currentSet,
             weightType: exercise.weightType,
@@ -1075,30 +1106,224 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               );
             },
           ),
-          const SizedBox(height: Spacing.sm),
+          const SizedBox(height: Spacing.cardGap),
 
-          // Validate button
+          // 8. Validate button
           _buildValidateButton(),
-          const SizedBox(height: Spacing.sm),
+          const SizedBox(height: Spacing.cardGap),
 
-          // Sets progress
-          SetIndicators(
-            exercise: exercise,
-            currentSetIndex: _currentSetIndex,
-            onSetTap: (index) {
-              setState(() {
-                _currentSetIndex = index;
-              });
-            },
-          ),
-
-          const SizedBox(height: Spacing.sm),
-
-          // Session recap + next exercise
+          // 9. Session insights
           _buildSessionInsights(),
+          const SizedBox(height: Spacing.cardGap),
         ],
       ),
     );
+  }
+
+  /// Compact inline notes — tappable to open full notes sheet
+  Widget _buildInlineNotes(Exercise exercise) {
+    return GestureDetector(
+      onTap: () => _showNotesSheet(exercise),
+      child: FGGlassCard.standard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (exercise.notes.isNotEmpty)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.lightbulb_outline_rounded, color: FGColors.accent, size: 16),
+                  const SizedBox(width: Spacing.sm),
+                  Expanded(
+                    child: Text(
+                      exercise.notes,
+                      style: FGTypography.body.copyWith(
+                        color: FGColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            if (exercise.notes.isNotEmpty && exercise.progressionRule.isNotEmpty)
+              const SizedBox(height: Spacing.sm),
+            if (exercise.progressionRule.isNotEmpty)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.trending_up_rounded, color: FGColors.success, size: 16),
+                  const SizedBox(width: Spacing.sm),
+                  Expanded(
+                    child: Text(
+                      exercise.progressionRule,
+                      style: FGTypography.body.copyWith(
+                        color: FGColors.success.withValues(alpha: 0.8),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Last session performance — horizontal pills per work set
+  Widget _buildLastSessionRow(Exercise exercise) {
+    final lastSets = _lastSessionSets[exercise.name]!;
+    final workSets = lastSets
+        .where((s) => s['isWarmup'] != true && s['completed'] == true)
+        .toList();
+
+    if (workSets.isEmpty) return const SizedBox.shrink();
+
+    return FGGlassCard.compact(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.history_rounded, color: FGColors.textSecondary, size: 12),
+              const SizedBox(width: Spacing.xs),
+              Text(
+                'DERNIÈRE SÉANCE',
+                style: FGTypography.caption.copyWith(
+                  color: FGColors.textSecondary,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.xs),
+          Row(
+            children: List.generate(workSets.length, (index) {
+              final set = workSets[index];
+              final w = (set['actualWeight'] as num?)?.toDouble() ?? 0;
+              final r = (set['actualReps'] as num?)?.toInt() ?? 0;
+              return Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(
+                    right: index < workSets.length - 1 ? Spacing.xs : 0,
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    color: FGColors.glassSurface.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(Spacing.xs),
+                  ),
+                  child: Text(
+                    '${_fmtW(w)}×$r',
+                    textAlign: TextAlign.center,
+                    style: FGTypography.caption.copyWith(
+                      color: FGColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Completed sets log for current exercise this session
+  Widget _buildCompletedSetsLog(Exercise exercise) {
+    final completed = <int>[];
+    for (int i = 0; i < exercise.sets.length; i++) {
+      if (exercise.sets[i].isCompleted) {
+        completed.add(i);
+      }
+    }
+    if (completed.isEmpty) return const SizedBox.shrink();
+
+    return FGGlassCard.compact(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.check_circle_outline_rounded, color: FGColors.success, size: 12),
+              const SizedBox(width: Spacing.xs),
+              Text(
+                'CETTE SÉANCE',
+                style: FGTypography.caption.copyWith(
+                  color: FGColors.success,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.xs),
+          ...completed.map((i) {
+            final s = exercise.sets[i];
+            final label = s.isWarmup
+                ? 'Ech.'
+                : 'S.${_workSetNumber(exercise, i)}';
+            final weightStr = exercise.weightType == 'bodyweight'
+                ? 'PDC'
+                : exercise.weightType == 'bodyweight_plus'
+                    ? 'PDC +${_fmtW(s.actualWeight)}kg'
+                    : '${_fmtW(s.actualWeight)}kg';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 32,
+                    child: Text(
+                      label,
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.check_rounded, color: FGColors.success, size: 12),
+                  const SizedBox(width: Spacing.xs),
+                  Text(
+                    '$weightStr × ${s.actualReps}',
+                    style: FGTypography.caption.copyWith(
+                      color: FGColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// Format weight for compact display
+  String _fmtW(double v) {
+    if (v == v.toInt().toDouble()) return v.toInt().toString();
+    if (v == double.parse(v.toStringAsFixed(1))) return v.toStringAsFixed(1);
+    return v.toStringAsFixed(2);
+  }
+
+  /// Get work-set number (1-based, excluding warmups)
+  int _workSetNumber(Exercise exercise, int setIndex) {
+    int n = 0;
+    for (int i = 0; i <= setIndex; i++) {
+      if (!exercise.sets[i].isWarmup) n++;
+    }
+    return n;
   }
 
   Widget _buildSessionInsights() {
@@ -1134,12 +1359,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     // Progress ratio for the bar
     final progress = totalSets > 0 ? completedSets / totalSets : 0.0;
 
-    return FGGlassCard(
-      padding: const EdgeInsets.all(Spacing.md),
+    return FGGlassCard.compact(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Stats row: 3 columns
+          // Stats row + progress bar + time estimate in one compact block
           Row(
             children: [
               // Volume
@@ -1150,12 +1374,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                   FGColors.accent,
                 ),
               ),
-              // Divider
-              Container(
-                width: 1,
-                height: 32,
-                color: FGColors.glassBorder,
-              ),
+              Container(width: 1, height: 28, color: FGColors.glassBorder),
               // Sets
               Expanded(
                 child: _buildStatColumn(
@@ -1164,12 +1383,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                   FGColors.textPrimary,
                 ),
               ),
-              // Divider
-              Container(
-                width: 1,
-                height: 32,
-                color: FGColors.glassBorder,
-              ),
+              Container(width: 1, height: 28, color: FGColors.glassBorder),
               // Exercises remaining
               Expanded(
                 child: _buildStatColumn(
@@ -1181,7 +1395,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             ],
           ),
 
-          const SizedBox(height: Spacing.sm),
+          const SizedBox(height: Spacing.xs),
 
           // Progress bar
           ClipRRect(
@@ -1201,22 +1415,22 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
           // Next exercise
           if (nextExercise != null) ...[
-            const SizedBox(height: Spacing.sm),
+            const SizedBox(height: Spacing.xs),
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
                     color: FGColors.accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Icon(
                     Icons.skip_next_rounded,
-                    size: 12,
+                    size: 11,
                     color: FGColors.accent,
                   ),
                 ),
-                const SizedBox(width: Spacing.sm),
+                const SizedBox(width: Spacing.xs),
                 Expanded(
                   child: Text.rich(
                     TextSpan(
@@ -1225,7 +1439,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                           text: nextExercise.name,
                           style: FGTypography.caption.copyWith(
                             fontWeight: FontWeight.w600,
-                            fontSize: 11,
+                            fontSize: 10,
                           ),
                         ),
                         TextSpan(
@@ -1233,7 +1447,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                           style: FGTypography.caption.copyWith(
                             color: FGColors.textSecondary,
                             fontWeight: FontWeight.w500,
-                            fontSize: 11,
+                            fontSize: 10,
                           ),
                         ),
                       ],
@@ -1258,11 +1472,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           value,
           style: FGTypography.body.copyWith(
             fontWeight: FontWeight.w800,
-            fontSize: 16,
+            fontSize: 14,
             color: valueColor,
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 1),
         Text(
           label,
           style: FGTypography.caption.copyWith(
@@ -1320,22 +1534,22 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     }
 
     return [
-      const SizedBox(height: Spacing.sm),
+      const SizedBox(height: Spacing.xs),
       Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (isTransitionAlert) ...[
-            Icon(Icons.bolt_rounded, size: 12, color: FGColors.warning),
+            Icon(Icons.bolt_rounded, size: 11, color: FGColors.warning),
             const SizedBox(width: 2),
           ],
-          Icon(Icons.schedule_rounded, size: 12, color: timeColor),
+          Icon(Icons.schedule_rounded, size: 11, color: timeColor),
           const SizedBox(width: Spacing.xs),
           Text(
             timeStr,
             style: FGTypography.caption.copyWith(
               color: timeColor,
               fontWeight: FontWeight.w600,
-              fontSize: 11,
+              fontSize: 10,
             ),
           ),
         ],
@@ -1500,7 +1714,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             onTap: _validateSet,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: Spacing.lg),
+              padding: const EdgeInsets.symmetric(vertical: 18),
               decoration: BoxDecoration(
                 color: FGColors.accent,
                 borderRadius: BorderRadius.circular(Spacing.lg),

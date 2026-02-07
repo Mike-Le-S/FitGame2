@@ -13,6 +13,30 @@ class FGGlassCard extends StatelessWidget {
     this.onTap,
   });
 
+  /// Compact preset: 8px padding (logs, history, small info)
+  const FGGlassCard.compact({
+    super.key,
+    required this.child,
+    this.borderRadius = 24.0,
+    this.onTap,
+  }) : padding = const EdgeInsets.all(Spacing.sm);
+
+  /// Standard preset: 16px padding (notes, secondary content)
+  const FGGlassCard.standard({
+    super.key,
+    required this.child,
+    this.borderRadius = 24.0,
+    this.onTap,
+  }) : padding = const EdgeInsets.all(Spacing.md);
+
+  /// Spacious preset: vertical 16px, horizontal 0 (main content cards in parent-padded layouts)
+  const FGGlassCard.spacious({
+    super.key,
+    required this.child,
+    this.borderRadius = 24.0,
+    this.onTap,
+  }) : padding = const EdgeInsets.symmetric(vertical: Spacing.md);
+
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final double borderRadius;

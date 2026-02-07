@@ -36,9 +36,9 @@ class SetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FGGlassCard(
-      padding: const EdgeInsets.all(Spacing.xl),
+    return FGGlassCard.spacious(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Set indicator
           Row(
@@ -48,7 +48,7 @@ class SetCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: Spacing.sm,
-                    vertical: Spacing.xs,
+                    vertical: 2,
                   ),
                   decoration: BoxDecoration(
                     color: FGColors.warning.withValues(alpha: 0.2),
@@ -60,7 +60,7 @@ class SetCard extends StatelessWidget {
                       Icon(
                         Icons.whatshot_rounded,
                         color: FGColors.warning,
-                        size: 14,
+                        size: 12,
                       ),
                       const SizedBox(width: Spacing.xs),
                       Text(
@@ -69,7 +69,7 @@ class SetCard extends StatelessWidget {
                           color: FGColors.warning,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1,
-                          fontSize: 10,
+                          fontSize: 9,
                         ),
                       ),
                     ],
@@ -82,12 +82,13 @@ class SetCard extends StatelessWidget {
                     color: FGColors.textSecondary,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 2,
+                    fontSize: 10,
                   ),
                 ),
             ],
           ),
 
-          const SizedBox(height: Spacing.lg),
+          const SizedBox(height: Spacing.sm),
 
           // Target display
           Row(
@@ -105,7 +106,7 @@ class SetCard extends StatelessWidget {
                             : _formatWeight(currentSet.targetWeight),
                     style: FGTypography.display.copyWith(
                       color: FGColors.accent,
-                      fontSize: weightType == 'bodyweight' ? 40 : 56,
+                      fontSize: weightType == 'bodyweight' ? 42 : 56,
                     ),
                   ),
                   Text(
@@ -117,6 +118,7 @@ class SetCard extends StatelessWidget {
                     style: FGTypography.caption.copyWith(
                       color: FGColors.textSecondary,
                       fontWeight: FontWeight.w600,
+                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -138,7 +140,7 @@ class SetCard extends StatelessWidget {
                   Text(
                     isMaxReps ? 'MAX' : '${currentSet.targetReps}',
                     style: FGTypography.display.copyWith(
-                      fontSize: isMaxReps ? 40 : 56,
+                      fontSize: isMaxReps ? 42 : 56,
                     ),
                   ),
                   Text(
@@ -146,6 +148,7 @@ class SetCard extends StatelessWidget {
                     style: FGTypography.caption.copyWith(
                       color: FGColors.textSecondary,
                       fontWeight: FontWeight.w600,
+                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -155,13 +158,13 @@ class SetCard extends StatelessWidget {
 
           // Last session info + suggestion
           if (!isWarmup) ...[
-            const SizedBox(height: Spacing.md),
+            const SizedBox(height: Spacing.sm),
             if (lastSessionSet != null)
               _buildLastSessionInfo()
             else if (previousBest > 0)
               _buildPreviousBest(),
             if (suggestedWeight != null) ...[
-              const SizedBox(height: Spacing.sm),
+              const SizedBox(height: 4),
               _buildSuggestion(),
             ],
           ],

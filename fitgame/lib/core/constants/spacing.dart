@@ -6,4 +6,7 @@ abstract class Spacing {
   static const double lg = 24;
   static const double xl = 32;
   static const double xxl = 48;
+
+  /// Semantic spacing: gap between cards in a vertical list
+  static const double cardGap = sm; // 8px
 }
