@@ -9,6 +9,7 @@ class WorkoutCompleteSheet extends StatelessWidget {
   final int duration;
   final double totalVolume;
   final int exerciseCount;
+  final int totalSets;
   final TimeStats? timeStats;
   final VoidCallback onClose;
 
@@ -17,6 +18,7 @@ class WorkoutCompleteSheet extends StatelessWidget {
     required this.duration,
     required this.totalVolume,
     required this.exerciseCount,
+    this.totalSets = 0,
     this.timeStats,
     required this.onClose,
   });
@@ -31,74 +33,94 @@ class WorkoutCompleteSheet extends StatelessWidget {
       ),
       child: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(Spacing.xl),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.lg,
+            vertical: Spacing.xl,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Trophy icon
-              Container(
-                padding: const EdgeInsets.all(Spacing.lg),
-                decoration: BoxDecoration(
-                  color: FGColors.success.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.emoji_events_rounded,
-                  color: FGColors.success,
-                  size: 48,
-                ),
-              ),
-
-              const SizedBox(height: Spacing.md),
-
-              Text(
-                'SÉANCE TERMINÉE !',
-                style: FGTypography.h1.copyWith(
-                  color: FGColors.success,
-                ),
+              // Header: trophy + title in a row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(Spacing.md),
+                    decoration: BoxDecoration(
+                      color: FGColors.success.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.emoji_events_rounded,
+                      color: FGColors.success,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: Spacing.md),
+                  Text(
+                    'SÉANCE\nTERMINÉE !',
+                    style: FGTypography.h2.copyWith(
+                      color: FGColors.success,
+                      fontWeight: FontWeight.w900,
+                      fontStyle: FontStyle.italic,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
               ),
 
               const SizedBox(height: Spacing.lg),
 
-              // Stats row
+              // Main stats: 2×2 grid
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildCompleteStat(
-                    icon: Icons.timer_outlined,
-                    value: _formatDuration(duration),
-                    label: 'Durée',
-                  ),
-                  _buildCompleteStat(
-                    icon: Icons.fitness_center_rounded,
-                    value: '${(totalVolume / 1000).toStringAsFixed(1)}t',
-                    label: 'Volume',
-                  ),
-                  _buildCompleteStat(
-                    icon: Icons.local_fire_department_rounded,
-                    value: '${(totalVolume * 0.05).toInt()}',
-                    label: 'Kcal',
-                  ),
+                  Expanded(child: _buildStatCard(
+                    Icons.timer_outlined,
+                    _formatDuration(duration),
+                    'Durée',
+                  )),
+                  const SizedBox(width: Spacing.sm),
+                  Expanded(child: _buildStatCard(
+                    Icons.fitness_center_rounded,
+                    _formatVolume(totalVolume),
+                    'Volume',
+                  )),
+                ],
+              ),
+              const SizedBox(height: Spacing.sm),
+              Row(
+                children: [
+                  Expanded(child: _buildStatCard(
+                    Icons.repeat_rounded,
+                    '$totalSets',
+                    totalSets == 1 ? 'Série' : 'Séries',
+                  )),
+                  const SizedBox(width: Spacing.sm),
+                  Expanded(child: _buildStatCard(
+                    Icons.local_fire_department_rounded,
+                    '${(totalVolume * 0.05).toInt()}',
+                    'Kcal',
+                  )),
                 ],
               ),
 
               // Time breakdown section
               if (timeStats != null && timeStats!.tensionTime > 0) ...[
-                const SizedBox(height: Spacing.lg),
+                const SizedBox(height: Spacing.md),
                 _buildTimeBreakdown(timeStats!),
               ],
 
-              const SizedBox(height: Spacing.xl),
+              const SizedBox(height: Spacing.lg),
 
               // Close button
               GestureDetector(
                 onTap: onClose,
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: Spacing.lg),
+                  padding: const EdgeInsets.symmetric(vertical: Spacing.md),
                   decoration: BoxDecoration(
                     color: FGColors.accent,
-                    borderRadius: BorderRadius.circular(Spacing.lg),
+                    borderRadius: BorderRadius.circular(Spacing.md),
                     boxShadow: FGEffects.neonGlow,
                   ),
                   child: Center(
@@ -115,6 +137,42 @@ class WorkoutCompleteSheet extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard(IconData icon, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        vertical: Spacing.md,
+        horizontal: Spacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: FGColors.glassSurface.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(Spacing.md),
+        border: Border.all(color: FGColors.glassBorder),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: FGColors.textSecondary, size: 18),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: FGTypography.h3.copyWith(
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              fontSize: 22,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: FGTypography.caption.copyWith(
+              color: FGColors.textSecondary,
+              fontSize: 11,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -146,14 +204,43 @@ class WorkoutCompleteSheet extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'RÉPARTITION DU TEMPS',
-            style: FGTypography.caption.copyWith(
-              color: FGColors.textSecondary,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
-              fontSize: 10,
-            ),
+          // Header row: title + efficiency badge
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'RÉPARTITION DU TEMPS',
+                style: FGTypography.caption.copyWith(
+                  color: FGColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                  fontSize: 10,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: effColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: effColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.bolt_rounded, size: 12, color: effColor),
+                    const SizedBox(width: 2),
+                    Text(
+                      '${stats.efficiencyScore.round()}%',
+                      style: FGTypography.caption.copyWith(
+                        color: effColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: Spacing.md),
@@ -169,10 +256,13 @@ class WorkoutCompleteSheet extends StatelessWidget {
                     flex: (exercisePct * 100).round().clamp(1, 100),
                     child: Container(color: FGColors.accent),
                   ),
-                  Expanded(
-                    flex: (restPct * 100).round().clamp(1, 100),
-                    child: Container(color: FGColors.glassBorder),
-                  ),
+                  if (restPct > 0)
+                    Expanded(
+                      flex: (restPct * 100).round().clamp(1, 100),
+                      child: Container(
+                        color: FGColors.textSecondary.withValues(alpha: 0.4),
+                      ),
+                    ),
                   if (transitionPct > 0)
                     Expanded(
                       flex: (transitionPct * 100).round().clamp(1, 100),
@@ -185,91 +275,43 @@ class WorkoutCompleteSheet extends StatelessWidget {
 
           const SizedBox(height: Spacing.sm),
 
-          // Legend
-          Row(
-            children: [
-              _buildLegendDot(FGColors.accent),
-              const SizedBox(width: 4),
-              Text('Exercice', style: _legendStyle),
-              const SizedBox(width: Spacing.md),
-              _buildLegendDot(FGColors.glassBorder),
-              const SizedBox(width: 4),
-              Text('Repos', style: _legendStyle),
-              if (stats.totalTransitionTime > 0) ...[
-                const SizedBox(width: Spacing.md),
-                _buildLegendDot(FGColors.warning),
-                const SizedBox(width: 4),
-                Text('Transit', style: _legendStyle),
-              ],
-            ],
+          // Legend + detail rows combined
+          _buildTimeDetailRow(
+            FGColors.accent,
+            'Sous tension',
+            _formatDuration(stats.tensionTime),
           ),
-
-          const SizedBox(height: Spacing.md),
-
-          // Detail rows
-          _buildTimeRow('Sous tension', _formatDuration(stats.tensionTime)),
-          const SizedBox(height: 6),
-          _buildTimeRow('Repos total', _formatDuration(stats.totalRestTime)),
+          const SizedBox(height: 4),
+          _buildTimeDetailRow(
+            FGColors.textSecondary.withValues(alpha: 0.4),
+            'Repos',
+            _formatDuration(stats.totalRestTime),
+          ),
           if (stats.totalTransitionTime > 0) ...[
-            const SizedBox(height: 6),
-            _buildTimeRow(
+            const SizedBox(height: 4),
+            _buildTimeDetailRow(
+              FGColors.warning,
               'Transitions',
               '${_formatDuration(stats.totalTransitionTime)} (moy ${stats.avgTransition.round()}s)',
             ),
           ],
-
-          const SizedBox(height: Spacing.md),
-
-          // Efficiency score
-          Row(
-            children: [
-              Icon(Icons.bolt_rounded, size: 14, color: effColor),
-              const SizedBox(width: 4),
-              Text(
-                'Efficacité : ${stats.efficiencyScore.round()}%',
-                style: FGTypography.caption.copyWith(
-                  color: effColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: Spacing.sm),
-              Expanded(
-                child: Text(
-                  'temps sous tension / total',
-                  style: FGTypography.caption.copyWith(
-                    color: FGColors.textSecondary,
-                    fontSize: 9,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildLegendDot(Color color) {
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(2),
-      ),
-    );
-  }
-
-  TextStyle get _legendStyle => FGTypography.caption.copyWith(
-        color: FGColors.textSecondary,
-        fontSize: 10,
-      );
-
-  Widget _buildTimeRow(String label, String value) {
+  Widget _buildTimeDetailRow(Color dotColor, String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: dotColor,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: Spacing.sm),
         Text(
           label,
           style: FGTypography.caption.copyWith(
@@ -277,6 +319,7 @@ class WorkoutCompleteSheet extends StatelessWidget {
             fontSize: 11,
           ),
         ),
+        const Spacer(),
         Text(
           value,
           style: FGTypography.caption.copyWith(
@@ -288,34 +331,11 @@ class WorkoutCompleteSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildCompleteStat({
-    required IconData icon,
-    required String value,
-    required String label,
-  }) {
-    return Column(
-      children: [
-        Icon(
-          icon,
-          color: FGColors.textSecondary,
-          size: 24,
-        ),
-        const SizedBox(height: Spacing.sm),
-        Text(
-          value,
-          style: FGTypography.h2.copyWith(
-            fontWeight: FontWeight.w900,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-        Text(
-          label,
-          style: FGTypography.caption.copyWith(
-            color: FGColors.textSecondary,
-          ),
-        ),
-      ],
-    );
+  String _formatVolume(double volume) {
+    if (volume >= 1000) {
+      return '${(volume / 1000).toStringAsFixed(1)}t';
+    }
+    return '${volume.toInt()}kg';
   }
 
   String _formatDuration(int seconds) {
@@ -324,7 +344,7 @@ class WorkoutCompleteSheet extends StatelessWidget {
     final secs = seconds % 60;
 
     if (hours > 0) {
-      return '${hours}h ${minutes.toString().padLeft(2, '0')}';
+      return '${hours}h ${minutes.toString().padLeft(2, '0')}min';
     }
     if (minutes > 0) {
       return '${minutes}min ${secs.toString().padLeft(2, '0')}s';

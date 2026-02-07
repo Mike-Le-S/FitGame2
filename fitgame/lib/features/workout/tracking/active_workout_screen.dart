@@ -563,6 +563,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         duration: _workoutSeconds,
         totalVolume: _totalVolume,
         exerciseCount: _exercises.length,
+        totalSets: _exercises.fold<int>(
+          0, (sum, ex) => sum + ex.sets.where((s) => s.isCompleted && !s.isWarmup).length),
         timeStats: timeStats,
         onClose: () {
           Navigator.pop(context);
