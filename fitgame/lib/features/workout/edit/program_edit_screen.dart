@@ -6,6 +6,7 @@ import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/fg_glass_card.dart';
+import '../create/sheets/exercise_config_sheet.dart';
 
 /// Écran d'édition d'un programme d'entraînement
 class ProgramEditScreen extends StatefulWidget {
@@ -497,7 +498,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
                               ),
                             ),
                             Text(
-                              ex['sets'] as String,
+                              ex['sets'].toString(),
                               style: FGTypography.caption.copyWith(
                                 color: FGColors.textSecondary,
                                 fontWeight: FontWeight.w500,
@@ -627,17 +628,261 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
     );
   }
 
-  void _editSession(int index) {
+  void _editSession(int sessionIndex) {
     HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Édition de ${_sessions[index]['name']}'),
-        backgroundColor: FGColors.glassSurface,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
+    final session = _sessions[sessionIndex];
+    final exercises = List<Map<String, dynamic>>.from(
+      (session['exercises'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+    );
+    final nameController = TextEditingController(text: session['name'] as String);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Container(
+              height: MediaQuery.of(ctx).size.height * 0.85,
+              decoration: BoxDecoration(
+                color: FGColors.background,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: FGColors.glassBorder),
+              ),
+              child: Column(
+                children: [
+                  // Handle
+                  Padding(
+                    padding: const EdgeInsets.only(top: Spacing.md),
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: FGColors.glassBorder,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.all(Spacing.lg),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: nameController,
+                            style: FGTypography.h3,
+                            decoration: InputDecoration(
+                              hintText: 'Nom de la séance',
+                              hintStyle: FGTypography.h3.copyWith(
+                                color: FGColors.textSecondary.withValues(alpha: 0.5),
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${exercises.length} exo${exercises.length > 1 ? 's' : ''}',
+                          style: FGTypography.caption.copyWith(color: FGColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: FGColors.glassBorder, height: 1),
+                  // Exercise list
+                  Expanded(
+                    child: exercises.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Aucun exercice',
+                              style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+                            ),
+                          )
+                        : ReorderableListView.builder(
+                            padding: const EdgeInsets.all(Spacing.md),
+                            itemCount: exercises.length,
+                            onReorder: (oldIdx, newIdx) {
+                              setSheetState(() {
+                                if (newIdx > oldIdx) newIdx--;
+                                final item = exercises.removeAt(oldIdx);
+                                exercises.insert(newIdx, item);
+                              });
+                            },
+                            itemBuilder: (ctx, i) {
+                              final ex = exercises[i];
+                              final customSets = ex['customSets'] as List?;
+                              String detail;
+                              if (customSets != null && customSets.isNotEmpty) {
+                                final weights = customSets
+                                    .where((s) => s['isWarmup'] != true)
+                                    .map((s) => (s['weight'] as num?)?.toDouble() ?? 0);
+                                if (weights.isNotEmpty && weights.first > 0) {
+                                  detail = '${customSets.length}\u00d7 ${weights.reduce((a, b) => a < b ? a : b).toInt()}\u2192${weights.reduce((a, b) => a > b ? a : b).toInt()}kg';
+                                } else {
+                                  detail = '${customSets.length} s\u00e9ries';
+                                }
+                              } else {
+                                detail = '${ex['sets'] ?? 3}\u00d7${ex['reps'] ?? 10}';
+                              }
+
+                              return Padding(
+                                key: ValueKey('edit_ex_$i'),
+                                padding: const EdgeInsets.only(bottom: Spacing.sm),
+                                child: FGGlassCard(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: Spacing.md, vertical: Spacing.sm,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      ReorderableDragStartListener(
+                                        index: i,
+                                        child: Icon(Icons.drag_indicator_rounded,
+                                            color: FGColors.textSecondary, size: 20),
+                                      ),
+                                      const SizedBox(width: Spacing.sm),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              ex['name'] as String? ?? '',
+                                              style: FGTypography.body.copyWith(fontWeight: FontWeight.w600),
+                                              maxLines: 1, overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Row(
+                                              children: [
+                                                Text(detail,
+                                                  style: FGTypography.caption.copyWith(
+                                                    color: FGColors.accent, fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                if (ex['notes'] != null && (ex['notes'] as String).isNotEmpty) ...[
+                                                  const SizedBox(width: Spacing.xs),
+                                                  Icon(Icons.sticky_note_2_outlined,
+                                                      size: 12, color: FGColors.textSecondary),
+                                                ],
+                                                if (ex['weightType'] == 'bodyweight') ...[
+                                                  const SizedBox(width: Spacing.xs),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                    decoration: BoxDecoration(
+                                                      color: FGColors.success.withValues(alpha: 0.15),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text('PDC', style: FGTypography.caption.copyWith(
+                                                      color: FGColors.success, fontSize: 9, fontWeight: FontWeight.w700,
+                                                    )),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Config button
+                                      GestureDetector(
+                                        onTap: () {
+                                          HapticFeedback.lightImpact();
+                                          showExerciseConfigSheet(
+                                            ctx,
+                                            exercise: ex,
+                                            onSave: (config) {
+                                              setSheetState(() {
+                                                ex['mode'] = config['mode'];
+                                                ex['warmupEnabled'] = config['warmup'];
+                                                ex['sets'] = config['sets'];
+                                                ex['reps'] = config['reps'];
+                                                ex['customSets'] = config['customSets'];
+                                                ex['weightType'] = config['weightType'];
+                                                ex['restSeconds'] = config['restSeconds'];
+                                                ex['notes'] = config['notes'];
+                                                ex['progressionRule'] = config['progressionRule'];
+                                                if (config['progression'] != null) {
+                                                  ex['progression'] = config['progression'];
+                                                }
+                                              });
+                                            },
+                                          );
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(Spacing.sm),
+                                          decoration: BoxDecoration(
+                                            color: FGColors.accent.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(Spacing.sm),
+                                          ),
+                                          child: Icon(Icons.tune_rounded, color: FGColors.accent, size: 18),
+                                        ),
+                                      ),
+                                      const SizedBox(width: Spacing.sm),
+                                      // Delete button
+                                      GestureDetector(
+                                        onTap: () {
+                                          HapticFeedback.lightImpact();
+                                          setSheetState(() => exercises.removeAt(i));
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(Spacing.sm),
+                                          decoration: BoxDecoration(
+                                            color: FGColors.error.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(Spacing.sm),
+                                          ),
+                                          child: Icon(Icons.close_rounded, color: FGColors.error, size: 18),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  // Save button
+                  Container(
+                    padding: const EdgeInsets.all(Spacing.lg),
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.heavyImpact();
+                        // Apply changes back to parent state
+                        setState(() {
+                          _sessions[sessionIndex]['name'] = nameController.text;
+                          _sessions[sessionIndex]['exercises'] = exercises;
+                          _sessions[sessionIndex]['muscles'] = _extractMuscles(exercises);
+                          _hasChanges = true;
+                        });
+                        Navigator.pop(ctx);
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: Spacing.lg),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [FGColors.accent, FGColors.accent.withValues(alpha: 0.8)],
+                          ),
+                          borderRadius: BorderRadius.circular(Spacing.md),
+                          boxShadow: [
+                            BoxShadow(
+                              color: FGColors.accent.withValues(alpha: 0.4),
+                              blurRadius: 16,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text('Valider les modifications',
+                            style: FGTypography.body.copyWith(
+                              fontWeight: FontWeight.w700, color: FGColors.textOnAccent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -715,12 +960,15 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
               'mode': ex['mode'] ?? 'classic',
               'warmupEnabled': ex['warmupEnabled'] ?? false,
             };
-            // Parse sets from label for backward compat
-            final setsLabel = ex['sets'] as String;
-            if (setsLabel.contains('x')) {
-              final parts = setsLabel.split('x');
+            // Parse sets/reps from label or raw values
+            final setsValue = ex['sets'];
+            if (setsValue is String && setsValue.contains('x')) {
+              final parts = setsValue.split('x');
               data['sets'] = int.tryParse(parts[0]) ?? 3;
               data['reps'] = int.tryParse(parts.length > 1 ? parts[1] : '10') ?? 10;
+            } else {
+              data['sets'] = setsValue is int ? setsValue : (ex['customSets'] as List?)?.length ?? 3;
+              data['reps'] = ex['reps'] is int ? ex['reps'] : 10;
             }
             // Preserve new fields
             if (ex['customSets'] != null) data['customSets'] = ex['customSets'];

@@ -52,12 +52,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   // Realtime listener reference
   void Function(Map<String, dynamic>)? _assignmentListener;
 
-  // Week stats
-  int weekSessions = 0;
-  int weekTarget = 5;
-  double weekVolume = 0.0;
-  int weekTime = 0;
-
   List<Map<String, dynamic>> recentSessions = [];
 
   List<Map<String, dynamic>> get savedPrograms {
@@ -267,9 +261,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
 
     final List<Map<String, dynamic>> processed = [];
-    double totalVolume = 0;
-    int totalTime = 0;
-    int sessionsThisWeek = 0;
 
     for (final session in sessions) {
       final completedAt = session['completed_at'] != null
@@ -286,11 +277,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       final volume = (session['total_volume_kg'] as num?)?.toDouble() ?? 0;
       final duration = (session['duration_minutes'] as num?)?.toInt() ?? 0;
 
-      if (isThisWeek) {
-        sessionsThisWeek++;
-        totalVolume += volume;
-        totalTime += duration;
-      }
+      if (!isThisWeek) continue;
 
       // Format date
       String dateStr;
@@ -326,9 +313,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     }
 
     recentSessions = processed;
-    weekSessions = sessionsThisWeek;
-    weekVolume = totalVolume / 1000; // Convert to tonnes
-    weekTime = totalTime;
   }
 
   @override
@@ -484,32 +468,25 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       children: [
         _buildHeader(),
         Expanded(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: Spacing.lg),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: Spacing.lg),
 
-                  // === HERO: NEXT SESSION ===
-                  _buildHeroCard(),
-                  const SizedBox(height: Spacing.lg),
+                // === HERO: NEXT SESSION ===
+                _buildHeroCard(),
+                const SizedBox(height: Spacing.lg),
 
-                  // === WEEK STATS ===
-                  _buildWeekStats(),
-                  const SizedBox(height: Spacing.xl),
+                // === RECENT SESSIONS ===
+                Expanded(child: _buildRecentSessions()),
+                const SizedBox(height: Spacing.md),
 
-                  // === RECENT SESSIONS ===
-                  _buildRecentSessions(),
-                  const SizedBox(height: Spacing.xl),
-
-                  // === QUICK ACTIONS ===
-                  _buildQuickActions(),
-                  const SizedBox(height: Spacing.xl),
-                ],
-              ),
+                // === QUICK ACTIONS ===
+                _buildQuickActions(),
+                const SizedBox(height: Spacing.md),
+              ],
             ),
           ),
         ),
@@ -745,109 +722,6 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     );
   }
 
-  Widget _buildWeekStats() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            value: '$weekSessions/$weekTarget',
-            label: 'SÉANCES',
-            icon: Icons.event_available,
-            progress: weekSessions / weekTarget,
-          ),
-        ),
-        const SizedBox(width: Spacing.sm),
-        Expanded(
-          child: _buildStatCard(
-            value: '${weekVolume.toStringAsFixed(1)}t',
-            label: 'VOLUME',
-            icon: Icons.fitness_center,
-            progress: 0.75,
-            isHighlight: true,
-          ),
-        ),
-        const SizedBox(width: Spacing.sm),
-        Expanded(
-          child: _buildStatCard(
-            value: '${(weekTime / 60).floor()}h${weekTime % 60}',
-            label: 'TEMPS',
-            icon: Icons.timer,
-            progress: 0.6,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard({
-    required String value,
-    required String label,
-    required IconData icon,
-    required double progress,
-    bool isHighlight = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(Spacing.md),
-      decoration: BoxDecoration(
-        color: isHighlight
-          ? FGColors.accent.withValues(alpha: 0.1)
-          : FGColors.glassSurface.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(Spacing.md),
-        border: Border.all(
-          color: isHighlight
-            ? FGColors.accent.withValues(alpha: 0.3)
-            : FGColors.glassBorder,
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            icon,
-            size: 18,
-            color: isHighlight ? FGColors.accent : FGColors.textSecondary,
-          ),
-          const SizedBox(height: Spacing.xs),
-          Text(
-            value,
-            style: FGTypography.h3.copyWith(
-              fontWeight: FontWeight.w900,
-              fontStyle: FontStyle.italic,
-              fontSize: 18,
-              color: isHighlight ? FGColors.accent : FGColors.textPrimary,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: FGTypography.caption.copyWith(
-              fontSize: 9,
-              letterSpacing: 1,
-              fontWeight: FontWeight.w600,
-              color: FGColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: Spacing.sm),
-          // Mini progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: SizedBox(
-              height: 3,
-              child: LinearProgressIndicator(
-                value: progress.clamp(0.0, 1.0),
-                backgroundColor: FGColors.glassBorder,
-                valueColor: AlwaysStoppedAnimation(
-                  isHighlight ? FGColors.accent : FGColors.success,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildRecentSessions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -914,22 +788,29 @@ class _WorkoutScreenState extends State<WorkoutScreen>
             ),
           )
         else
-          ...recentSessions.asMap().entries.map((entry) {
-            return TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.0, end: 1.0),
-              duration: Duration(milliseconds: 400 + entry.key * 100),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, child) {
-                return Transform.translate(
-                  offset: Offset(0, 20 * (1 - value)),
-                  child: Opacity(
-                    opacity: value,
-                    child: _buildRecentSessionCard(entry.value),
-                  ),
+          Expanded(
+            child: ListView.builder(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: recentSessions.length,
+              itemBuilder: (context, index) {
+                return TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: Duration(milliseconds: 400 + index * 100),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return Transform.translate(
+                      offset: Offset(0, 20 * (1 - value)),
+                      child: Opacity(
+                        opacity: value,
+                        child: _buildRecentSessionCard(recentSessions[index]),
+                      ),
+                    );
+                  },
                 );
               },
-            );
-          }),
+            ),
+          ),
       ],
     );
   }

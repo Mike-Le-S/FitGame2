@@ -41,15 +41,22 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
   int _repThreshold = 8;
   double _weightIncrement = 2.5;
 
+  static int _toInt(dynamic val, int fallback) {
+    if (val is int) return val;
+    if (val is num) return val.toInt();
+    if (val is String) return int.tryParse(val) ?? fallback;
+    return fallback;
+  }
+
   @override
   void initState() {
     super.initState();
     _selectedMode = widget.exercise['mode'] ?? 'classic';
     _warmupEnabled = widget.exercise['warmup'] ?? widget.exercise['warmupEnabled'] ?? false;
-    _sets = widget.exercise['sets'] ?? 3;
-    _reps = widget.exercise['reps'] ?? 10;
+    _sets = _toInt(widget.exercise['sets'], 3);
+    _reps = _toInt(widget.exercise['reps'], 10);
     _weightType = widget.exercise['weightType'] ?? 'kg';
-    _restSeconds = widget.exercise['restSeconds'] ?? 90;
+    _restSeconds = _toInt(widget.exercise['restSeconds'], 90);
 
     _notesController = TextEditingController(text: widget.exercise['notes'] ?? '');
     _progressionController = TextEditingController(text: widget.exercise['progressionRule'] ?? '');
@@ -126,6 +133,33 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
         );
       }
     });
+  }
+
+  List<Map<String, dynamic>> _calculateWarmupPreview() {
+    if (_customSets.isEmpty) return [];
+
+    // Find max weight among work sets
+    final maxWeight = _customSets
+        .where((s) => s['isWarmup'] != true)
+        .map((s) => (s['weight'] as num?)?.toDouble() ?? 0)
+        .fold<double>(0, (max, w) => w > max ? w : max);
+
+    if (maxWeight <= 0) return [];
+
+    double roundTo2_5(double v) => (v / 2.5).round() * 2.5;
+
+    if (maxWeight >= 60) {
+      return [
+        {'reps': 10, 'weight': roundTo2_5(maxWeight * 0.4)},
+        {'reps': 5, 'weight': roundTo2_5(maxWeight * 0.6)},
+        {'reps': 3, 'weight': roundTo2_5(maxWeight * 0.8)},
+      ];
+    } else {
+      return [
+        {'reps': 8, 'weight': roundTo2_5(maxWeight * 0.5)},
+        {'reps': 3, 'weight': roundTo2_5(maxWeight * 0.75)},
+      ];
+    }
   }
 
   void _onCustomSetsChanged(List<Map<String, dynamic>> newSets) {
@@ -205,6 +239,7 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
                     sets: _customSets,
                     weightType: _weightType,
                     onChanged: _onCustomSetsChanged,
+                    warmupPreview: _warmupEnabled ? _calculateWarmupPreview() : [],
                   ),
                   const SizedBox(height: Spacing.xl),
 
@@ -212,6 +247,64 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
                   _SectionLabel('REPOS ENTRE SÉRIES'),
                   const SizedBox(height: Spacing.sm),
                   _buildRestPicker(),
+                  const SizedBox(height: Spacing.xl),
+
+                  // === WARMUP ===
+                  GestureDetector(
+                    onTap: () => setState(() => _warmupEnabled = !_warmupEnabled),
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: const EdgeInsets.all(Spacing.md),
+                      decoration: BoxDecoration(
+                        color: _warmupEnabled
+                            ? FGColors.warning.withValues(alpha: 0.1)
+                            : FGColors.glassSurface,
+                        borderRadius: BorderRadius.circular(Spacing.md),
+                        border: Border.all(
+                          color: _warmupEnabled
+                              ? FGColors.warning.withValues(alpha: 0.4)
+                              : FGColors.glassBorder,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.whatshot_rounded,
+                            color: _warmupEnabled ? FGColors.warning : FGColors.textSecondary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: Spacing.md),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Échauffement auto',
+                                  style: FGTypography.body.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: _warmupEnabled ? FGColors.textPrimary : FGColors.textSecondary,
+                                  ),
+                                ),
+                                Text(
+                                  'Séries progressives avant les séries de travail',
+                                  style: FGTypography.caption.copyWith(
+                                    color: FGColors.textSecondary,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: _warmupEnabled,
+                            onChanged: (v) => setState(() => _warmupEnabled = v),
+                            activeThumbColor: FGColors.warning,
+                            activeTrackColor: FGColors.warning.withValues(alpha: 0.3),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: Spacing.xl),
 
                   // === NOTES (collapsible) ===

@@ -30,12 +30,13 @@ class _ExcelImportSheetState extends State<ExcelImportSheet> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'xls'],
+        withData: true,
       );
 
       if (result == null || result.files.isEmpty) return;
 
       final file = result.files.first;
-      if (file.path == null) return;
+      if (file.bytes == null && file.path == null) return;
 
       setState(() {
         _isParsing = true;
@@ -43,13 +44,18 @@ class _ExcelImportSheetState extends State<ExcelImportSheet> {
         _fileName = file.name;
       });
 
-      final program = ExcelImportService.parseExcelFile(file.path!);
+      final program = ExcelImportService.parseExcelFile(
+        file.path ?? '',
+        fileBytes: file.bytes,
+      );
 
       setState(() {
         _parsedProgram = program;
         _isParsing = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('ExcelImport SHEET ERROR: $e');
+      debugPrint('ExcelImport SHEET STACK: $stack');
       setState(() {
         _error = 'Erreur de parsing: $e';
         _isParsing = false;

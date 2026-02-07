@@ -10,12 +10,14 @@ class CustomSetsEditor extends StatelessWidget {
   final List<Map<String, dynamic>> sets;
   final String weightType;
   final ValueChanged<List<Map<String, dynamic>>> onChanged;
+  final List<Map<String, dynamic>> warmupPreview;
 
   const CustomSetsEditor({
     super.key,
     required this.sets,
     required this.weightType,
     required this.onChanged,
+    this.warmupPreview = const [],
   });
 
   void _updateSet(int index, Map<String, dynamic> updated) {
@@ -100,6 +102,93 @@ class CustomSetsEditor extends StatelessWidget {
                   ],
                 ),
               ),
+              // Warmup preview rows (read-only)
+              ...warmupPreview.asMap().entries.map((entry) {
+                final i = entry.key;
+                final ws = entry.value;
+                final isLastWarmup = i == warmupPreview.length - 1 && sets.isEmpty;
+                final weight = (ws['weight'] as num?)?.toDouble() ?? 0;
+                final reps = (ws['reps'] as num?)?.toInt() ?? 10;
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.md,
+                    vertical: Spacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: FGColors.warning.withValues(alpha: 0.05),
+                    border: !isLastWarmup
+                        ? Border(bottom: BorderSide(color: FGColors.glassBorder))
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 36,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: FGColors.warning.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            'W${i + 1}',
+                            textAlign: TextAlign.center,
+                            style: FGTypography.caption.copyWith(
+                              color: FGColors.warning,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 70,
+                        child: Container(
+                          height: 32,
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$reps',
+                            style: FGTypography.body.copyWith(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: FGColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (!isBodyweight)
+                        SizedBox(
+                          width: 90,
+                          child: Container(
+                            height: 32,
+                            alignment: Alignment.center,
+                            child: Text(
+                              weight == weight.toInt().toDouble()
+                                  ? '${weight.toInt()}'
+                                  : weight.toStringAsFixed(1),
+                              style: FGTypography.body.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: FGColors.warning.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: Spacing.sm),
+                      Icon(Icons.whatshot_rounded, size: 14, color: FGColors.warning),
+                      const Spacer(),
+                      Text(
+                        'auto',
+                        style: FGTypography.caption.copyWith(
+                          color: FGColors.textSecondary.withValues(alpha: 0.5),
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
               // Set rows
               ...sets.asMap().entries.map((entry) {
                 final i = entry.key;
