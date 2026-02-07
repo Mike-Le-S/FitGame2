@@ -13,6 +13,8 @@ class SetCard extends StatelessWidget {
   final int currentSetIndex;
   final String weightType;
   final bool isMaxReps;
+  final Map<String, dynamic>? lastSessionSet;
+  final double? suggestedWeight;
 
   const SetCard({
     super.key,
@@ -22,7 +24,15 @@ class SetCard extends StatelessWidget {
     required this.currentSetIndex,
     this.weightType = 'kg',
     this.isMaxReps = false,
+    this.lastSessionSet,
+    this.suggestedWeight,
   });
+
+  String _formatWeight(double v) {
+    if (v == v.toInt().toDouble()) return v.toInt().toString();
+    if (v == double.parse(v.toStringAsFixed(1))) return v.toStringAsFixed(1);
+    return v.toStringAsFixed(2);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,8 +101,8 @@ class SetCard extends StatelessWidget {
                     weightType == 'bodyweight'
                         ? 'PDC'
                         : weightType == 'bodyweight_plus'
-                            ? '+${currentSet.targetWeight.toInt()}'
-                            : '${currentSet.targetWeight.toInt()}',
+                            ? '+${_formatWeight(currentSet.targetWeight)}'
+                            : _formatWeight(currentSet.targetWeight),
                     style: FGTypography.display.copyWith(
                       color: FGColors.accent,
                       fontSize: weightType == 'bodyweight' ? 40 : 56,
@@ -143,38 +153,118 @@ class SetCard extends StatelessWidget {
             ],
           ),
 
-          // Previous best indicator
-          if (!isWarmup && previousBest > 0) ...[
-            const SizedBox(height: Spacing.lg),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: Spacing.md,
-                vertical: Spacing.sm,
-              ),
-              decoration: BoxDecoration(
-                color: FGColors.glassSurface.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(Spacing.sm),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.emoji_events_outlined,
-                    color: FGColors.warning,
-                    size: 16,
-                  ),
-                  const SizedBox(width: Spacing.sm),
-                  Text(
-                    'Record: ${previousBest.toInt()} kg',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          // Last session info + suggestion
+          if (!isWarmup) ...[
+            const SizedBox(height: Spacing.md),
+            if (lastSessionSet != null)
+              _buildLastSessionInfo()
+            else if (previousBest > 0)
+              _buildPreviousBest(),
+            if (suggestedWeight != null) ...[
+              const SizedBox(height: Spacing.sm),
+              _buildSuggestion(),
+            ],
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLastSessionInfo() {
+    final lastWeight = (lastSessionSet!['actualWeight'] as num?)?.toDouble() ?? 0;
+    final lastReps = (lastSessionSet!['actualReps'] as num?)?.toInt() ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.md,
+        vertical: Spacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: FGColors.glassSurface.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(Spacing.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.history_rounded,
+            color: FGColors.textSecondary,
+            size: 14,
+          ),
+          const SizedBox(width: Spacing.sm),
+          Text(
+            'Dernière fois : ${lastWeight.toInt()} kg × $lastReps',
+            style: FGTypography.caption.copyWith(
+              color: FGColors.textSecondary,
+              fontWeight: FontWeight.w500,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviousBest() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.md,
+        vertical: Spacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: FGColors.glassSurface.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(Spacing.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.emoji_events_outlined,
+            color: FGColors.warning,
+            size: 14,
+          ),
+          const SizedBox(width: Spacing.sm),
+          Text(
+            'Record : ${previousBest.toInt()} kg',
+            style: FGTypography.caption.copyWith(
+              color: FGColors.textSecondary,
+              fontWeight: FontWeight.w500,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestion() {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.md,
+        vertical: Spacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: FGColors.success.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(Spacing.sm),
+        border: Border.all(color: FGColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.trending_up_rounded,
+            color: FGColors.success,
+            size: 14,
+          ),
+          const SizedBox(width: Spacing.sm),
+          Text(
+            'Essaye ${suggestedWeight!.toStringAsFixed(suggestedWeight! == suggestedWeight!.toInt().toDouble() ? 0 : 1)} kg',
+            style: FGTypography.caption.copyWith(
+              color: FGColors.success,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
+          ),
         ],
       ),
     );

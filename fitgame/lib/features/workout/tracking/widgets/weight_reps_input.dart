@@ -106,9 +106,11 @@ class _InputCard extends StatelessWidget {
 
   String get _formattedValue {
     if (isInteger) return value.toInt().toString();
-    return value == value.toInt()
-        ? value.toInt().toString()
-        : value.toStringAsFixed(1);
+    if (value == value.toInt().toDouble()) return value.toInt().toString();
+    if (value == double.parse(value.toStringAsFixed(1))) {
+      return value.toStringAsFixed(1);
+    }
+    return value.toStringAsFixed(2);
   }
 
   @override
@@ -160,23 +162,44 @@ class _InputCard extends StatelessWidget {
 
           const SizedBox(height: Spacing.md),
 
-          // Value display - tappable
+          // Value display - tappable with edit affordance
           GestureDetector(
             onTap: onValueTap,
             behavior: HitTestBehavior.opaque,
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
-              child: Text(
-                _formattedValue,
-                textAlign: TextAlign.center,
-                style: FGTypography.h1.copyWith(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w900,
-                  fontStyle: FontStyle.italic,
-                  color: FGColors.textPrimary,
-                  height: 1,
+              padding: const EdgeInsets.symmetric(
+                vertical: Spacing.sm,
+                horizontal: Spacing.sm,
+              ),
+              decoration: BoxDecoration(
+                color: FGColors.accent.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(Spacing.sm),
+                border: Border.all(
+                  color: FGColors.accent.withValues(alpha: 0.15),
                 ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _formattedValue,
+                    textAlign: TextAlign.center,
+                    style: FGTypography.h1.copyWith(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      fontStyle: FontStyle.italic,
+                      color: FGColors.textPrimary,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.edit_rounded,
+                    size: 14,
+                    color: FGColors.accent.withValues(alpha: 0.5),
+                  ),
+                ],
               ),
             ),
           ),
