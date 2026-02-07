@@ -1396,6 +1396,7 @@ class SupabaseService {
       'distance_km': distanceKm,
       'energy_score': energyScore,
       'source': source,
+      'synced_at': DateTime.now().toUtc().toIso8601String(),
     }, onConflict: 'user_id,date');
   }
 
@@ -1487,6 +1488,40 @@ class SupabaseService {
     });
 
     return List<String>.from(result['new_achievements'] ?? []);
+  }
+
+  /// Archive all user data (soft delete, recoverable)
+  static Future<void> archiveUserData() async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+    await client.rpc('archive_user_data', params: {'p_user_id': userId});
+  }
+
+  /// Restore previously archived data
+  static Future<void> restoreUserData() async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+    await client.rpc('restore_user_data', params: {'p_user_id': userId});
+  }
+
+  /// Hard delete all user data (irreversible)
+  static Future<void> deleteAllUserData() async {
+    final userId = currentUser?.id;
+    if (userId == null) return;
+    await client.rpc('delete_all_user_data', params: {'p_user_id': userId});
+  }
+
+  /// Check if user has archived data that can be restored
+  static Future<bool> hasArchivedData() async {
+    final userId = currentUser?.id;
+    if (userId == null) return false;
+    final result = await client
+        .from('workout_sessions')
+        .select('id')
+        .eq('user_id', userId)
+        .not('archived_at', 'is', null)
+        .limit(1);
+    return (result as List).isNotEmpty;
   }
 
   /// Update challenge progress for current user

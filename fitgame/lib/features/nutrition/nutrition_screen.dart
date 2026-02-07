@@ -858,7 +858,7 @@ class _NutritionScreenState extends State<NutritionScreen>
     final dayPlan = targetPlan[dayIndex];
     int totalCal = 0, totalP = 0, totalC = 0, totalF = 0;
 
-    for (final meal in dayPlan['meals'] as List) {
+    for (final meal in dayPlan['meals'] as List? ?? []) {
       for (final food in meal['foods'] as List) {
         totalCal += food['cal'] as int? ?? 0;
         totalP += food['p'] as int? ?? 0;

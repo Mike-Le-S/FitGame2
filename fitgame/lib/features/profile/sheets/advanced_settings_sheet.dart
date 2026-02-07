@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/spacing.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
 import '../../../shared/sheets/placeholder_sheet.dart';
@@ -30,6 +31,23 @@ class _AdvancedSettingsSheetState extends State<AdvancedSettingsSheet> {
   String _selectedTheme = 'Sombre';
   bool _analyticsEnabled = true;
   bool _crashReportsEnabled = true;
+  bool _hasArchivedData = false;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkArchivedData();
+  }
+
+  Future<void> _checkArchivedData() async {
+    try {
+      final hasData = await SupabaseService.hasArchivedData();
+      if (mounted) setState(() => _hasArchivedData = hasData);
+    } catch (e) {
+      debugPrint('Error checking archived data: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -470,20 +488,79 @@ class _AdvancedSettingsSheetState extends State<AdvancedSettingsSheet> {
       ),
       child: Column(
         children: [
+          // Restore button — only visible when archived data exists
+          if (_hasArchivedData) ...[
+            _buildRestoreTile(),
+            _buildDivider(isDanger: true),
+          ],
           _buildDangerTile(
             icon: Icons.history_rounded,
             title: 'Réinitialiser la progression',
             subtitle: 'Remettre les stats à zéro',
-            onTap: () => _showResetDialog('progression'),
+            onTap: _isProcessing ? () {} : _showArchiveDialog,
           ),
           _buildDivider(isDanger: true),
           _buildDangerTile(
             icon: Icons.delete_forever_rounded,
             title: 'Supprimer toutes les données',
             subtitle: 'Action irréversible',
-            onTap: () => _showResetDialog('données'),
+            onTap: _isProcessing ? () {} : _showDeleteDialog,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRestoreTile() {
+    return GestureDetector(
+      onTap: _isProcessing ? null : _showRestoreDialog,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: FGColors.success.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.restore_rounded,
+                color: FGColors.success,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: Spacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Restaurer mes données',
+                    style: FGTypography.body.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: FGColors.success,
+                    ),
+                  ),
+                  Text(
+                    'Récupérer les données archivées',
+                    style: FGTypography.caption.copyWith(
+                      color: FGColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: FGColors.success,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -557,58 +634,413 @@ class _AdvancedSettingsSheetState extends State<AdvancedSettingsSheet> {
     );
   }
 
-  void _showResetDialog(String type) {
+  // ---------------------------------------------------------------------------
+  // Restore dialog (simple confirmation, no text input needed)
+  // ---------------------------------------------------------------------------
+  void _showRestoreDialog() {
     HapticFeedback.mediumImpact();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: FGColors.background,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: FGColors.glassBorder),
-        ),
-        title: Text(
-          'Réinitialiser $type ?',
-          style: FGTypography.h3,
-        ),
-        content: Text(
-          'Cette action est irréversible. Toutes les $type seront supprimées.',
-          style: FGTypography.body.copyWith(color: FGColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Annuler',
-              style: FGTypography.body.copyWith(color: FGColors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              HapticFeedback.heavyImpact();
-              Navigator.pop(context);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Les $type ont été réinitialisées'),
-                  backgroundColor: FGColors.error,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+      barrierDismissible: !_isProcessing,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: FGColors.background,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: FGColors.glassBorder),
+              ),
+              title: Text(
+                'Restaurer mes données ?',
+                style: FGTypography.h3,
+              ),
+              content: Text(
+                'Vos données archivées seront restaurées et votre progression recalculée.',
+                style: FGTypography.body.copyWith(color: FGColors.textSecondary),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _isProcessing
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: Text(
+                    'Annuler',
+                    style: FGTypography.body.copyWith(
+                      color: FGColors.textSecondary,
+                    ),
                   ),
                 ),
-              );
-            },
-            child: Text(
-              'Supprimer',
-              style: FGTypography.body.copyWith(
-                color: FGColors.error,
-                fontWeight: FontWeight.w700,
+                TextButton(
+                  onPressed: _isProcessing
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final dialogNav = Navigator.of(dialogContext);
+                          setDialogState(() {});
+                          setState(() => _isProcessing = true);
+                          try {
+                            await SupabaseService.restoreUserData();
+                            dialogNav.pop();
+                            await _checkArchivedData();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Données restaurées avec succès.',
+                                ),
+                                backgroundColor: FGColors.success,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            dialogNav.pop();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Erreur : $e'),
+                                backgroundColor: FGColors.error,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() => _isProcessing = false);
+                            }
+                          }
+                        },
+                  child: _isProcessing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: FGColors.success,
+                          ),
+                        )
+                      : Text(
+                          'Restaurer',
+                          style: FGTypography.body.copyWith(
+                            color: FGColors.success,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Archive dialog (user must type "RESET" to confirm)
+  // ---------------------------------------------------------------------------
+  void _showArchiveDialog() {
+    HapticFeedback.mediumImpact();
+    final textController = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: !_isProcessing,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final canConfirm =
+                textController.text.trim().toUpperCase() == 'RESET';
+            return AlertDialog(
+              backgroundColor: FGColors.background,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: FGColors.glassBorder),
               ),
-            ),
-          ),
-        ],
-      ),
+              title: Text(
+                'Réinitialiser la progression ?',
+                style: FGTypography.h3,
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Vos données seront archivées et pourront être restaurées ultérieurement. '
+                    'Vos stats seront remises à zéro.',
+                    style: FGTypography.body.copyWith(
+                      color: FGColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.md),
+                  Text(
+                    'Tapez RESET pour confirmer :',
+                    style: FGTypography.caption.copyWith(
+                      color: FGColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.sm),
+                  TextField(
+                    controller: textController,
+                    enabled: !_isProcessing,
+                    onChanged: (_) => setDialogState(() {}),
+                    style: FGTypography.body.copyWith(
+                      color: FGColors.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'RESET',
+                      hintStyle: FGTypography.body.copyWith(
+                        color: FGColors.textSecondary.withValues(alpha: 0.4),
+                      ),
+                      filled: true,
+                      fillColor: FGColors.glassBorder.withValues(alpha: 0.3),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: Spacing.md,
+                        vertical: Spacing.sm,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _isProcessing
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: Text(
+                    'Annuler',
+                    style: FGTypography.body.copyWith(
+                      color: FGColors.textSecondary,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: (canConfirm && !_isProcessing)
+                      ? () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final dialogNav = Navigator.of(dialogContext);
+                          final sheetNav = Navigator.of(context);
+                          setState(() => _isProcessing = true);
+                          setDialogState(() {});
+                          try {
+                            await SupabaseService.archiveUserData();
+                            dialogNav.pop();
+                            sheetNav.pop();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Données archivées. Vous pouvez les restaurer depuis les paramètres avancés.',
+                                ),
+                                backgroundColor: FGColors.accent,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            dialogNav.pop();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Erreur : $e'),
+                                backgroundColor: FGColors.error,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() => _isProcessing = false);
+                            }
+                          }
+                        }
+                      : null,
+                  child: _isProcessing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: FGColors.error,
+                          ),
+                        )
+                      : Text(
+                          'Réinitialiser',
+                          style: FGTypography.body.copyWith(
+                            color: canConfirm
+                                ? FGColors.error
+                                : FGColors.error.withValues(alpha: 0.3),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Delete dialog (user must type "SUPPRIMER" to confirm)
+  // ---------------------------------------------------------------------------
+  void _showDeleteDialog() {
+    HapticFeedback.mediumImpact();
+    final textController = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: !_isProcessing,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final canConfirm =
+                textController.text.trim().toUpperCase() == 'SUPPRIMER';
+            return AlertDialog(
+              backgroundColor: FGColors.background,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: FGColors.glassBorder),
+              ),
+              title: Text(
+                'Supprimer toutes les données ?',
+                style: FGTypography.h3,
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Cette action est irréversible. Toutes vos données seront définitivement supprimées.',
+                    style: FGTypography.body.copyWith(
+                      color: FGColors.error,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.md),
+                  Text(
+                    'Tapez SUPPRIMER pour confirmer :',
+                    style: FGTypography.caption.copyWith(
+                      color: FGColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.sm),
+                  TextField(
+                    controller: textController,
+                    enabled: !_isProcessing,
+                    onChanged: (_) => setDialogState(() {}),
+                    style: FGTypography.body.copyWith(
+                      color: FGColors.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'SUPPRIMER',
+                      hintStyle: FGTypography.body.copyWith(
+                        color: FGColors.textSecondary.withValues(alpha: 0.4),
+                      ),
+                      filled: true,
+                      fillColor: FGColors.glassBorder.withValues(alpha: 0.3),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: Spacing.md,
+                        vertical: Spacing.sm,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _isProcessing
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: Text(
+                    'Annuler',
+                    style: FGTypography.body.copyWith(
+                      color: FGColors.textSecondary,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: (canConfirm && !_isProcessing)
+                      ? () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final dialogNav = Navigator.of(dialogContext);
+                          final sheetNav = Navigator.of(context);
+                          setState(() => _isProcessing = true);
+                          setDialogState(() {});
+                          try {
+                            await SupabaseService.deleteAllUserData();
+                            dialogNav.pop();
+                            sheetNav.pop();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Toutes les données ont été supprimées.',
+                                ),
+                                backgroundColor: FGColors.error,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            dialogNav.pop();
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Erreur : $e'),
+                                backgroundColor: FGColors.error,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          } finally {
+                            if (mounted) {
+                              setState(() => _isProcessing = false);
+                            }
+                          }
+                        }
+                      : null,
+                  child: _isProcessing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: FGColors.error,
+                          ),
+                        )
+                      : Text(
+                          'Supprimer',
+                          style: FGTypography.body.copyWith(
+                            color: canConfirm
+                                ? FGColors.error
+                                : FGColors.error.withValues(alpha: 0.3),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

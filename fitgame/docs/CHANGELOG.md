@@ -1,5 +1,62 @@
 # Changelog FitGame
 
+## 2026-02-07 - Profile Danger Zone + Achievements Completion
+
+### Bug Fixes
+- **Archive/Reset**: "Réinitialiser la progression" now archives data (soft delete) via `archive_user_data` RPC — user can restore later
+- **Hard Delete**: "Supprimer toutes les données" now actually deletes all user data via `delete_all_user_data` RPC (irréversible)
+- **Restore button**: New "Restaurer mes données" button appears when archived data exists (green accent, above danger buttons)
+- **Confirmation dialogs**: Both operations require typing "RESET" or "SUPPRIMER" to confirm (prevents accidental clicks)
+- **4 achievements unlockable**: `check_achievements` RPC now handles `pr_count`, `session_volume`, `challenge_wins`, `nutrition_streak` criteria
+- **Async safety**: All dialog handlers capture Navigator/ScaffoldMessenger before async gaps
+
+### Database
+- Added `archived_at` column to `workout_sessions`, `daily_nutrition_logs`, `health_metrics`, `user_achievements`
+- Created 3 RPCs: `archive_user_data`, `restore_user_data`, `delete_all_user_data` (all SECURITY DEFINER)
+- Enriched `check_achievements` RPC with 4 new criteria handlers (all filter `archived_at IS NULL`)
+
+## 2026-02-07 - Profile Screen Bugfixes
+
+### Bug Fixes
+- **Avatar display**: Selected avatar emoji now shown on profile card (was always showing first letter of name) — avatar_index loaded from Supabase and passed to edit sheet
+- **Profile refresh**: Profile data reloads automatically after editing (was stale until app restart) — added await + mounted check on edit sheet close
+- **Achievements sheet**: Now loads real achievements from Supabase `achievement_definitions` + `user_achievements` (was hardcoded empty list showing placeholder) — converted to StatefulWidget with loading state
+- **Notification settings**: Fixed silent failures when saving workout_reminders, rest_day_reminders, progress_alerts (columns didn't exist in DB)
+- **Type safety**: Added bounds clamping for avatar_index and safe type conversions in achievement mapping
+
+### Database
+- Added 4 missing columns to `profiles`: `avatar_index` (int), `workout_reminders` (bool), `rest_day_reminders` (bool), `progress_alerts` (bool)
+- Added INSERT RLS policy on `profiles` (fixes Google sign-in for new users)
+- Added SELECT RLS policy on `profiles` for accepted friends (fixes social feature profile lookups)
+- Fixed `challenges` UPDATE RLS policy to allow participants (not just creator) to update progress
+
+## 2026-02-07 - Health Screen Bugfixes
+
+### Bug Fixes
+- **Sleep score**: Now persisted to Supabase `health_metrics.sleep_score` (was always `null`) — enables historical trend tracking
+- **Workout → HealthKit**: Completed workouts now written to Apple Health via `writeWorkout()` (was defined but never called) — workouts appear in Apple Fitness
+- **Heart history**: 7-day and 14-day heart views now load real data from Supabase `health_metrics` (was empty list showing "Aucune donnée")
+- **synced_at stale**: `saveHealthMetrics()` now includes `synced_at` in upsert payload — timestamp refreshes on every sync instead of staying frozen at first insert
+
+### Database
+- Added `updated_at` column + trigger on `health_metrics` table
+- Dropped 2 redundant indexes (`idx_health_metrics_user_id`, `idx_health_metrics_user_date`) — already covered by unique constraint
+
+### Known Limitations
+- VO2 Max remains hardcoded to 0.0 — `HealthDataType.VO2_MAX` does not exist in `health` package v11.1.1
+
+## 2026-02-06 - Nutrition Screen Bugfixes
+
+### Bug Fixes
+- **Diet plan save**: Fixed critical bug where only Monday's meals were saved — now saves per-day_type via `weekly_schedule` architecture
+- **Daily log**: Removed IconData serialization that wrote `"Instance of 'IconData'"` strings to Supabase JSONB
+- **Training day detection**: Uses `is_training` boolean from `day_types` table instead of fragile string matching on day type names
+- **Null safety**: Added guard for null `meals` key in `_getDayTotals()` to prevent crash on corrupted data
+
+### Database
+- Added `is_training` boolean column to `day_types` table (existing training types auto-set to `true`)
+- Added `updated_at` triggers on `daily_nutrition_logs` and `day_types` tables
+
 ## 2026-02-06 - Social Screen Bugfixes
 
 ### Bug Fixes

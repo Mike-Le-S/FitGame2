@@ -65,7 +65,7 @@ class _HealthScreenState extends State<HealthScreen>
   int get minHeartRate =>
       _healthData?.heart?.minHeartRate ?? 0;
   int get hrvMs => _healthData?.heart?.hrvMs ?? 0;
-  final double vo2Max = 0.0;
+  final double vo2Max = 0.0; // VO2_MAX not available in health package v11.1
 
   // Trends (compared to 7-day average) - fetched from backend
   final int sleepTrend = 0;
@@ -128,7 +128,7 @@ class _HealthScreenState extends State<HealthScreen>
         await SupabaseService.saveHealthMetrics(
           date: todayStr,
           sleepDurationMinutes: snapshot.sleep?.totalMinutes,
-          sleepScore: null,
+          sleepScore: snapshot.sleep?.score,
           deepSleepMinutes: snapshot.sleep?.deepMinutes,
           lightSleepMinutes: snapshot.sleep?.lightMinutes,
           remSleepMinutes: snapshot.sleep?.remMinutes,

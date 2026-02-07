@@ -8,6 +8,7 @@ import '../../../core/constants/spacing.dart';
 import '../../../core/models/exercise.dart';
 import '../../../core/models/workout_set.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/health_service.dart';
 import 'sheets/number_picker_sheet.dart';
 import 'sheets/workout_complete_sheet.dart';
 import 'sheets/exit_confirmation_sheet.dart';
@@ -51,6 +52,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   Timer? _restTimer;
   Timer? _workoutTimer;
   int _workoutSeconds = 0;
+  final DateTime _workoutStartTime = DateTime.now();
   double _totalVolume = 0;
   bool _showPRCelebration = false;
 
@@ -499,6 +501,20 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
           }
         } catch (e) {
           debugPrint('Error updating challenge progress: $e');
+        }
+
+        // Write workout to Apple Health
+        try {
+          final healthService = HealthService();
+          if (healthService.isAuthorized) {
+            await healthService.writeWorkout(
+              start: _workoutStartTime,
+              end: DateTime.now(),
+              caloriesBurned: (_totalVolume * 0.05).round(),
+            );
+          }
+        } catch (e) {
+          debugPrint('Error writing workout to HealthKit: $e');
         }
       }
     } catch (e) {

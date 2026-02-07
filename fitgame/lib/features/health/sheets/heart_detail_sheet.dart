@@ -7,6 +7,7 @@ import '../../../shared/widgets/fg_glass_card.dart';
 import '../painters/heart_gauge_painter.dart';
 import '../models/heart_metric_info.dart';
 import '../models/heart_history_data.dart';
+import '../../../core/services/supabase_service.dart';
 import '../modals/heart_info_modal.dart';
 
 class HeartDetailSheet extends StatefulWidget {
@@ -94,7 +95,8 @@ class HeartDetailSheetState extends State<HeartDetailSheet>
   };
 
   // Historical data - empty until loaded from HealthKit
-  final List<HeartHistoryData> _historyData = [];
+  List<HeartHistoryData> _historyData = [];
+  bool _isLoadingHistory = false;
 
   @override
   void initState() {
@@ -109,6 +111,57 @@ class HeartDetailSheetState extends State<HeartDetailSheet>
   void dispose() {
     _animController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadHistoryData(int days) async {
+    if (_isLoadingHistory) return;
+    setState(() => _isLoadingHistory = true);
+
+    try {
+      final endDate = DateTime.now();
+      final startDate = endDate.subtract(Duration(days: days));
+
+      final metrics = await SupabaseService.getHealthMetrics(
+        startDate: startDate.toIso8601String().substring(0, 10),
+        endDate: endDate.toIso8601String().substring(0, 10),
+      );
+
+      final history = <HeartHistoryData>[];
+      for (int i = 0; i < metrics.length; i++) {
+        final m = metrics[i];
+        final restingHr = m['resting_hr'] as int? ?? 0;
+        final hrv = (m['hrv_ms'] as num?)?.round() ?? 0;
+        if (restingHr == 0 && hrv == 0) continue;
+
+        int trend = 0;
+        if (i > 0) {
+          final prevHrv = (metrics[i - 1]['hrv_ms'] as num?)?.round() ?? 0;
+          if (hrv > prevHrv) trend = 1;
+          else if (hrv < prevHrv) trend = -1;
+        }
+
+        final date = DateTime.parse(m['date'] as String);
+        final dayNames = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+        final dayLabel = '${dayNames[date.weekday - 1]} ${date.day}';
+
+        history.add(HeartHistoryData(
+          day: dayLabel,
+          restingHR: restingHr,
+          hrv: hrv,
+          trend: trend,
+        ));
+      }
+
+      if (mounted) {
+        setState(() {
+          _historyData = history;
+          _isLoadingHistory = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading heart history: $e');
+      if (mounted) setState(() => _isLoadingHistory = false);
+    }
   }
 
   void _showInfoModal(String key) {
@@ -235,6 +288,9 @@ class HeartDetailSheetState extends State<HeartDetailSheet>
               onTap: () {
                 HapticFeedback.selectionClick();
                 setState(() => _selectedPeriod = index);
+                if (index > 0) {
+                  _loadHistoryData(index == 1 ? 7 : 14);
+                }
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -364,6 +420,15 @@ class HeartDetailSheetState extends State<HeartDetailSheet>
   }
 
   Widget _buildHistoryView() {
+    if (_isLoadingHistory) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: CircularProgressIndicator(color: Color(0xFFFF6B35)),
+        ),
+      );
+    }
+
     final isWeekly = _selectedPeriod == 1;
     final requestedDays = isWeekly ? 7 : 14;
 

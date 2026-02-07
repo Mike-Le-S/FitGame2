@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/spacing.dart';
 import '../../../core/theme/fg_colors.dart';
 import '../../../core/theme/fg_typography.dart';
+import '../../../core/services/supabase_service.dart';
 
 /// Modèle pour un accomplissement
 class Achievement {
@@ -35,7 +36,7 @@ class Achievement {
 enum AchievementRarity { common, rare, epic, legendary }
 
 /// Sheet affichant la liste complète des accomplissements
-class AchievementsSheet extends StatelessWidget {
+class AchievementsSheet extends StatefulWidget {
   const AchievementsSheet({super.key});
 
   static Future<void> show(BuildContext context) {
@@ -48,8 +49,69 @@ class AchievementsSheet extends StatelessWidget {
     );
   }
 
-  // Empty list - achievements will be loaded from backend when implemented
-  static const List<Achievement> _achievements = [];
+  @override
+  State<AchievementsSheet> createState() => _AchievementsSheetState();
+}
+
+class _AchievementsSheetState extends State<AchievementsSheet> {
+  List<Achievement> _achievements = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAchievements();
+  }
+
+  Future<void> _loadAchievements() async {
+    try {
+      final data = await SupabaseService.getAchievements();
+      if (mounted) {
+        setState(() {
+          _achievements = data.map((a) => Achievement(
+            id: (a['id'] ?? '').toString(),
+            name: (a['name'] ?? '').toString(),
+            description: (a['description'] ?? '').toString(),
+            icon: _getIcon((a['icon'] ?? '').toString()),
+            unlocked: a['unlocked'] == true,
+            unlockedAt: a['unlocked_at'] is String
+                ? DateTime.tryParse(a['unlocked_at'] as String)
+                : null,
+            rarity: _getRarity((a['category'] ?? '').toString()),
+          )).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading achievements: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  IconData _getIcon(String iconName) {
+    switch (iconName) {
+      case 'emoji_events': return Icons.emoji_events_rounded;
+      case 'local_fire_department': return Icons.local_fire_department_rounded;
+      case 'whatshot': return Icons.whatshot_rounded;
+      case 'fitness_center': return Icons.fitness_center_rounded;
+      case 'group': return Icons.group_rounded;
+      case 'restaurant': return Icons.restaurant_rounded;
+      case 'trending_up': return Icons.trending_up_rounded;
+      case 'military_tech': return Icons.military_tech_rounded;
+      case 'bolt': return Icons.bolt_rounded;
+      case 'star': return Icons.star_rounded;
+      default: return Icons.emoji_events_rounded;
+    }
+  }
+
+  AchievementRarity _getRarity(String category) {
+    switch (category) {
+      case 'legendary': return AchievementRarity.legendary;
+      case 'epic': return AchievementRarity.epic;
+      case 'rare': return AchievementRarity.rare;
+      default: return AchievementRarity.common;
+    }
+  }
 
   Color _getRarityColor(AchievementRarity rarity) {
     switch (rarity) {
@@ -169,20 +231,27 @@ class AchievementsSheet extends StatelessWidget {
 
               // List or empty state
               Expanded(
-                child: _achievements.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                        itemCount: _achievements.length,
-                        itemBuilder: (context, index) {
-                          final achievement = _achievements[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: Spacing.sm),
-                            child: _buildAchievementCard(achievement),
-                          );
-                        },
-                      ),
+                child: _isLoading
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(Spacing.xl),
+                          child: CircularProgressIndicator(color: FGColors.accent),
+                        ),
+                      )
+                    : _achievements.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.builder(
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                            itemCount: _achievements.length,
+                            itemBuilder: (context, index) {
+                              final achievement = _achievements[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: Spacing.sm),
+                                child: _buildAchievementCard(achievement),
+                              );
+                            },
+                          ),
               ),
             ],
           ),

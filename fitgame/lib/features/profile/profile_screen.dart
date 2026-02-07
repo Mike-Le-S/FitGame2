@@ -40,6 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   int _totalWorkouts = 0;
   int _currentStreak = 0;
   String _memberSince = '';
+  int _avatarIndex = 0;
 
   // Achievements
   List<Map<String, dynamic>> _achievements = [];
@@ -76,6 +77,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           _workoutReminders = profile['workout_reminders'] ?? true;
           _restDayReminders = profile['rest_day_reminders'] ?? false;
           _progressAlerts = profile['progress_alerts'] ?? true;
+          final rawAvatar = profile['avatar_index'];
+          _avatarIndex = (rawAvatar is int ? rawAvatar : 0).clamp(0, 7);
 
           // Format member since date
           final createdAt = DateTime.tryParse(profile['created_at'] ?? '');
@@ -132,6 +135,12 @@ class _ProfileScreenState extends State<ProfileScreen>
       default:
         return Icons.star_rounded;
     }
+  }
+
+  String _getAvatarEmoji(int index) {
+    const avatars = ['\u{1F4AA}', '\u{1F3CB}\u{FE0F}', '\u{1F3C3}', '\u{1F9D8}', '\u{1F6B4}', '\u{26A1}', '\u{1F525}', '\u{1F3AF}'];
+    if (index < 0 || index >= avatars.length) return avatars[0];
+    return avatars[index];
   }
 
   /// Save a single setting to Supabase
@@ -341,11 +350,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                       child: Center(
                         child: Text(
-                          _userName[0].toUpperCase(),
-                          style: FGTypography.h1.copyWith(
-                            fontSize: 32,
-                            color: FGColors.textOnAccent,
-                          ),
+                          _getAvatarEmoji(_avatarIndex),
+                          style: const TextStyle(fontSize: 36),
                         ),
                       ),
                     ),
@@ -354,14 +360,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                       bottom: 0,
                       right: 0,
                       child: GestureDetector(
-                        onTap: () {
+                        onTap: () async {
                           HapticFeedback.lightImpact();
-                          EditProfileSheet.show(
+                          await EditProfileSheet.show(
                             context,
                             currentName: _userName,
                             currentEmail: _userEmail,
-                            currentAvatarIndex: 0,
+                            currentAvatarIndex: _avatarIndex,
                           );
+                          if (mounted) _loadUserProfile();
                         },
                         child: Container(
                           width: 28,
