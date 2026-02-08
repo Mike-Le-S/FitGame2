@@ -25,7 +25,11 @@ import 'widgets/rest_timer_view.dart';
 /// Active Workout Tracking Screen
 /// The core experience for tracking exercises during a workout session
 class ActiveWorkoutScreen extends StatefulWidget {
-  const ActiveWorkoutScreen({super.key});
+  /// Initial time estimate (minutes) from the calling screen (workout/home).
+  /// Ensures the displayed estimate matches what the user saw before tapping.
+  final int? initialEstimatedMinutes;
+
+  const ActiveWorkoutScreen({super.key, this.initialEstimatedMinutes});
 
   @override
   State<ActiveWorkoutScreen> createState() => _ActiveWorkoutScreenState();
@@ -383,6 +387,19 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
   /// Estimate remaining workout time in seconds
   int _calculateEstimatedRemainingSeconds() {
+    // Before any set is completed, use the initial estimate from the calling
+    // screen so the displayed time matches what the user saw on workout/home.
+    // Subtract elapsed seconds so it counts down naturally.
+    if (widget.initialEstimatedMinutes != null &&
+        widget.initialEstimatedMinutes! > 0) {
+      final hasAnyCompleted =
+          _exercises.any((ex) => ex.sets.any((s) => s.isCompleted));
+      if (!hasAnyCompleted) {
+        return (widget.initialEstimatedMinutes! * 60 - _workoutSeconds)
+            .clamp(0, 99999);
+      }
+    }
+
     int remaining = 0;
 
     for (int exIdx = _currentExerciseIndex; exIdx < _exercises.length; exIdx++) {

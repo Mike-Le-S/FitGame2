@@ -582,7 +582,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const ActiveWorkoutScreen(),
+            ActiveWorkoutScreen(initialEstimatedMinutes: nextSessionDuration),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
             position: Tween<Offset>(
