@@ -277,14 +277,15 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     return days[0] as Map<String, dynamic>;
   }
 
-  /// Look up actual duration from the most recent completed session with the same day name
+  /// Look up actual duration from the most recent completed session with the same day name.
+  /// Ignores sessions under 5 min (aborted/save-and-quit sessions).
   int? _getHistoricalDuration(String dayName) {
     final normalizedDay = dayName.toLowerCase();
     for (final session in _rawSessions) {
       final sessionDay = (session['day_name'] ?? '').toString().toLowerCase();
       final completedAt = session['completed_at'];
       final duration = (session['duration_minutes'] as num?)?.toInt();
-      if (sessionDay == normalizedDay && completedAt != null && duration != null && duration > 0) {
+      if (sessionDay == normalizedDay && completedAt != null && duration != null && duration >= 5) {
         return duration;
       }
     }
