@@ -320,11 +320,16 @@ class WorkoutCompleteSheet extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        Text(
-          value,
-          style: FGTypography.caption.copyWith(
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: FGTypography.caption.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+            ),
           ),
         ),
       ],

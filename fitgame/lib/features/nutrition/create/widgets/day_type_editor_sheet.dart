@@ -291,10 +291,14 @@ class _DayTypeEditorSheetState extends State<DayTypeEditorSheet> {
                                         ),
                                       ),
                                     ),
-                                    Text(
-                                      '${foods.length} aliment${foods.length != 1 ? 's' : ''} · $mealCal kcal',
-                                      style: FGTypography.caption.copyWith(
-                                        color: FGColors.textSecondary,
+                                    Flexible(
+                                      child: Text(
+                                        '${foods.length} aliment${foods.length != 1 ? 's' : ''} · $mealCal kcal',
+                                        style: FGTypography.caption.copyWith(
+                                          color: FGColors.textSecondary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     if (_meals.length > 1) ...[

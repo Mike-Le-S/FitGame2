@@ -561,33 +561,40 @@ class HeartDetailSheetState extends State<HeartDetailSheet>
             children: [
               Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => _showInfoModal(infoKey),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
+                  Flexible(
+                    child: GestureDetector(
+                      onTap: () => _showInfoModal(infoKey),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          label,
-                          style: FGTypography.body.copyWith(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              label,
+                              style: FGTypography.body.copyWith(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.info_outline_rounded,
-                          size: 12,
-                          color: FGColors.textSecondary.withValues(alpha: 0.6),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 12,
+                            color: FGColors.textSecondary.withValues(alpha: 0.6),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const Spacer(),

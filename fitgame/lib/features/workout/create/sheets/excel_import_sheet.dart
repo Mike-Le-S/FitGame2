@@ -163,6 +163,8 @@ class _ExcelImportSheetState extends State<ExcelImportSheet> {
                                   ? FGColors.textPrimary
                                   : FGColors.accent,
                             ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                           if (_isParsing) ...[
                             const SizedBox(height: Spacing.md),

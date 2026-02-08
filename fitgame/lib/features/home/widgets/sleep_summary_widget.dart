@@ -119,6 +119,8 @@ class SleepSummaryWidget extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     fontStyle: FontStyle.italic,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
                 const SizedBox(width: Spacing.lg),
 
@@ -134,19 +136,19 @@ class SleepSummaryWidget extends StatelessWidget {
                           child: Row(
                             children: [
                               Expanded(
-                                flex: (deepPercent * 100).round(),
+                                flex: (deepPercent * 100).round().clamp(1, 100),
                                 child: Container(
                                   color: const Color(0xFF6366F1), // Indigo for deep
                                 ),
                               ),
                               Expanded(
-                                flex: (corePercent * 100).round(),
+                                flex: (corePercent * 100).round().clamp(1, 100),
                                 child: Container(
                                   color: const Color(0xFF8B5CF6), // Purple for core
                                 ),
                               ),
                               Expanded(
-                                flex: (remPercent * 100).round(),
+                                flex: (remPercent * 100).round().clamp(1, 100),
                                 child: Container(
                                   color: const Color(0xFFA78BFA), // Light purple for REM
                                 ),

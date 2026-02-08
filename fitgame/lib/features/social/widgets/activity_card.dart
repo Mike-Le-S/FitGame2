@@ -118,6 +118,8 @@ class ActivityCard extends StatelessWidget {
                 style: FGTypography.bodySmall.copyWith(
                   color: FGColors.textSecondary,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -165,11 +167,11 @@ class ActivityCard extends StatelessWidget {
         const SizedBox(height: Spacing.xs),
         Row(
           children: [
-            _buildStatItem(Icons.timer_outlined, '${activity.durationMinutes} min'),
+            Flexible(child: _buildStatItem(Icons.timer_outlined, '${activity.durationMinutes} min')),
             const SizedBox(width: Spacing.md),
-            _buildStatItem(Icons.fitness_center, _formatVolume(activity.volumeKg)),
+            Flexible(child: _buildStatItem(Icons.fitness_center, _formatVolume(activity.volumeKg))),
             const SizedBox(width: Spacing.md),
-            _buildStatItem(Icons.format_list_numbered, '${activity.exerciseCount} exos'),
+            Flexible(child: _buildStatItem(Icons.format_list_numbered, '${activity.exerciseCount} exos')),
           ],
         ),
       ],

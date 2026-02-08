@@ -50,19 +50,23 @@ class MacroDashboard extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        AnimatedBuilder(
-                          animation: animation,
-                          builder: (context, child) {
-                            final value =
-                                (totals['cal']! * animation.value).round();
-                            return Text(
-                              '$value',
-                              style: FGTypography.numbers.copyWith(
-                                color: FGColors.accent,
-                                fontSize: 42,
-                              ),
-                            );
-                          },
+                        Flexible(
+                          child: AnimatedBuilder(
+                            animation: animation,
+                            builder: (context, child) {
+                              final value =
+                                  (totals['cal']! * animation.value).round();
+                              return Text(
+                                '$value',
+                                style: FGTypography.numbers.copyWith(
+                                  color: FGColors.accent,
+                                  fontSize: 42,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
+                          ),
                         ),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8, left: 4),

@@ -103,42 +103,51 @@ class RestTimerView extends StatelessWidget {
                   ),
                   const SizedBox(height: Spacing.sm),
                   if (nextSetWeight != null && nextSetReps != null)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '${nextSetWeight!.toInt()} kg',
-                          style: FGTypography.h2.copyWith(
-                            color: FGColors.accent,
-                            fontWeight: FontWeight.w900,
-                            fontStyle: FontStyle.italic,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '${nextSetWeight!.toInt()} kg',
+                            style: FGTypography.h2.copyWith(
+                              color: FGColors.accent,
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
-                        ),
-                        Text(
-                          ' × ',
-                          style: FGTypography.h3.copyWith(
-                            color: FGColors.textSecondary,
+                          Text(
+                            ' × ',
+                            style: FGTypography.h3.copyWith(
+                              color: FGColors.textSecondary,
+                            ),
                           ),
-                        ),
-                        Text(
-                          '$nextSetReps reps',
-                          style: FGTypography.h2.copyWith(
-                            fontWeight: FontWeight.w900,
-                            fontStyle: FontStyle.italic,
+                          Text(
+                            '$nextSetReps reps',
+                            style: FGTypography.h2.copyWith(
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     )
                   else if (nextExerciseName != null && nextExerciseMuscle != null)
                     Column(
                       children: [
                         Text(
                           nextExerciseName!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
                           style: FGTypography.h3,
                         ),
                         const SizedBox(height: Spacing.xs),
                         Text(
                           nextExerciseMuscle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
                           style: FGTypography.caption.copyWith(
                             color: FGColors.textSecondary,
                           ),

@@ -24,11 +24,15 @@ class HomeHeader extends StatelessWidget {
         Expanded(
           child: Row(
             children: [
-              Text(
-                'Salut $displayName',
-                style: FGTypography.h2.copyWith(
-                  fontWeight: FontWeight.w900,
-                  fontStyle: FontStyle.italic,
+              Flexible(
+                child: Text(
+                  'Salut $displayName',
+                  style: FGTypography.h2.copyWith(
+                    fontWeight: FontWeight.w900,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
               const SizedBox(width: Spacing.sm),

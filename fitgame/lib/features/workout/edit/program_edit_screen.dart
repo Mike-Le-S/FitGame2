@@ -425,6 +425,8 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
                         style: FGTypography.body.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -434,6 +436,8 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
                         style: FGTypography.caption.copyWith(
                           color: FGColors.textSecondary,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -752,9 +756,13 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
                                             ),
                                             Row(
                                               children: [
-                                                Text(detail,
-                                                  style: FGTypography.caption.copyWith(
-                                                    color: FGColors.accent, fontWeight: FontWeight.w600,
+                                                Flexible(
+                                                  child: Text(detail,
+                                                    style: FGTypography.caption.copyWith(
+                                                      color: FGColors.accent, fontWeight: FontWeight.w600,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                    maxLines: 1,
                                                   ),
                                                 ),
                                                 if (ex['notes'] != null && (ex['notes'] as String).isNotEmpty) ...[

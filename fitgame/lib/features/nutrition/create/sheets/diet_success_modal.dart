@@ -156,20 +156,23 @@ class _DietSuccessModalState extends State<DietSuccessModal>
                 color: _nutritionGreen,
                 fontWeight: FontWeight.w600,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: Spacing.lg),
             // Stats row
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildStat(_goalLabel, 'objectif'),
+                Flexible(child: _buildStat(_goalLabel, 'objectif')),
                 _buildDivider(),
-                _buildStat('${widget.trainingCalories}', 'kcal'),
+                Flexible(child: _buildStat('${widget.trainingCalories}', 'kcal')),
                 _buildDivider(),
-                _buildStat('${widget.mealsPerDay}', 'repas'),
+                Flexible(child: _buildStat('${widget.mealsPerDay}', 'repas')),
                 if (widget.supplementsCount > 0) ...[
                   _buildDivider(),
-                  _buildStat('${widget.supplementsCount}', 'suppléments'),
+                  Flexible(child: _buildStat('${widget.supplementsCount}', 'suppléments')),
                 ],
               ],
             ),

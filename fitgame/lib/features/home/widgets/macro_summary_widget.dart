@@ -61,11 +61,15 @@ class MacroSummaryWidget extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  '$currentCalories',
-                  style: FGTypography.h3.copyWith(
-                    fontWeight: FontWeight.w900,
-                    fontStyle: FontStyle.italic,
+                Flexible(
+                  child: Text(
+                    '$currentCalories',
+                    style: FGTypography.h3.copyWith(
+                      fontWeight: FontWeight.w900,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
                 Text(
@@ -123,33 +127,40 @@ class MacroSummaryWidget extends StatelessWidget {
                 ),
                 const SizedBox(width: Spacing.sm),
                 // Yesterday badge with info button
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: (isDeficit ? FGColors.success : FGColors.warning).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Hier ${isDeficit ? "" : "+"}$yesterdayDelta',
-                        style: FGTypography.caption.copyWith(
-                          color: isDeficit ? FGColors.success : FGColors.warning,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 10,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 120),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: (isDeficit ? FGColors.success : FGColors.warning).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Hier ${isDeficit ? "" : "+"}$yesterdayDelta',
+                            style: FGTypography.caption.copyWith(
+                              color: isDeficit ? FGColors.success : FGColors.warning,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 10,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: () => _showInfoDialog(context, yesterdayConsumed, yesterdayBurned, yesterdayDelta),
-                        child: Icon(
-                          Icons.info_outline,
-                          size: 12,
-                          color: isDeficit ? FGColors.success : FGColors.warning,
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => _showInfoDialog(context, yesterdayConsumed, yesterdayBurned, yesterdayDelta),
+                          child: Icon(
+                            Icons.info_outline,
+                            size: 12,
+                            color: isDeficit ? FGColors.success : FGColors.warning,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],

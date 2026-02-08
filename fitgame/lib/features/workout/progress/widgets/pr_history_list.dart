@@ -120,12 +120,16 @@ class _PRHistoryItem extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text(
-                        '${entry.weight.toStringAsFixed(entry.weight % 1 == 0 ? 0 : 1)}kg',
-                        style: FGTypography.h3.copyWith(
-                          color: isLatest
-                              ? const Color(0xFFFFD700)
-                              : FGColors.textPrimary,
+                      Flexible(
+                        child: Text(
+                          '${entry.weight.toStringAsFixed(entry.weight % 1 == 0 ? 0 : 1)}kg',
+                          style: FGTypography.h3.copyWith(
+                            color: isLatest
+                                ? const Color(0xFFFFD700)
+                                : FGColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Text(

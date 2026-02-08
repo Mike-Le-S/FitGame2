@@ -329,17 +329,16 @@ class _DayExerciseItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Flexible(
-                        child: Text(
-                          exercise['muscle'] as String,
-                          style: FGTypography.caption.copyWith(
-                            color: FGColors.textSecondary,
-                            fontSize: 11,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      Text(
+                        exercise['muscle'] as String,
+                        style: FGTypography.caption.copyWith(
+                          color: FGColors.textSecondary,
+                          fontSize: 11,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       if (hasCustomSets) ...[
                         Text(

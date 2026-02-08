@@ -66,27 +66,33 @@ class WorkoutHeader extends StatelessWidget {
                   children: [
                     Text(
                       exerciseName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: FGTypography.body.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: Spacing.sm,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: FGColors.accent.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(Spacing.xs),
-                          ),
-                          child: Text(
-                            muscleGroup,
-                            style: FGTypography.caption.copyWith(
-                              color: FGColors.accent,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 10,
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: Spacing.sm,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: FGColors.accent.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(Spacing.xs),
+                            ),
+                            child: Text(
+                              muscleGroup,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: FGTypography.caption.copyWith(
+                                color: FGColors.accent,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                              ),
                             ),
                           ),
                         ),

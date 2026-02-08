@@ -122,6 +122,8 @@ class ChallengeCard extends StatelessWidget {
             fontSize: 18,
             color: FGColors.textPrimary,
           ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: Spacing.xs),
         Text(
@@ -137,13 +139,17 @@ class ChallengeCard extends StatelessWidget {
   Widget _buildParticipantsSection() {
     return Row(
       children: [
-        Text(
-          'Créé par ${challenge.creatorName}',
-          style: FGTypography.caption.copyWith(
-            color: FGColors.textSecondary,
+        Flexible(
+          child: Text(
+            'Créé par ${challenge.creatorName}',
+            style: FGTypography.caption.copyWith(
+              color: FGColors.textSecondary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const Spacer(),
+        const SizedBox(width: Spacing.sm),
         ParticipantAvatars(
           participants: challenge.participants,
           maxVisible: 3,

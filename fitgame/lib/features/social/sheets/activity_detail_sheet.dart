@@ -222,22 +222,26 @@ class ActivityDetailSheet extends StatelessWidget {
           ),
         ),
         const SizedBox(width: Spacing.sm),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: FGTypography.body.copyWith(
-                fontWeight: FontWeight.w700,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: FGTypography.body.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            Text(
-              label,
-              style: FGTypography.caption.copyWith(
-                color: FGColors.textSecondary,
+              Text(
+                label,
+                style: FGTypography.caption.copyWith(
+                  color: FGColors.textSecondary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );

@@ -1120,9 +1120,13 @@ class _NutritionScreenState extends State<NutritionScreen>
           // Day title + training/rest toggle
           Row(
             children: [
-              Text(
-                _dayFullNames[dayIndex],
-                style: FGTypography.h2,
+              Flexible(
+                child: Text(
+                  _dayFullNames[dayIndex],
+                  style: FGTypography.h2,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: Spacing.sm),
               // Tappable training/rest badge

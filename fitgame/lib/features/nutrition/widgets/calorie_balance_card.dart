@@ -185,11 +185,15 @@ class CalorieBalanceCard extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              displayValue,
-              style: FGTypography.h2.copyWith(
-                fontSize: 22,
-                color: color,
+            Flexible(
+              child: Text(
+                displayValue,
+                style: FGTypography.h2.copyWith(
+                  fontSize: 22,
+                  color: color,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 2),

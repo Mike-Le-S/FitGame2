@@ -439,54 +439,55 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.lg, 0),
       child: Row(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'TRAINING',
-                style: FGTypography.caption.copyWith(
-                  letterSpacing: 3,
-                  fontWeight: FontWeight.w700,
-                  color: FGColors.textSecondary,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'TRAINING',
+                  style: FGTypography.caption.copyWith(
+                    letterSpacing: 3,
+                    fontWeight: FontWeight.w700,
+                    color: FGColors.textSecondary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 180),
-                    child: Text(
-                      programName,
-                      style: FGTypography.h3.copyWith(
-                        fontWeight: FontWeight.w900,
-                        fontStyle: FontStyle.italic,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: Spacing.sm),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: FGColors.success.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'S$currentWeek',
-                      style: FGTypography.caption.copyWith(
-                        color: FGColors.success,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 10,
+                const SizedBox(height: 2),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        programName,
+                        style: FGTypography.h3.copyWith(
+                          fontWeight: FontWeight.w900,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: Spacing.sm),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: FGColors.success.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'S$currentWeek',
+                        style: FGTypography.caption.copyWith(
+                          color: FGColors.success,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: Spacing.sm),
           GestureDetector(
             onTap: () => _openCreateFlow(),
             child: Container(

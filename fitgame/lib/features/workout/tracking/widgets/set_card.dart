@@ -98,32 +98,37 @@ class SetCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // Weight
-              Column(
-                children: [
-                  Text(
-                    weightType == 'bodyweight'
-                        ? 'PDC'
-                        : weightType == 'bodyweight_plus'
-                            ? '+${_formatWeight(currentSet.targetWeight)}'
-                            : _formatWeight(currentSet.targetWeight),
-                    style: FGTypography.display.copyWith(
-                      color: FGColors.accent,
-                      fontSize: weightType == 'bodyweight' ? 42 : 56,
+              Flexible(
+                child: Column(
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        weightType == 'bodyweight'
+                            ? 'PDC'
+                            : weightType == 'bodyweight_plus'
+                                ? '+${_formatWeight(currentSet.targetWeight)}'
+                                : _formatWeight(currentSet.targetWeight),
+                        style: FGTypography.display.copyWith(
+                          color: FGColors.accent,
+                          fontSize: weightType == 'bodyweight' ? 42 : 56,
+                        ),
+                      ),
                     ),
-                  ),
-                  Text(
-                    weightType == 'bodyweight'
-                        ? 'poids du corps'
-                        : weightType == 'bodyweight_plus'
-                            ? '+kg'
-                            : 'kg',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
+                    Text(
+                      weightType == 'bodyweight'
+                          ? 'poids du corps'
+                          : weightType == 'bodyweight_plus'
+                              ? '+kg'
+                              : 'kg',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
 
               Padding(
@@ -137,23 +142,28 @@ class SetCard extends StatelessWidget {
               ),
 
               // Reps
-              Column(
-                children: [
-                  Text(
-                    isMaxReps ? 'MAX' : '${currentSet.targetReps}',
-                    style: FGTypography.display.copyWith(
-                      fontSize: isMaxReps ? 42 : 56,
+              Flexible(
+                child: Column(
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        isMaxReps ? 'MAX' : '${currentSet.targetReps}',
+                        style: FGTypography.display.copyWith(
+                          fontSize: isMaxReps ? 42 : 56,
+                        ),
+                      ),
                     ),
-                  ),
-                  Text(
-                    isMaxReps ? 'reps max' : 'reps',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
+                    Text(
+                      isMaxReps ? 'reps max' : 'reps',
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

@@ -428,6 +428,8 @@ class _ActivatePlanDialogState extends State<_ActivatePlanDialog> {
           Text(
             'Activer "${widget.planName}"',
             style: FGTypography.h3,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: Spacing.md),
           Text(

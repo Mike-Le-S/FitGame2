@@ -129,37 +129,48 @@ class _MainNavigationState extends State<MainNavigation> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(
-                  icon: Icons.home_rounded,
-                  label: 'Accueil',
-                  index: 0,
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.home_rounded,
+                    label: 'Accueil',
+                    index: 0,
+                  ),
                 ),
-                _buildNavItem(
-                  icon: Icons.fitness_center_rounded,
-                  label: 'Entraînement',
-                  index: 1,
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.fitness_center_rounded,
+                    label: 'Entraînement',
+                    index: 1,
+                  ),
                 ),
-                _buildNavItem(
-                  icon: Icons.people_rounded,
-                  label: 'Social',
-                  index: 2,
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.people_rounded,
+                    label: 'Social',
+                    index: 2,
+                  ),
                 ),
-                _buildNavItem(
-                  icon: Icons.restaurant_rounded,
-                  label: 'Nutrition',
-                  index: 3,
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.restaurant_rounded,
+                    label: 'Nutrition',
+                    index: 3,
+                  ),
                 ),
-                _buildNavItem(
-                  icon: Icons.favorite_rounded,
-                  label: 'Santé',
-                  index: 4,
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.favorite_rounded,
+                    label: 'Santé',
+                    index: 4,
+                  ),
                 ),
-                _buildNavItem(
-                  icon: Icons.person_rounded,
-                  label: 'Profil',
-                  index: 5,
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.person_rounded,
+                    label: 'Profil',
+                    index: 5,
+                  ),
                 ),
               ],
             ),
@@ -183,8 +194,8 @@ class _MainNavigationState extends State<MainNavigation> {
         });
       },
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -194,12 +205,15 @@ class _MainNavigationState extends State<MainNavigation> {
               color: isSelected ? FGColors.accent : FGColors.textSecondary,
             ),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? FGColors.accent : FGColors.textSecondary,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? FGColors.accent : FGColors.textSecondary,
+                ),
               ),
             ),
           ],

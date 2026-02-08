@@ -91,33 +91,39 @@ class EnergyDetailSheet extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _buildDetailStat(
-                              'Consommé',
-                              '$caloriesConsumed',
-                              'kcal',
-                              const Color(0xFF00D9FF),
+                            Expanded(
+                              child: _buildDetailStat(
+                                'Consommé',
+                                '$caloriesConsumed',
+                                'kcal',
+                                const Color(0xFF00D9FF),
+                              ),
                             ),
                             Container(
                               width: 1,
                               height: 50,
                               color: FGColors.glassBorder,
                             ),
-                            _buildDetailStat(
-                              'Dépensé',
-                              '$caloriesBurned',
-                              'kcal',
-                              FGColors.accent,
+                            Expanded(
+                              child: _buildDetailStat(
+                                'Dépensé',
+                                '$caloriesBurned',
+                                'kcal',
+                                FGColors.accent,
+                              ),
                             ),
                             Container(
                               width: 1,
                               height: 50,
                               color: FGColors.glassBorder,
                             ),
-                            _buildDetailStat(
-                              isDeficit ? 'Déficit' : 'Surplus',
-                              '${netCalories.abs()}',
-                              'kcal',
-                              isDeficit ? FGColors.success : FGColors.warning,
+                            Expanded(
+                              child: _buildDetailStat(
+                                isDeficit ? 'Déficit' : 'Surplus',
+                                '${netCalories.abs()}',
+                                'kcal',
+                                isDeficit ? FGColors.success : FGColors.warning,
+                              ),
                             ),
                           ],
                         ),

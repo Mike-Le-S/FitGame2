@@ -120,8 +120,15 @@ class _BarcodeScannerSheetState extends State<BarcodeScannerSheet> {
               children: [
                 const Icon(Icons.qr_code_scanner, color: FGColors.accent),
                 const SizedBox(width: Spacing.sm),
-                Text('Scanner un code-barres', style: FGTypography.h3),
-                const Spacer(),
+                Expanded(
+                  child: Text(
+                    'Scanner un code-barres',
+                    style: FGTypography.h3,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: Spacing.sm),
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: Container(

@@ -33,6 +33,8 @@ class FoodItem extends StatelessWidget {
 
     // Show actual / plan prévu format
     return RichText(
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       text: TextSpan(
         style: FGTypography.caption.copyWith(
           color: FGColors.textSecondary,
@@ -78,31 +80,34 @@ class FoodItem extends StatelessWidget {
                 ],
               ),
             ),
-            Row(
-              children: [
-                MacroPill(
-                  value: '${food['p']}p',
-                  color: const Color(0xFFE74C3C).withValues(alpha: 0.2),
-                ),
-                const SizedBox(width: 4),
-                MacroPill(
-                  value: '${food['c']}c',
-                  color: const Color(0xFF3498DB).withValues(alpha: 0.2),
-                ),
-                const SizedBox(width: 4),
-                MacroPill(
-                  value: '${food['f']}f',
-                  color: const Color(0xFFF39C12).withValues(alpha: 0.2),
-                ),
-                const SizedBox(width: Spacing.sm),
-                Text(
-                  '${food['cal']}',
-                  style: FGTypography.body.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+            Flexible(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MacroPill(
+                    value: '${food['p']}p',
+                    color: const Color(0xFFE74C3C).withValues(alpha: 0.2),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 4),
+                  MacroPill(
+                    value: '${food['c']}c',
+                    color: const Color(0xFF3498DB).withValues(alpha: 0.2),
+                  ),
+                  const SizedBox(width: 4),
+                  MacroPill(
+                    value: '${food['f']}f',
+                    color: const Color(0xFFF39C12).withValues(alpha: 0.2),
+                  ),
+                  const SizedBox(width: Spacing.sm),
+                  Text(
+                    '${food['cal']}',
+                    style: FGTypography.body.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

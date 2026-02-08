@@ -133,6 +133,8 @@ class FriendActivityPeek extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: FGColors.textPrimary,
                 ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
               Text(
                 activity.workout,
@@ -140,6 +142,8 @@ class FriendActivityPeek extends StatelessWidget {
                   fontSize: 11,
                   color: FGColors.textSecondary,
                 ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ],
           ),

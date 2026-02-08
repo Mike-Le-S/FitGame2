@@ -408,10 +408,14 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
                   children: [
                     Row(
                       children: [
-                        Text(
-                          workout['day_name'] as String,
-                          style: FGTypography.body.copyWith(
-                            fontWeight: FontWeight.w700,
+                        Flexible(
+                          child: Text(
+                            workout['day_name'] as String,
+                            style: FGTypography.body.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (prs > 0) ...[
@@ -487,13 +491,13 @@ class _WorkoutHistoryScreenState extends State<WorkoutHistoryScreen>
                 value: '${workout['duration']}',
                 unit: 'min',
               ),
-              const SizedBox(width: Spacing.lg),
+              const SizedBox(width: Spacing.sm),
               _buildStatItem(
                 icon: Icons.fitness_center_rounded,
                 value: '${workout['exercises']}',
                 unit: 'exos',
               ),
-              const SizedBox(width: Spacing.lg),
+              const SizedBox(width: Spacing.sm),
               _buildStatItem(
                 icon: Icons.monitor_weight_outlined,
                 value: _formatVolume(workout['volume'] as int),

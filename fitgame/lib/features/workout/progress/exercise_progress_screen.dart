@@ -299,6 +299,8 @@ class _ExerciseProgressScreenState extends State<ExerciseProgressScreen>
                   style: FGTypography.h3.copyWith(
                     letterSpacing: 1.2,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 if (_history != null && _history!.muscleGroup.isNotEmpty)
                   Text(
@@ -420,21 +422,25 @@ class _ExerciseProgressScreenState extends State<ExerciseProgressScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      '+${progressPct.toStringAsFixed(1)}%',
-                      style: FGTypography.h2.copyWith(
-                        color: FGColors.success,
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '+${progressPct.toStringAsFixed(1)}%',
+                        style: FGTypography.h2.copyWith(
+                          color: FGColors.success,
+                        ),
                       ),
-                    ),
-                    Text(
-                      ' depuis le début',
-                      style: FGTypography.body.copyWith(
-                        color: FGColors.textSecondary,
+                      TextSpan(
+                        text: ' depuis le début',
+                        style: FGTypography.body.copyWith(
+                          color: FGColors.textSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(

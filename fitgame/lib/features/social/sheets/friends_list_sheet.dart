@@ -280,12 +280,16 @@ class _FriendsListSheetState extends State<FriendsListSheet> {
                   ),
                   Row(
                     children: [
-                      Text(
-                        friend.lastActiveText,
-                        style: FGTypography.caption.copyWith(
-                          color: friend.isOnline
-                              ? FGColors.success
-                              : FGColors.textSecondary,
+                      Flexible(
+                        child: Text(
+                          friend.lastActiveText,
+                          style: FGTypography.caption.copyWith(
+                            color: friend.isOnline
+                                ? FGColors.success
+                                : FGColors.textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (friend.streak > 0) ...[

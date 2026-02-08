@@ -1266,13 +1266,16 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                     color: FGColors.glassSurface.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(Spacing.xs),
                   ),
-                  child: Text(
-                    '${_fmtW(w)}×$r',
-                    textAlign: TextAlign.center,
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '${_fmtW(w)}×$r',
+                      textAlign: TextAlign.center,
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                 ),
@@ -1341,12 +1344,16 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                   ),
                   Icon(Icons.check_rounded, color: FGColors.success, size: 12),
                   const SizedBox(width: Spacing.xs),
-                  Text(
-                    '$weightStr × ${s.actualReps}',
-                    style: FGTypography.caption.copyWith(
-                      color: FGColors.textPrimary,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
+                  Expanded(
+                    child: Text(
+                      '$weightStr × ${s.actualReps}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: FGTypography.caption.copyWith(
+                        color: FGColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],

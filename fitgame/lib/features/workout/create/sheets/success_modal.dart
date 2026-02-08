@@ -140,6 +140,9 @@ class _SuccessModalState extends State<SuccessModal>
                 color: FGColors.accent,
                 fontWeight: FontWeight.w600,
               ),
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
             ),
             const SizedBox(height: Spacing.lg),
             // Stats row

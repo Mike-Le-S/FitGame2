@@ -209,12 +209,17 @@ class ChallengeDetailSheet extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: FGTypography.body.copyWith(
-            color: FGColors.textSecondary,
+        Flexible(
+          child: Text(
+            label,
+            style: FGTypography.body.copyWith(
+              color: FGColors.textSecondary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
+        const SizedBox(width: Spacing.md),
         Text(
           value,
           style: FGTypography.body.copyWith(

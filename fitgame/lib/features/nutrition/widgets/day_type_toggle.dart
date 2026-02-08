@@ -102,12 +102,16 @@ class _ToggleOption extends StatelessWidget {
               size: 18,
             ),
             const SizedBox(width: Spacing.xs),
-            Text(
-              label,
-              style: FGTypography.caption.copyWith(
-                color: isSelected ? color : FGColors.textSecondary,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                letterSpacing: 0.5,
+            Flexible(
+              child: Text(
+                label,
+                style: FGTypography.caption.copyWith(
+                  color: isSelected ? color : FGColors.textSecondary,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  letterSpacing: 0.5,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

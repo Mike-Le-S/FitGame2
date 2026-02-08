@@ -90,7 +90,7 @@ class _CreateChoiceScreenState extends State<CreateChoiceScreen>
                   _buildHeader(),
                   const SizedBox(height: Spacing.xxl),
                   Expanded(
-                    child: Padding(
+                    child: SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,6 +140,7 @@ class _CreateChoiceScreenState extends State<CreateChoiceScreen>
                             isPrimary: false,
                             onTap: () => _showExcelImport(),
                           ),
+                          const SizedBox(height: Spacing.lg),
                         ],
                       ),
                     ),

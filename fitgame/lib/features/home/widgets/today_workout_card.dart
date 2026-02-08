@@ -131,6 +131,8 @@ class TodayWorkoutCard extends StatelessWidget {
                             fontWeight: FontWeight.w900,
                             fontStyle: FontStyle.italic,
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                         if (sessionMuscles != null && sessionMuscles!.isNotEmpty)
                           Text(
@@ -140,6 +142,8 @@ class TodayWorkoutCard extends StatelessWidget {
                             style: FGTypography.caption.copyWith(
                               color: FGColors.textSecondary,
                             ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                       ],
                     ),

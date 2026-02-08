@@ -202,6 +202,8 @@ class _ExerciseConfigSheetState extends State<ExerciseConfigSheet> {
                 Text(
                   widget.exercise['name'] as String,
                   style: FGTypography.h3,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   widget.exercise['muscle'] as String,

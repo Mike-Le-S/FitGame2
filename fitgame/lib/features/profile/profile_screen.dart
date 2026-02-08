@@ -404,6 +404,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                           fontWeight: FontWeight.w900,
                           fontStyle: FontStyle.italic,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -544,7 +546,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             AchievementsSheet.show(context);
           },
           child: Row(
-            children: _achievements.map((achievement) {
+            children: _achievements.take(5).map((achievement) {
               final isUnlocked = achievement['unlocked'] as bool;
               return _buildAchievementBadge(
                 icon: achievement['icon'] as IconData,
