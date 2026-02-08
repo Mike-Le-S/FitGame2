@@ -19,9 +19,11 @@ class ExerciseNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(exercises.length, (index) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(exercises.length, (index) {
         final isActive = index == currentIndex;
         final isCompleted = index < currentIndex ||
             (index == currentIndex &&
@@ -58,6 +60,7 @@ class ExerciseNavigation extends StatelessWidget {
           ),
         );
       }),
+      ),
     );
   }
 }

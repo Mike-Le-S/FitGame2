@@ -932,7 +932,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
       _sessions.add({
         'name': 'Nouvelle séance',
         'muscles': '',
-        'exercises': <Map<String, String>>[],
+        'exercises': <Map<String, dynamic>>[],
       });
       _hasChanges = true;
     });
@@ -1006,7 +1006,7 @@ class _ProgramEditScreenState extends State<ProgramEditScreen>
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erreur: $e'),
+            content: const Text('Erreur lors de la sauvegarde du programme'),
             backgroundColor: FGColors.error,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(

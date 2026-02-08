@@ -611,10 +611,8 @@ class _SessionCreationScreenState extends State<SessionCreationScreen>
       );
 
       if (mounted) {
-        // Navigate to active workout
-        Navigator.pop(context);
-        Navigator.pushReplacement(
-          context,
+        // Navigate to active workout (single atomic operation)
+        Navigator.of(context).pushAndRemoveUntil(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 const ActiveWorkoutScreen(),
@@ -632,6 +630,7 @@ class _SessionCreationScreenState extends State<SessionCreationScreen>
             },
             transitionDuration: const Duration(milliseconds: 400),
           ),
+          (route) => route.isFirst,
         );
       }
     } catch (e) {

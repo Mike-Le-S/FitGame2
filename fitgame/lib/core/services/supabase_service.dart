@@ -320,6 +320,7 @@ class SupabaseService {
     String? programId,
     required String dayName,
     required List<Map<String, dynamic>> exercises,
+    DateTime? startedAt,
   }) async {
     if (currentUser == null) throw Exception('Non authentifié');
 
@@ -329,7 +330,7 @@ class SupabaseService {
           'user_id': currentUser!.id,
           'program_id': programId,
           'day_name': dayName,
-          'started_at': DateTime.now().toIso8601String(),
+          'started_at': (startedAt ?? DateTime.now()).toIso8601String(),
           'exercises': exercises,
         })
         .select()

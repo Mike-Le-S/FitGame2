@@ -128,7 +128,8 @@ class _ProgressChartPainter extends CustomPainter {
 
     for (int i = 0; i < entries.length; i++) {
       final entry = entries[i];
-      final x = paddingLeft + (chartWidth / (entries.length - 1)) * i;
+      final divisor = entries.length > 1 ? entries.length - 1 : 1;
+      final x = paddingLeft + (chartWidth / divisor) * i;
       final y = paddingTop +
           chartHeight -
           ((entry.weight - minWeight) / weightRange) * chartHeight;

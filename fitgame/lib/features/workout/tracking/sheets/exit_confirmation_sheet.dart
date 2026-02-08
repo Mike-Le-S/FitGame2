@@ -6,11 +6,13 @@ import '../../../../core/constants/spacing.dart';
 class ExitConfirmationSheet extends StatelessWidget {
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
+  final VoidCallback? onSaveAndQuit;
 
   const ExitConfirmationSheet({
     super.key,
     required this.onConfirm,
     required this.onCancel,
+    this.onSaveAndQuit,
   });
 
   @override
@@ -63,7 +65,9 @@ class ExitConfirmationSheet extends StatelessWidget {
               const SizedBox(height: Spacing.sm),
 
               Text(
-                'Ta progression sera perdue.',
+                onSaveAndQuit != null
+                    ? 'Tu peux sauvegarder ta progression avant de quitter.'
+                    : 'Ta progression sera perdue.',
                 style: FGTypography.body.copyWith(
                   color: FGColors.textSecondary,
                 ),
@@ -71,6 +75,29 @@ class ExitConfirmationSheet extends StatelessWidget {
               ),
 
               const SizedBox(height: Spacing.xl),
+
+              // Save & quit button (if available)
+              if (onSaveAndQuit != null) ...[
+                GestureDetector(
+                  onTap: onSaveAndQuit,
+                  child: Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(vertical: Spacing.md),
+                    decoration: BoxDecoration(
+                      color: FGColors.success,
+                      borderRadius: BorderRadius.circular(Spacing.md),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'SAUVEGARDER & QUITTER',
+                        style: FGTypography.button,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Spacing.sm),
+              ],
 
               // Buttons
               Row(

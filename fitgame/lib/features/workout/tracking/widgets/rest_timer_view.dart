@@ -31,7 +31,9 @@ class RestTimerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = 1 - (restSecondsRemaining / totalRestSeconds);
+    final progress = totalRestSeconds > 0
+        ? 1 - (restSecondsRemaining / totalRestSeconds)
+        : 0.0;
 
     return Center(
       child: Padding(

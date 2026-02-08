@@ -26,7 +26,7 @@ class PRHistoryList extends StatelessWidget {
       return 'Il y a ${diff.inDays} jours';
     } else {
       final weeks = (diff.inDays / 7).round();
-      return 'S${7 - weeks + 1}';
+      return 'Il y a $weeks sem.';
     }
   }
 

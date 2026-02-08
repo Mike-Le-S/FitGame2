@@ -18,10 +18,10 @@ class NumberPickerSheet extends StatefulWidget {
   });
 
   @override
-  State<NumberPickerSheet> createState() => NumberPickerSheetState();
+  State<NumberPickerSheet> createState() => _NumberPickerSheetState();
 }
 
-class NumberPickerSheetState extends State<NumberPickerSheet> {
+class _NumberPickerSheetState extends State<NumberPickerSheet> {
   late double _value;
   late TextEditingController _controller;
 
@@ -65,8 +65,10 @@ class NumberPickerSheetState extends State<NumberPickerSheet> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border.all(color: FGColors.glassBorder),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, Spacing.md),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, Spacing.md),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -117,9 +119,13 @@ class NumberPickerSheetState extends State<NumberPickerSheet> {
                         ),
                       ),
                       onChanged: (value) {
+                        if (value.trim().isEmpty) {
+                          _value = 0;
+                          return;
+                        }
                         final parsed = double.tryParse(value);
                         if (parsed != null) {
-                          _value = parsed;
+                          _value = parsed.clamp(0, 9999);
                         }
                       },
                       onSubmitted: (_) => _confirm(),
@@ -204,6 +210,7 @@ class NumberPickerSheetState extends State<NumberPickerSheet> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

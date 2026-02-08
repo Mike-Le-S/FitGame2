@@ -48,6 +48,12 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   int _currentSetIndex = 0;
   bool _isResting = false;
   int _restSecondsRemaining = 0;
+  int _restTotalSeconds = 0;
+  // Cached rest timer preview (captured before index advances)
+  double? _restNextSetWeight;
+  int? _restNextSetReps;
+  String? _restNextExerciseName;
+  String? _restNextExerciseMuscle;
   Timer? _restTimer;
   Timer? _workoutTimer;
   int _workoutSeconds = 0;
@@ -88,6 +94,24 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     _exercisePageController = PageController(initialPage: 0);
   }
 
+  /// Match program day to today's weekday, fallback to first day
+  Map<String, dynamic> _matchTodayDay(List<dynamic> days) {
+    const weekdayNames = {
+      1: 'lundi', 2: 'mardi', 3: 'mercredi',
+      4: 'jeudi', 5: 'vendredi', 6: 'samedi', 7: 'dimanche',
+    };
+    final todayName = weekdayNames[DateTime.now().weekday]!;
+    for (final day in days) {
+      if (day is! Map<String, dynamic>) continue;
+      final dayMap = day;
+      final dayName = (dayMap['name'] ?? '').toString().toLowerCase();
+      if (dayName.contains(todayName)) {
+        return dayMap;
+      }
+    }
+    return days[0] as Map<String, dynamic>;
+  }
+
   Future<void> _loadWorkoutFromProgram() async {
     try {
       // Try to load from active program
@@ -106,9 +130,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         final days = program['days'] as List? ?? [];
 
         if (days.isNotEmpty) {
-          final firstDay = days[0] as Map<String, dynamic>;
-          final exercisesData = firstDay['exercises'] as List? ?? [];
-          final dayName = firstDay['name']?.toString() ?? 'Jour 1';
+          final matchedDay = _matchTodayDay(days);
+          final exercisesData = matchedDay['exercises'] as List? ?? [];
+          final dayName = matchedDay['name']?.toString() ?? 'Jour 1';
 
           // Load last session data for each exercise (non-blocking)
           _loadLastSessionData(
@@ -234,7 +258,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
       for (final name in exerciseNames) {
         final history = await SupabaseService.getExerciseHistory(name, limit: 1);
         if (history.isNotEmpty) {
-          final sets = (history.first['sets'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          final sets = (history.first['sets'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [];
           if (sets.isNotEmpty && mounted) {
             setState(() {
               _lastSessionSets[name] = sets;
@@ -376,7 +400,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         final isVeryLastSet =
             exIdx == _exercises.length - 1 && sIdx == ex.sets.length - 1;
         if (!isVeryLastSet) {
-          remaining += s.isWarmup ? 45 : ex.restSeconds;
+          remaining += s.isWarmup ? 60 : ex.restSeconds;
         }
       }
 
@@ -408,8 +432,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
       return histAvg.round();
     }
 
-    // Priority 3: Formula fallback (3s/rep + 5s setup)
-    return workoutSet.targetReps * 3 + 5;
+    // Priority 3: Formula fallback (4s/rep + 20s setup/rerack)
+    return workoutSet.targetReps * 4 + 20;
   }
 
   /// Estimate transition duration between exercises
@@ -424,8 +448,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               measuredTransitions.length)
           .round();
     }
-    // Default: 60 seconds
-    return 60;
+    // Default: 90 seconds
+    return 90;
   }
 
   /// Build TimeStats for the workout complete screen
@@ -468,6 +492,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   void _validateSet() {
     final exercise = _exercises[_currentExerciseIndex];
     final currentSet = exercise.sets[_currentSetIndex];
+
+    // Guard: don't re-validate already completed sets
+    if (currentSet.isCompleted) return;
 
     // Record set duration
     if (_currentSetStartTime != null) {
@@ -524,21 +551,38 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
 
     // Move to next set or exercise
     if (_currentSetIndex < exercise.sets.length - 1) {
+      // Cache next set preview BEFORE advancing
+      final nextSet = exercise.sets[_currentSetIndex + 1];
+      _restNextSetWeight = nextSet.targetWeight;
+      _restNextSetReps = nextSet.targetReps;
+      _restNextExerciseName = null;
+      _restNextExerciseMuscle = null;
+      _restTotalSeconds = restSeconds ?? exercise.restSeconds;
       setState(() {
         _currentSetIndex++;
       });
       _startRestTimer(overrideSeconds: restSeconds);
     } else if (_currentExerciseIndex < _exercises.length - 1) {
+      // Cache next exercise preview BEFORE advancing
+      final nextExercise = _exercises[_currentExerciseIndex + 1];
+      final nextFirstSet = nextExercise.sets.isNotEmpty ? nextExercise.sets.first : null;
+      _restNextSetWeight = nextFirstSet?.targetWeight;
+      _restNextSetReps = nextFirstSet?.targetReps;
+      _restNextExerciseName = nextExercise.name;
+      _restNextExerciseMuscle = nextExercise.muscle;
+      _restTotalSeconds = restSeconds ?? exercise.restSeconds;
       // Move to next exercise
       setState(() {
         _currentExerciseIndex++;
         _currentSetIndex = 0;
       });
-      _exercisePageController.animateToPage(
-        _currentExerciseIndex,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeOutCubic,
-      );
+      if (mounted) {
+        _exercisePageController.animateToPage(
+          _currentExerciseIndex,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic,
+        );
+      }
       _startRestTimer(overrideSeconds: restSeconds);
     } else {
       // Workout complete
@@ -578,19 +622,22 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     try {
       // Build exercises data for Supabase
       final exercisesData = _exercises.map((ex) {
-        final setsData = ex.sets.map((set) => {
-          'setNumber': ex.sets.indexOf(set) + 1,
-          'isWarmup': set.isWarmup,
-          'targetWeight': set.targetWeight,
-          'targetReps': set.targetReps,
-          'actualWeight': set.actualWeight,
-          'actualReps': set.actualReps,
-          'completed': set.isCompleted,
-          if (set.actualDurationSeconds != null)
-            'actualDurationSeconds': set.actualDurationSeconds,
-          if (set.actualRestSeconds != null)
-            'actualRestSeconds': set.actualRestSeconds,
-        }).toList();
+        final setsData = List.generate(ex.sets.length, (i) {
+          final set = ex.sets[i];
+          return <String, dynamic>{
+            'setNumber': i + 1,
+            'isWarmup': set.isWarmup,
+            'targetWeight': set.targetWeight,
+            'targetReps': set.targetReps,
+            'actualWeight': set.actualWeight,
+            'actualReps': set.actualReps,
+            'completed': set.isCompleted,
+            if (set.actualDurationSeconds != null)
+              'actualDurationSeconds': set.actualDurationSeconds,
+            if (set.actualRestSeconds != null)
+              'actualRestSeconds': set.actualRestSeconds,
+          };
+        });
 
         return {
           'exerciseName': ex.name,
@@ -631,6 +678,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             programId: _programId,
             dayName: _dayName,
             exercises: exercisesData,
+            startedAt: _workoutStartTime,
           );
           _sessionId = session['id'];
         }
@@ -780,15 +828,23 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
   }
 
   void _showExitConfirmation() {
+    final hasCompletedSets = _exercises.any((ex) => ex.sets.any((s) => s.isCompleted));
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => ExitConfirmationSheet(
+      builder: (sheetContext) => ExitConfirmationSheet(
         onConfirm: () {
-          Navigator.pop(context);
+          Navigator.pop(sheetContext);
           Navigator.pop(context);
         },
-        onCancel: () => Navigator.pop(context),
+        onCancel: () => Navigator.pop(sheetContext),
+        onSaveAndQuit: hasCompletedSets ? () async {
+          Navigator.pop(sheetContext);
+          await _saveWorkoutSession();
+          if (mounted) {
+            Navigator.pop(context);
+          }
+        } : null,
       ),
     );
   }
@@ -910,32 +966,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                   child: _isResting
                       ? RestTimerView(
                           restSecondsRemaining: _restSecondsRemaining,
-                          totalRestSeconds:
-                              _exercises[_currentExerciseIndex].restSeconds,
-                          nextSetWeight: _exercises[_currentExerciseIndex]
-                              .sets[_currentSetIndex]
-                              .targetWeight,
-                          nextSetReps: _exercises[_currentExerciseIndex]
-                              .sets[_currentSetIndex]
-                              .targetReps,
-                          nextExerciseName: _currentExerciseIndex <
-                                      _exercises.length - 1 &&
-                                  _currentSetIndex >=
-                                      _exercises[_currentExerciseIndex]
-                                              .sets
-                                              .length -
-                                          1
-                              ? _exercises[_currentExerciseIndex + 1].name
-                              : null,
-                          nextExerciseMuscle: _currentExerciseIndex <
-                                      _exercises.length - 1 &&
-                                  _currentSetIndex >=
-                                      _exercises[_currentExerciseIndex]
-                                              .sets
-                                              .length -
-                                          1
-                              ? _exercises[_currentExerciseIndex + 1].muscle
-                              : null,
+                          totalRestSeconds: _restTotalSeconds,
+                          nextSetWeight: _restNextSetWeight,
+                          nextSetReps: _restNextSetReps,
+                          nextExerciseName: _restNextExerciseName,
+                          nextExerciseMuscle: _restNextExerciseMuscle,
                           onSkipRest: _skipRest,
                           onAddRestTime: () => _addRestTime(30),
                         )
@@ -1055,6 +1090,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
               previousBest: exercise.previousBest,
               isWarmup: currentSet.isWarmup,
               currentSetIndex: _currentSetIndex,
+              workSetNumber: currentSet.isWarmup ? null : _workSetNumber(exercise, _currentSetIndex),
               weightType: exercise.weightType,
               isMaxReps: currentSet.isMaxReps,
               lastSessionSet: _getLastSessionSet(exercise.name, _currentSetIndex),
@@ -1120,56 +1156,68 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     );
   }
 
-  /// Compact inline notes — tappable to open full notes sheet
+  /// Inline notes — scrollable inside the card with visible scrollbar
   Widget _buildInlineNotes(Exercise exercise) {
-    return GestureDetector(
-      onTap: () => _showNotesSheet(exercise),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 120),
       child: FGGlassCard.standard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (exercise.notes.isNotEmpty)
-              Row(
+        child: ScrollbarTheme(
+          data: ScrollbarThemeData(
+            thumbColor: WidgetStatePropertyAll(
+              FGColors.textSecondary.withValues(alpha: 0.3),
+            ),
+            thickness: const WidgetStatePropertyAll(3),
+            radius: const Radius.circular(2),
+            minThumbLength: 20,
+          ),
+          child: Scrollbar(
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(right: Spacing.sm),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.lightbulb_outline_rounded, color: FGColors.accent, size: 16),
-                  const SizedBox(width: Spacing.sm),
-                  Expanded(
-                    child: Text(
-                      exercise.notes,
-                      style: FGTypography.body.copyWith(
-                        color: FGColors.textSecondary,
-                        fontSize: 13,
-                      ),
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
+                  if (exercise.notes.isNotEmpty)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.lightbulb_outline_rounded, color: FGColors.accent, size: 16),
+                        const SizedBox(width: Spacing.sm),
+                        Expanded(
+                          child: Text(
+                            exercise.notes,
+                            style: FGTypography.body.copyWith(
+                              color: FGColors.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                  if (exercise.notes.isNotEmpty && exercise.progressionRule.isNotEmpty)
+                    const SizedBox(height: Spacing.sm),
+                  if (exercise.progressionRule.isNotEmpty)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.trending_up_rounded, color: FGColors.success, size: 16),
+                        const SizedBox(width: Spacing.sm),
+                        Expanded(
+                          child: Text(
+                            exercise.progressionRule,
+                            style: FGTypography.body.copyWith(
+                              color: FGColors.success.withValues(alpha: 0.8),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
-            if (exercise.notes.isNotEmpty && exercise.progressionRule.isNotEmpty)
-              const SizedBox(height: Spacing.sm),
-            if (exercise.progressionRule.isNotEmpty)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.trending_up_rounded, color: FGColors.success, size: 16),
-                  const SizedBox(width: Spacing.sm),
-                  Expanded(
-                    child: Text(
-                      exercise.progressionRule,
-                      style: FGTypography.body.copyWith(
-                        color: FGColors.success.withValues(alpha: 0.8),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-          ],
+            ),
+          ),
         ),
       ),
     );
@@ -1410,14 +1458,12 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
             ),
           ),
 
-          // Estimated remaining time
-          ..._buildTimeEstimateRow(),
-
-          // Next exercise
-          if (nextExercise != null) ...[
-            const SizedBox(height: Spacing.xs),
-            Row(
-              children: [
+          // Bottom row: next exercise (left) + time estimate (right)
+          const SizedBox(height: Spacing.xs),
+          Row(
+            children: [
+              // Next exercise
+              if (nextExercise != null) ...[
                 Container(
                   padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
@@ -1457,8 +1503,12 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
                   ),
                 ),
               ],
-            ),
-          ],
+              if (nextExercise == null)
+                const Spacer(),
+              // Time estimate
+              ..._buildTimeEstimateWidgets(),
+            ],
+          ),
         ],
       ),
     );
@@ -1490,8 +1540,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     );
   }
 
-  /// Build the estimated remaining time row with transition alert
-  List<Widget> _buildTimeEstimateRow() {
+  /// Build time estimate widgets for inline use in a Row
+  List<Widget> _buildTimeEstimateWidgets() {
     final estimatedSeconds = _calculateEstimatedRemainingSeconds();
 
     // Transition alert: first set of new exercise, lingering too long
@@ -1502,7 +1552,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         !_isResting) {
       final timeSinceEnd =
           DateTime.now().difference(_lastExerciseEndTime!).inSeconds;
-      // Alert if exceeds rest + 90s
       final prevEx = _exercises[_currentExerciseIndex - 1];
       final expectedRest = prevEx.restSeconds;
       if (timeSinceEnd > expectedRest + 90) {
@@ -1517,10 +1566,10 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     } else if (estimatedSeconds >= 3600) {
       final h = estimatedSeconds ~/ 3600;
       final m = (estimatedSeconds % 3600) ~/ 60;
-      timeStr = '~${h}h ${m.toString().padLeft(2, '0')} restantes';
+      timeStr = '~${h}h${m.toString().padLeft(2, '0')}';
     } else {
       final m = estimatedSeconds ~/ 60;
-      timeStr = '~$m min restantes';
+      timeStr = '~$m min';
     }
 
     // Color: green when < 5 min, orange on alert, otherwise secondary
@@ -1534,25 +1583,19 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
     }
 
     return [
-      const SizedBox(height: Spacing.xs),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (isTransitionAlert) ...[
-            Icon(Icons.bolt_rounded, size: 11, color: FGColors.warning),
-            const SizedBox(width: 2),
-          ],
-          Icon(Icons.schedule_rounded, size: 11, color: timeColor),
-          const SizedBox(width: Spacing.xs),
-          Text(
-            timeStr,
-            style: FGTypography.caption.copyWith(
-              color: timeColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 10,
-            ),
-          ),
-        ],
+      if (isTransitionAlert) ...[
+        Icon(Icons.bolt_rounded, size: 11, color: FGColors.warning),
+        const SizedBox(width: 2),
+      ],
+      Icon(Icons.schedule_rounded, size: 11, color: timeColor),
+      const SizedBox(width: Spacing.xs),
+      Text(
+        timeStr,
+        style: FGTypography.caption.copyWith(
+          color: timeColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 10,
+        ),
       ),
     ];
   }
@@ -1622,7 +1665,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen>
         margin: const EdgeInsets.all(Spacing.md),
         padding: const EdgeInsets.all(Spacing.lg),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
+          color: FGColors.background,
           borderRadius: BorderRadius.circular(Spacing.lg),
           border: Border.all(color: FGColors.glassBorder),
         ),

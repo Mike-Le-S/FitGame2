@@ -98,8 +98,8 @@ class WorkoutCompleteSheet extends StatelessWidget {
                   const SizedBox(width: Spacing.sm),
                   Expanded(child: _buildStatCard(
                     Icons.local_fire_department_rounded,
-                    '${(totalVolume * 0.05).toInt()}',
-                    'Kcal',
+                    '~${(totalVolume * 0.05).toInt()}',
+                    'Kcal (est.)',
                   )),
                 ],
               ),

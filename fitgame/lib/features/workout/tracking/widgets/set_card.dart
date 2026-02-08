@@ -11,6 +11,7 @@ class SetCard extends StatelessWidget {
   final double previousBest;
   final bool isWarmup;
   final int currentSetIndex;
+  final int? workSetNumber;
   final String weightType;
   final bool isMaxReps;
   final Map<String, dynamic>? lastSessionSet;
@@ -22,6 +23,7 @@ class SetCard extends StatelessWidget {
     required this.previousBest,
     required this.isWarmup,
     required this.currentSetIndex,
+    this.workSetNumber,
     this.weightType = 'kg',
     this.isMaxReps = false,
     this.lastSessionSet,
@@ -77,7 +79,7 @@ class SetCard extends StatelessWidget {
                 )
               else
                 Text(
-                  'SÉRIE ${currentSetIndex + 1}',
+                  'SÉRIE ${workSetNumber ?? currentSetIndex + 1}',
                   style: FGTypography.caption.copyWith(
                     color: FGColors.textSecondary,
                     fontWeight: FontWeight.w900,
