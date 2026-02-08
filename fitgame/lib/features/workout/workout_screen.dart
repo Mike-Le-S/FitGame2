@@ -53,6 +53,8 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   void Function(Map<String, dynamic>)? _assignmentListener;
 
   List<Map<String, dynamic>> recentSessions = [];
+  // Raw sessions for historical duration lookup
+  List<Map<String, dynamic>> _rawSessions = [];
 
   List<Map<String, dynamic>> get savedPrograms {
     // Combine my programs and assigned programs
@@ -188,6 +190,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         _assignedPrograms = assignedPrograms;
         _coachInfo = coachInfo;
         _programWeeks = programWeeks;
+        _rawSessions = sessions;
         _isLoading = false;
 
         // Set active program
@@ -217,10 +220,10 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     currentWeek = program['currentWeek'] as int;
     totalWeeks = program['weeks'] as int;
 
-    // Set next session from program days
+    // Set next session from program days — match today's weekday
     final days = program['days'] as List? ?? [];
     if (days.isNotEmpty) {
-      final firstDay = days[0] as Map<String, dynamic>;
+      final firstDay = _matchTodayDay(days);
       nextSessionName = firstDay['name'] ?? 'Jour 1';
 
       // Extract muscles from exercises
@@ -245,8 +248,9 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       }
       nextSessionSets = totalSets;
 
-      // Estimate duration
-      nextSessionDuration = exercises.length * 8 + 10;
+      // Use historical duration if available, otherwise estimate from program data
+      nextSessionDuration = _getHistoricalDuration(nextSessionName) ??
+          _estimateWorkoutMinutes(exercises);
     } else {
       nextSessionName = 'Séance';
       nextSessionMuscles = '';
@@ -254,6 +258,82 @@ class _WorkoutScreenState extends State<WorkoutScreen>
       nextSessionSets = 0;
       nextSessionDuration = 45;
     }
+  }
+
+  /// Match program day to today's weekday, fallback to first day
+  Map<String, dynamic> _matchTodayDay(List<dynamic> days) {
+    const weekdayNames = {
+      1: 'lundi', 2: 'mardi', 3: 'mercredi',
+      4: 'jeudi', 5: 'vendredi', 6: 'samedi', 7: 'dimanche',
+    };
+    final todayName = weekdayNames[DateTime.now().weekday]!;
+    for (final day in days) {
+      final dayMap = day as Map<String, dynamic>;
+      final dayName = (dayMap['name'] ?? '').toString().toLowerCase();
+      if (dayName.contains(todayName)) {
+        return dayMap;
+      }
+    }
+    return days[0] as Map<String, dynamic>;
+  }
+
+  /// Look up actual duration from the most recent completed session with the same day name
+  int? _getHistoricalDuration(String dayName) {
+    final normalizedDay = dayName.toLowerCase();
+    for (final session in _rawSessions) {
+      final sessionDay = (session['day_name'] ?? '').toString().toLowerCase();
+      final completedAt = session['completed_at'];
+      final duration = (session['duration_minutes'] as num?)?.toInt();
+      if (sessionDay == normalizedDay && completedAt != null && duration != null && duration > 0) {
+        return duration;
+      }
+    }
+    return null;
+  }
+
+  int _estimateWorkoutMinutes(List<dynamic> exercises) {
+    int totalSeconds = 0;
+    for (final ex in exercises) {
+      final customSets = ex['customSets'] as List?;
+      final hasWarmup = ex['warmup'] == true || ex['warmupEnabled'] == true;
+      final restSeconds = (ex['restSeconds'] as num?)?.toInt() ??
+          (ex['rest_seconds'] as num?)?.toInt() ?? 90;
+
+      int workSetCount;
+      int avgReps;
+      if (customSets != null && customSets.isNotEmpty) {
+        final workSets = customSets.where((s) => s['isWarmup'] != true).toList();
+        workSetCount = workSets.length;
+        avgReps = workSets.isNotEmpty
+            ? (workSets.map((s) => (s['reps'] as num?)?.toInt() ?? 10)
+                .reduce((a, b) => a + b) / workSets.length).round()
+            : 10;
+      } else {
+        workSetCount = (ex['sets'] as num?)?.toInt() ?? 3;
+        avgReps = (ex['reps'] as num?)?.toInt() ?? 10;
+      }
+
+      final warmupSetCount = hasWarmup ? (workSetCount >= 4 ? 3 : 2) : 0;
+      final workSetDuration = avgReps * 4 + 20;
+      // Warmups avg ~6 reps (10, 5, 3 or 8, 3)
+      const warmupSetDuration = 6 * 4 + 20; // 44s
+
+      for (int i = 0; i < workSetCount; i++) {
+        totalSeconds += workSetDuration;
+        if (i < workSetCount - 1) {
+          totalSeconds += restSeconds;
+        }
+      }
+      for (int i = 0; i < warmupSetCount; i++) {
+        totalSeconds += warmupSetDuration;
+        totalSeconds += 60;
+      }
+      totalSeconds += 90; // transition
+    }
+    if (exercises.isNotEmpty) {
+      totalSeconds -= 90;
+    }
+    return (totalSeconds / 60).round().clamp(5, 180);
   }
 
   void _processRecentSessions(List<Map<String, dynamic>> sessions) {

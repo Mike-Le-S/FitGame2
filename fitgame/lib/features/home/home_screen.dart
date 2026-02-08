@@ -38,6 +38,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int? _exerciseCount;
   int? _estimatedMinutes;
 
+  // Raw sessions for historical duration lookup
+  List<Map<String, dynamic>> _rawSessions = [];
+
   // Widget data from Supabase
   Map<String, dynamic>? _todayHealth;
   Map<String, dynamic>? _todayNutrition;
@@ -60,24 +63,100 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _loadUserData();
   }
 
+  /// Look up actual duration from the most recent completed session with the same day name
+  int? _getHistoricalDuration(String dayName) {
+    final normalizedDay = dayName.toLowerCase();
+    for (final session in _rawSessions) {
+      final sessionDay = (session['day_name'] ?? '').toString().toLowerCase();
+      final completedAt = session['completed_at'];
+      final duration = (session['duration_minutes'] as num?)?.toInt();
+      if (sessionDay == normalizedDay && completedAt != null && duration != null && duration > 0) {
+        return duration;
+      }
+    }
+    return null;
+  }
+
+  /// Estimate workout duration from program exercise data
+  int _estimateWorkoutMinutes(List<dynamic> exercises) {
+    int totalSeconds = 0;
+
+    for (final ex in exercises) {
+      final customSets = ex['customSets'] as List?;
+      final hasWarmup = ex['warmup'] == true || ex['warmupEnabled'] == true;
+      final restSeconds = (ex['restSeconds'] as num?)?.toInt() ??
+          (ex['rest_seconds'] as num?)?.toInt() ?? 90;
+
+      // Count work sets
+      int workSetCount;
+      int avgReps;
+      if (customSets != null && customSets.isNotEmpty) {
+        final workSets = customSets.where((s) => s['isWarmup'] != true).toList();
+        workSetCount = workSets.length;
+        avgReps = workSets.isNotEmpty
+            ? (workSets.map((s) => (s['reps'] as num?)?.toInt() ?? 10)
+                .reduce((a, b) => a + b) / workSets.length).round()
+            : 10;
+      } else {
+        workSetCount = (ex['sets'] as num?)?.toInt() ?? 3;
+        avgReps = (ex['reps'] as num?)?.toInt() ?? 10;
+      }
+
+      // Warmup sets estimate (2-3 warmup sets if enabled)
+      final warmupSetCount = hasWarmup ? (workSetCount >= 4 ? 3 : 2) : 0;
+
+      // Set execution time: reps × 4s + 20s (setup, unrack, rerack, breathing)
+      final workSetDuration = avgReps * 4 + 20;
+      // Warmups avg ~6 reps (10, 5, 3 or 8, 3)
+      const warmupSetDuration = 6 * 4 + 20; // 44s
+
+      // Work sets: execution + rest (no rest after last set of exercise)
+      for (int i = 0; i < workSetCount; i++) {
+        totalSeconds += workSetDuration;
+        if (i < workSetCount - 1) {
+          totalSeconds += restSeconds;
+        }
+      }
+
+      // Warmup sets: execution + 60s rest
+      for (int i = 0; i < warmupSetCount; i++) {
+        totalSeconds += warmupSetDuration;
+        totalSeconds += 60;
+      }
+
+      // Transition to next exercise: 90s (walk, load plates, adjust)
+      totalSeconds += 90;
+    }
+
+    // Remove last transition (no transition after last exercise)
+    if (exercises.isNotEmpty) {
+      totalSeconds -= 90;
+    }
+
+    return (totalSeconds / 60).round().clamp(5, 180);
+  }
+
   Future<void> _loadUserData() async {
     try {
-      // Load profile and programs in parallel
+      // Load profile, programs, and sessions in parallel
       final results = await Future.wait([
         SupabaseService.getCurrentProfile(),
         SupabaseService.getPrograms(),
         SupabaseService.getAssignedPrograms(),
+        SupabaseService.getWorkoutSessions(limit: 10),
       ]);
 
       final profile = results[0] as Map<String, dynamic>?;
       final myPrograms = results[1] as List<Map<String, dynamic>>;
       final assignedPrograms = results[2] as List<Map<String, dynamic>>;
+      final sessions = results[3] as List<Map<String, dynamic>>;
 
       if (mounted) {
         setState(() {
           // User info
           _userName = profile?['full_name'] ?? '';
           _currentStreak = profile?['current_streak'] ?? 0;
+          _rawSessions = sessions;
 
           // Get first available program (prioritize assigned from coach)
           final allPrograms = [...assignedPrograms, ...myPrograms];
@@ -115,7 +194,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               }
               _sessionMuscles = muscles.take(2).join(' • ');
               _exerciseCount = exercises.length;
-              _estimatedMinutes = exercises.length * 8 + 10;
+              _estimatedMinutes = _getHistoricalDuration(_sessionName!) ??
+                  _estimateWorkoutMinutes(exercises);
             }
           }
         });
